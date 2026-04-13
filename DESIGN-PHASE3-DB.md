@@ -1412,7 +1412,259 @@ Phase 4.0: UI + Claw 運用ツール                           [2-3週間]
 
 ---
 
+---
+
+## 12. 補足: PersonBlueprint の不変性と例外ルール
+
+### 12.1 原則
+
+> PersonBlueprint は **ゲームエンジンからは不変**。変更できるのは **Claw のみ**、かつ **ゲーム開始前またはオフシーズン中** に限る。
+
+### 12.2 Claw が補正できるフィールドと条件
+
+| フィールド | 補正可能か | 条件 | 用途 |
+|-----------|-----------|------|------|
+| `firstName`, `lastName` | ❌ 不可 | — | 名前は生涯不変 |
+| `birthYear` | ❌ 不可 | — | 年齢計算の基盤 |
+| `height`, `weight` | ⚠️ 生成後24h以内のみ | 誤生成の修正 | 身体パラメータの明らかなミス |
+| `primaryPosition`, `subPositions` | ⚠️ 高校入学前のみ | 中学時代の成長を反映 | 投手→野手転向など |
+| `traits` | ⚠️ 高校入学前のみ | 中学時代のイベントを反映 | 性格形成イベント |
+| `initialStats` | ❌ 不可 | — | 中1時点の能力は確定済み |
+| `ceilingStats` | ✅ いつでも可 | バランス調整 | 天井値の上方/下方修正 |
+| `growthProfile.growthType` | ❌ 不可 | — | 成長の根幹は不変 |
+| `growthProfile.curves[*].baseRate` | ✅ いつでも可 | バランス調整 | 成長速度の微調整 |
+| `growthProfile.curves[*].peakAge` | ✅ いつでも可 | バランス調整 | ピーク時期の調整 |
+| `growthProfile.curves[*].peakWidth` | ✅ いつでも可 | バランス調整 | ピーク幅の調整 |
+| `growthProfile.curves[*].variance` | ✅ いつでも可 | バランス調整 | 揺らぎの調整 |
+| `growthProfile.slumpRisk` | ✅ いつでも可 | バランス調整 | スランプ耐性の調整 |
+| `growthProfile.durability` | ✅ いつでも可 | バランス調整 | 怪我耐性の調整 |
+| `qualityTier` | ❌ 不可 | — | 生成時の分類は不変 |
+
+### 12.3 補正の監査ログ
+
+```sql
+CREATE TABLE blueprint_edits (
+  id            TEXT PRIMARY KEY,
+  blueprint_id  TEXT NOT NULL REFERENCES person_blueprints(id),
+  edited_at     TIMESTAMP NOT NULL,
+  edited_by     TEXT NOT NULL,           -- "claw_auto" | "claw_manual"
+  field_path    TEXT NOT NULL,           -- "growth_profile.curves.contact.peakAge"
+  old_value     TEXT NOT NULL,           -- JSON
+  new_value     TEXT NOT NULL,           -- JSON
+  reason        TEXT NOT NULL            -- 補正理由
+);
+```
+
+全ての補正は `blueprint_edits` に記録される。これにより：
+- いつ、誰が、何を、なぜ変えたかが追跡可能
+- バランス崩壊時に補正を巻き戻せる
+- 補正の影響範囲を後から分析できる
+
+### 12.4 ゲームエンジンが Blueprint を変えない理由
+
+1. **再現性**: 同じ Blueprint + 同じ RNG シード → 同じ成長結果。Blueprint が動的に変わるとシード再現が壊れる
+2. **責務分離**: ゲームエンジンは「今の状態」を変える。「設計図」を変えるのは別の責務（Claw）
+3. **デバッグ容易性**: 能力が想定外の値になった時、Blueprint が不変なら原因は PersonState 側の計算に限定できる
+4. **マルチプレイ将来拡張**: 同じ Blueprint を共有する複数のゲーム世界（シナリオ分岐）が可能になる
+
+---
+
+## 13. 補足: 基礎成長と試合後成長の関係整理
+
+### 13.1 成長の2つの経路
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    1日の成長フロー                        │
+│                                                         │
+│  経路A: 基礎成長（練習ベース）                           │
+│  ──────────────────────────                              │
+│  発火条件: 練習日（毎日）                                │
+│  入力: StatGrowthCurve + PracticeMenu + コンディション   │
+│  計算: calculateStatGainV3()                             │
+│  対象: 練習メニューの statEffects に含まれる能力のみ     │
+│  倍率: ×1.0（通常）、×1.5（合宿）                       │
+│                                                         │
+│  経路B: 試合成長（試合経験ベース）                       │
+│  ──────────────────────────                              │
+│  発火条件: 大会の試合に出場した日のみ                    │
+│  入力: StatGrowthCurve + 試合個人成績 + 大会コンテキスト │
+│  計算: applyMatchGrowthV3()                              │
+│  対象: 試合で使った能力（打撃系/投球系/守備系）          │
+│  倍率: ×2.0（地区）、×2.5（県）、×3.0（甲子園）        │
+│                                                         │
+│  ⚠️ 両方は同日に発生しない                               │
+│  練習日 → 経路A のみ                                    │
+│  試合日 → 経路B のみ（練習しない）                       │
+│  オフ日 → どちらも発生しない                             │
+└─────────────────────────────────────────────────────────┘
+```
+
+### 13.2 基礎成長と試合成長の計算式の関係
+
+```typescript
+// === 経路A: 基礎成長 ===
+function dailyPracticeGain(curve: StatGrowthCurve, ctx: GrowthContextV3, rng: RNG): number {
+  return curve.baseRate
+    * peakMultiplier(ctx.currentAge, curve.peakAge, curve.peakWidth)
+    * moodMultiplier(ctx.mood)
+    * fatigueMultiplier(ctx.fatigue)
+    * traitMultiplier(ctx.traits)
+    * ctx.seasonMultiplier            // 合宿 ×1.5
+    * ceilingPenalty(ctx.current, ctx.ceiling)
+    * slumpFactor(ctx.isInSlump, curve.slumpPenalty)
+    * affinityFactor(curve, ctx.practiceMenuId)
+    * varianceSample(curve.variance, rng);
+}
+
+// === 経路B: 試合成長 ===
+// 基本構造は経路Aと同じ StatGrowthCurve を使う。
+// 違いは「baseGain の算出元」と「倍率」。
+
+function matchGain(curve: StatGrowthCurve, ctx: MatchGrowthContextV3, rng: RNG): number {
+  // 試合での実績に基づく baseGain を算出
+  const performanceGain = calculatePerformanceGain(ctx.performance);
+  
+  return performanceGain
+    * curve.baseRate                   // ← 同じ StatGrowthCurve を参照
+    * peakMultiplier(ctx.currentAge, curve.peakAge, curve.peakWidth)  // ← 同じピーク関数
+    * MATCH_GROWTH_MULTIPLIER          // 試合倍率 ×2.0
+    * tournamentBonus(ctx.tournamentType)  // 大会種別ボーナス
+    * clutchBonus(ctx.isClutch)        // 得点圏ボーナス
+    * ceilingPenalty(ctx.current, ctx.ceiling)
+    * varianceSample(curve.variance, rng);
+}
+
+// 試合成長のポイント:
+// 1. StatGrowthCurve.baseRate と peakAge/peakWidth を共有
+//    → 「練習で伸びやすい時期 ≒ 試合でも伸びやすい時期」
+// 2. slumpPenalty は試合成長には適用しない
+//    → 「スランプ中でも実戦で結果を出せば成長する」設計
+// 3. 練習メニュー適性(practiceAffinity)は試合成長には適用しない
+//    → 試合は実績ベースなので練習タイプは関係ない
+```
+
+### 13.3 経路A / 経路B の StatGrowthCurve 共有まとめ
+
+| StatGrowthCurve のパラメータ | 経路A（練習） | 経路B（試合） |
+|---------------------------|-------------|-------------|
+| `baseRate` | ✅ 使用 | ✅ 使用（performanceGain との乗算） |
+| `peakAge` | ✅ 使用 | ✅ 使用 |
+| `peakWidth` | ✅ 使用 | ✅ 使用 |
+| `variance` | ✅ 使用 | ✅ 使用 |
+| `slumpPenalty` | ✅ 使用 | ❌ 不使用（試合は実績ベース） |
+| `practiceAffinity` | ✅ 使用 | ❌ 不使用（試合に練習タイプなし） |
+
+### 13.4 年間の成長量内訳（contact, 高2普通型の例）
+
+| 成長源 | 日数 | 1日あたり | 年間合計 | 割合 |
+|--------|------|----------|---------|------|
+| 練習日（基礎成長） | ~280日 | 0.035 | +9.8 | 75% |
+| 大会試合（試合成長） | ~8試合 | 0.40 | +3.2 | 25% |
+| **合計** | | | **+13.0** | 100% |
+
+甲子園出場時（+4試合）: 試合成長が +4.8 に増加、合計 +14.6（+12%ボーナス）
+
+---
+
+## 14. 補足: PersonRegistry の forgotten 降格と物理削除
+
+### 14.1 forgotten への降格条件
+
+```typescript
+function shouldForgotten(entry: PersonRegistryEntry, currentYear: number): boolean {
+  // 現役は絶対に forgotten にしない
+  if (entry.stage.type === 'middle_school' || entry.stage.type === 'high_school') {
+    return false;
+  }
+  
+  const graduationYear = entry.stage.type === 'graduated' ? entry.stage.year
+    : entry.stage.type === 'pro' ? entry.stage.year
+    : 0;
+  
+  const yearsSince = currentYear - graduationYear;
+  
+  // プロ入り選手は引退後さらに10年は保持
+  if (entry.stage.type === 'pro' || entry.proRecord) {
+    const retirementYear = entry.proRecord?.retirementYear ?? graduationYear + 15;
+    const yearsSinceRetirement = currentYear - retirementYear;
+    return yearsSinceRetirement > 10;
+  }
+  
+  // 殿堂入り / 記録保持者は永久保持（forgotten にしない）
+  if (entry.graduateSummary?.achievements.some(a => 
+    a.includes('甲子園優勝') || a.includes('ドラフト1位') || a.includes('殿堂')
+  )) {
+    return false;
+  }
+  
+  // 一般卒業生: 卒業後20年で forgotten
+  return yearsSince > 20;
+}
+```
+
+### 14.2 forgotten の扱い
+
+| 操作 | 可否 | 説明 |
+|------|------|------|
+| ランタイムメモリ上での参照 | ❌ | PersonRegistry から削除済み |
+| DB 上での存在 | ✅ | person_blueprints テーブルには永久に残る |
+| OB検索画面からの表示 | ✅ | DBに問い合わせて再取得（遅延ロード） |
+| 成績の参照 | ⚠️ | DB上の blueprint + 最終成績サマリ（ランタイムの詳細は失われている） |
+
+### 14.3 物理削除のポリシー
+
+> **DB上の PersonBlueprint は物理削除しない。**
+
+理由:
+1. **ストレージコスト**: 1人 ~1KB。10万人でも 100MB。問題にならない
+2. **参照整合性**: 大会結果・ドラフト履歴が blueprint_id を参照している。削除すると外部キー違反
+3. **再発見の価値**: 30年後に「あの時の選手を調べたい」需要がある
+4. **Claw の学習データ**: 過去の全世代データは、将来の世代生成の品質改善に使える
+
+### 14.4 ランタイムからの除去タイミング
+
+```typescript
+// 年度替わりトランザクションの Phase F で実行
+function prunePersonRegistry(registry: PersonRegistry, currentYear: number): PersonRegistry {
+  const prunedEntries = new Map<string, PersonRegistryEntry>();
+  
+  for (const [id, entry] of registry.entries) {
+    if (shouldForgotten(entry, currentYear)) {
+      // ランタイムから除去（DB には残る）
+      continue;
+    }
+    
+    // retention レベルを更新
+    const newRetention = updateRetention(entry, currentYear);
+    
+    if (newRetention === 'archived' && entry.retention === 'tracked') {
+      // tracked → archived: 詳細データを圧縮
+      prunedEntries.set(id, compressToArchive(entry));
+    } else {
+      prunedEntries.set(id, { ...entry, retention: newRetention });
+    }
+  }
+  
+  return { ...registry, entries: prunedEntries };
+}
+```
+
+### 14.5 セーブデータへの影響
+
+| retention | セーブに含むか | データ量 |
+|-----------|--------------|---------|
+| full | ✅ 全データ | ~2KB/人 |
+| tracked | ✅ サマリのみ | ~500B/人 |
+| archived | ✅ 最小限 | ~100B/人 |
+| forgotten | ❌ 含まない | 0 |
+
+セーブデータ削減効果（20年目の例）:
+- forgotten なし: ~6.0MB
+- forgotten あり: ~4.6MB（**-23%**）
+
+---
+
 > **次のステップ**:  
-> 1. この設計のレビュー  
-> 2. 合意後、DESIGN-PHASE3.md を v0.3.0 として統合（3ファイルを1つに）  
-> 3. Phase 3.0a（DB基盤）から実装開始
+> 設計レビュー完了。Phase 3.0a の実装を開始する。  
+> 最初の報告ポイント: PersonBlueprint / PersonState / hydratePlayer の型定義 + world-ticker 骨格
