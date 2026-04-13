@@ -98,14 +98,14 @@ export function processFullInning(
   rng: RNG,
   homeTactics?: (state: MatchState, rng: RNG) => TacticalOrder,
   awayTactics?: (state: MatchState, rng: RNG) => TacticalOrder,
-): { nextState: MatchState; isSayonara: boolean } {
+): { nextState: MatchState; isSayonara: boolean; atBatResults: AtBatResult[] } {
   // ── 表（away攻撃） ──
   const topState: MatchState = {
     ...state,
     currentHalf: 'top' as HalfInning,
   };
 
-  const { nextState: afterTop } = processHalfInning(
+  const { nextState: afterTop, result: topResult } = processHalfInning(
     topState,
     rng.derive(`top-${state.currentInning}`),
     awayTactics,
@@ -120,6 +120,7 @@ export function processFullInning(
     return {
       nextState: afterTop,
       isSayonara: false,
+      atBatResults: topResult.atBats,
     };
   }
 
@@ -131,7 +132,7 @@ export function processFullInning(
   };
 
   // サヨナラ判定付きの裏イニング処理
-  const { nextState: afterBottom } = processHalfInningSayonara(
+  const { nextState: afterBottom, result: bottomResult } = processHalfInningSayonara(
     bottomState,
     rng.derive(`bottom-${state.currentInning}`),
     state.currentInning >= state.config.innings,
@@ -145,6 +146,7 @@ export function processFullInning(
   return {
     nextState: afterBottom,
     isSayonara,
+    atBatResults: [...topResult.atBats, ...bottomResult.atBats],
   };
 }
 

@@ -10,10 +10,15 @@ import type {
   TacticalOrder,
   HalfInning,
   InningResult,
+  AtBatResult,
 } from './types';
 import { EMPTY_BASES } from './types';
 import { processFullInning } from './inning';
-import { MATCH_CONSTANTS } from './constants';
+import {
+  collectBatterStats,
+  collectPitcherStats,
+  selectMVP,
+} from './result';
 
 // ============================================================
 // 試合実行
@@ -50,13 +55,14 @@ export function runGame(
     result: null,
   };
 
+  const allAtBatResults: AtBatResult[] = [];
   const maxInnings = config.innings + config.maxExtras;
   const safetyMaxInnings = config.isTournament ? config.innings + 15 : maxInnings;
 
   for (let inning = 1; inning <= safetyMaxInnings; inning++) {
     state = { ...state, currentInning: inning };
 
-    const { nextState, isSayonara } = processFullInning(
+    const { nextState, isSayonara, atBatResults } = processFullInning(
       state,
       rng.derive(`inning-${inning}`),
       homeTactics,
@@ -64,28 +70,29 @@ export function runGame(
     );
 
     state = nextState;
+    allAtBatResults.push(...atBatResults);
 
     // サヨナラ勝ち
     if (isSayonara) {
-      return finishGame(state, inning);
+      return finishGame(state, inning, allAtBatResults);
     }
 
     // 規定イニング終了後の判定
     if (inning >= config.innings) {
       // 同点でなければ試合終了
       if (state.score.home !== state.score.away) {
-        return finishGame(state, inning);
+        return finishGame(state, inning, allAtBatResults);
       }
 
       // 延長上限チェック（トーナメント以外）
       if (!config.isTournament && inning >= maxInnings) {
-        return finishGame(state, inning); // 引き分け
+        return finishGame(state, inning, allAtBatResults); // 引き分け
       }
     }
   }
 
   // safety valve
-  return finishGame(state, state.currentInning);
+  return finishGame(state, state.currentInning, allAtBatResults);
 }
 
 // ============================================================
@@ -95,6 +102,7 @@ export function runGame(
 function finishGame(
   state: MatchState,
   totalInnings: number,
+  allAtBatResults: AtBatResult[],
 ): { finalState: MatchState; result: MatchResult } {
   const winner =
     state.score.home > state.score.away
@@ -102,6 +110,42 @@ function finishGame(
       : state.score.away > state.score.home
         ? 'away'
         : 'draw';
+
+  // 全選手IDリスト
+  const allPlayerIds = [
+    ...state.homeTeam.players.map((p) => p.player.id),
+    ...state.awayTeam.players.map((p) => p.player.id),
+  ];
+
+  // 投手IDリスト
+  const homePitcherIds = state.homeTeam.players
+    .filter((p) => p.player.stats.pitching)
+    .map((p) => p.player.id);
+  const awayPitcherIds = state.awayTeam.players
+    .filter((p) => p.player.stats.pitching)
+    .map((p) => p.player.id);
+  const allPitcherIds = [...homePitcherIds, ...awayPitcherIds];
+
+  // 成績集計
+  const batterStats = collectBatterStats(allAtBatResults, allPlayerIds);
+  const pitcherStats = collectPitcherStats(
+    allAtBatResults,
+    allPitcherIds,
+    winner as 'home' | 'away' | 'draw',
+    homePitcherIds,
+    awayPitcherIds,
+  );
+
+  // MVP選出
+  const homeBatterIds = state.homeTeam.battingOrder;
+  const awayBatterIds = state.awayTeam.battingOrder;
+  const mvpPlayerId = selectMVP(
+    batterStats,
+    pitcherStats,
+    winner as 'home' | 'away' | 'draw',
+    homeBatterIds,
+    awayBatterIds,
+  );
 
   const result: MatchResult = {
     winner: winner as 'home' | 'away' | 'draw',
@@ -111,9 +155,9 @@ function finishGame(
       away: [...state.inningScores.away],
     },
     totalInnings,
-    mvpPlayerId: null, // MVP選出はM5以降
-    batterStats: collectBatterStats(state),
-    pitcherStats: collectPitcherStats(state),
+    mvpPlayerId,
+    batterStats,
+    pitcherStats,
   };
 
   const finalState: MatchState = {
@@ -123,14 +167,4 @@ function finishGame(
   };
 
   return { finalState, result };
-}
-
-function collectBatterStats(_state: MatchState): MatchBatterStat[] {
-  // M4簡易版: logベースの集計は後続フェーズ
-  return [];
-}
-
-function collectPitcherStats(_state: MatchState): MatchPitcherStat[] {
-  // M4簡易版: logベースの集計は後続フェーズ
-  return [];
 }
