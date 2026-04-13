@@ -75,6 +75,20 @@ export function processHalfInning(
     currentState = { ...nextState, currentBatterIndex: newBatterIndex };
   }
 
+  // イニングスコアの当該回スロットが未初期化の場合は0で埋める
+  // （得点なしでも length が現在イニング数を反映するようにする）
+  const inningIdx = state.currentInning - 1;
+  const isBottom = state.currentHalf === 'bottom';
+  const scoreKey = isBottom ? 'home' : 'away';
+  if (currentState.inningScores[scoreKey].length <= inningIdx) {
+    const arr = [...currentState.inningScores[scoreKey]];
+    while (arr.length <= inningIdx) arr.push(0);
+    currentState = {
+      ...currentState,
+      inningScores: { ...currentState.inningScores, [scoreKey]: arr },
+    };
+  }
+
   const inningResult: InningResult = {
     inningNumber: state.currentInning,
     half: state.currentHalf,
@@ -194,6 +208,17 @@ function processHalfInningSayonara(
     if (checkSayonara && currentState.score.home > currentState.score.away) {
       break;
     }
+  }
+
+  // イニングスコアの当該回スロットが未初期化の場合は0で埋める
+  const sayonaraInningIdx = state.currentInning - 1;
+  if (currentState.inningScores.home.length <= sayonaraInningIdx) {
+    const arr = [...currentState.inningScores.home];
+    while (arr.length <= sayonaraInningIdx) arr.push(0);
+    currentState = {
+      ...currentState,
+      inningScores: { ...currentState.inningScores, home: arr },
+    };
   }
 
   const inningResult: InningResult = {

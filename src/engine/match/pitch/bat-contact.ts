@@ -92,7 +92,7 @@ export function generateBatContact(
       distance = 40 + powerFactor * rng.next() * 70; // 40-110m
       break;
     case 'fly_ball':
-      distance = 50 + powerFactor * rng.next() * 80; // 50-130m
+      distance = 40 + powerFactor * 60 + rng.next() * 40; // 40-140m, power依存
       break;
     case 'popup':
     default:

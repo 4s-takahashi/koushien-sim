@@ -65,10 +65,11 @@ export function getEffectiveBatterParams(mp: MatchPlayer): BatterParams {
   }
 
   return {
-    contact: p.stats.batting.contact * contactMult,
-    power: p.stats.batting.power * powerMult,
-    eye: p.stats.batting.eye * moodMult,
-    technique: p.stats.batting.technique * moodMult,
+    // 最低実効値を設定して低スペック選手の極端な挙動を抑制
+    contact: Math.max(60, p.stats.batting.contact * contactMult),
+    power: Math.max(20, p.stats.batting.power * powerMult),
+    eye: Math.max(30, p.stats.batting.eye * moodMult),
+    technique: Math.max(20, p.stats.batting.technique * moodMult),
     speed: p.stats.base.speed,
     mental: p.stats.base.mental,
     focus: p.stats.base.focus,
@@ -271,14 +272,18 @@ function addRuns(
   const idx = inningNumber - 1;
   if (isBottom) {
     const homeArr = [...inningScores.home];
-    homeArr[idx] = (homeArr[idx] ?? 0) + runs;
+    // fill any gaps with 0 to avoid sparse array NaN in reduce
+    while (homeArr.length <= idx) homeArr.push(0);
+    homeArr[idx] = homeArr[idx] + runs;
     return {
       score: { ...score, home: score.home + runs },
       inningScores: { ...inningScores, home: homeArr },
     };
   } else {
     const awayArr = [...inningScores.away];
-    awayArr[idx] = (awayArr[idx] ?? 0) + runs;
+    // fill any gaps with 0 to avoid sparse array NaN in reduce
+    while (awayArr.length <= idx) awayArr.push(0);
+    awayArr[idx] = awayArr[idx] + runs;
     return {
       score: { ...score, away: score.away + runs },
       inningScores: { ...inningScores, away: awayArr },

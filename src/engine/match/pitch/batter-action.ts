@@ -27,8 +27,8 @@ export function decideBatterAction(
 
   // (2) ボール球の見極め
   if (!isInZone) {
-    // eye=100 → 0%振る, eye=50 → 25%振る, eye=0 → 50%振る
-    let swingAtBall = (100 - batter.eye) / 200;
+    // eye=100 → 0%振る, eye=50 → 21.7%振る, eye=0 → 43.5%振る
+    let swingAtBall = (100 - batter.eye) / 230;
 
     // 変化球補正: キレが高いほど見極めにくい
     if (pitch.type !== 'fastball') {
@@ -44,7 +44,7 @@ export function decideBatterAction(
   }
 
   // (3) ストライクゾーン内: 見逃し判定
-  // contact=100 → 0%見逃し, contact=50 → 12.5%見逃し
+  // contact=100 → 0%見逃し, contact=50 → 12.5%見逃し, contact=0 → 25%
   let takeStrike = (100 - batter.contact) / 400;
 
   // カウント補正
@@ -53,7 +53,7 @@ export function decideBatterAction(
   } else if (count.strikes === 1) {
     takeStrike += 0.03;
   }
-  // 2ストライク → +0.00 (振らないと三振)
+  // 2ストライク → ほぼ振る
 
   return rng.chance(takeStrike) ? 'take' : 'swing';
 }

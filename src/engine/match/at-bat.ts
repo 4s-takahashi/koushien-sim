@@ -81,11 +81,14 @@ function applyWalkToState(
   if (scoredRuns > 0) {
     const idx = state.currentInning - 1;
     const key = isBottom ? 'home' : 'away';
+    const arr = [...inningScores[key]];
+    // fill any gaps with 0 to avoid sparse array NaN in reduce
+    while (arr.length <= idx) arr.push(0);
+    arr[idx] = arr[idx] + scoredRuns;
     inningScores = {
       ...inningScores,
-      [key]: [...inningScores[key]],
+      [key]: arr,
     };
-    inningScores[key][idx] = (inningScores[key][idx] ?? 0) + scoredRuns;
     score = { ...score, [key]: score[key] + scoredRuns };
   }
 
@@ -171,7 +174,8 @@ export function processAtBat(
   }
 
   // ── 打席ループ: processPitch を繰り返す ──
-  let currentState = state;
+  // カウントを打席開始時にリセット（前の打席のカウントを引き継がないよう）
+  let currentState = { ...state, count: { balls: 0, strikes: 0 } };
   let currentCount: Count = { balls: 0, strikes: 0 };
   const pitches: PitchResult[] = [];
   let atBatOutcome: AtBatOutcome | null = null;

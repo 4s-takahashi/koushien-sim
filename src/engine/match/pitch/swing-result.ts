@@ -22,7 +22,9 @@ export function calculateSwingResult(
   rng: RNG,
 ): SwingResultDetail {
   // ── (1) 接触判定 ──
-  let contactChance = (batter.contact / 100) * MATCH_CONSTANTS.BASE_CONTACT_RATE;
+  // contact=100→85%, contact=50→64%, contact=10→47%
+  // BASE_CONTACT_RATE は contact=100 時の上限接触率（0.85）
+  let contactChance = MATCH_CONSTANTS.BASE_CONTACT_RATE * (0.50 + 0.50 * (batter.contact / 100));
 
   // 変化球補正: キレが高いほど接触率低下
   if (pitch.type !== 'fastball') {
@@ -30,18 +32,18 @@ export function calculateSwingResult(
     contactChance -= bp.breakLevel * MATCH_CONSTANTS.BREAK_CONTACT_PENALTY;
   }
 
-  // 球速補正: 140km/h 超えると接触率低下
-  if (pitch.velocity > 140) {
-    contactChance -= ((pitch.velocity - 140) / 100) * 0.15;
+  // 球速補正: 145km/h 超えると接触率低下（緩和）
+  if (pitch.velocity > 145) {
+    contactChance -= ((pitch.velocity - 145) / 100) * 0.10;
   }
 
-  // コース補正
+  // コース補正（緩和）
   if (location.row <= 0 || location.row >= 4 || location.col <= 0 || location.col >= 4) {
     // ゾーン外
-    contactChance -= 0.15;
+    contactChance -= 0.10;
   } else if (location.row === 1 || location.row === 3 || location.col === 1 || location.col === 3) {
     // ゾーン際
-    contactChance -= 0.05;
+    contactChance -= 0.03;
   }
 
   contactChance = Math.max(0, contactChance);

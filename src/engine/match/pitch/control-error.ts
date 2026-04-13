@@ -14,7 +14,9 @@ export function applyControlError(
   control: number, // 実効コントロール値 (0-100)
   rng: RNG,
 ): PitchLocation {
-  const errorRange = ((100 - control) / 100) * MATCH_CONSTANTS.CONTROL_ERROR_SCALE;
+  // 最低有効コントロールを10として極端な暴投を抑制
+  const effectiveControl = Math.max(10, control);
+  const errorRange = ((100 - effectiveControl) / 100) * MATCH_CONSTANTS.CONTROL_ERROR_SCALE;
   const stddev = errorRange * 0.5;
 
   const rowError = rng.gaussian(0, stddev);
