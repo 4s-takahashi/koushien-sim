@@ -1,0 +1,80 @@
+import type { RNG } from '../../core/rng';
+import type { PitchType } from '../../types/player';
+import type { PitchLocation, PitchSelection } from '../types';
+import { MATCH_CONSTANTS } from '../constants';
+
+export interface SelectPitchResult {
+  selection: PitchSelection;
+  target: PitchLocation;
+}
+
+/**
+ * 球種とコースを選択する（投手のアクション）
+ */
+export function selectPitch(
+  velocity: number,
+  control: number,
+  availablePitches: Partial<Record<PitchType, number>>,
+  balls: number,
+  strikes: number,
+  rng: RNG,
+): SelectPitchResult {
+  // 球種選択
+  const countAdvantage = strikes > balls; // 追い込み
+  const countDisadvantage = balls > strikes; // 追い込まれている
+
+  let fastballRatio =
+    MATCH_CONSTANTS.FASTBALL_BASE_RATIO +
+    (countAdvantage ? 0.15 : 0) +
+    (countDisadvantage ? -0.1 : 0);
+
+  const isFastball = rng.chance(fastballRatio);
+  let selection: PitchSelection;
+
+  if (isFastball) {
+    selection = {
+      type: 'fastball',
+      velocity: velocity,
+    };
+  } else {
+    // 変化球からランダム選択
+    const pitchTypes = Object.keys(
+      availablePitches
+    ) as PitchType[];
+    if (pitchTypes.length === 0) {
+      // フォールバック: ストレート
+      selection = {
+        type: 'fastball',
+        velocity: velocity,
+      };
+    } else {
+      const pitchType = rng.pick(pitchTypes);
+      const breakLevel =
+        (availablePitches[pitchType] ?? 1) as number;
+      selection = {
+        type: pitchType,
+        velocity: velocity * 0.9, // 変化球は遅い
+        breakLevel,
+      };
+    }
+  }
+
+  // コース選択
+  const strikeZoneTargetRate =
+    MATCH_CONSTANTS.STRIKE_ZONE_TARGET_BASE +
+    (balls === 3 ? 0.15 : 0) + // フルカウント → ゾーン必須
+    (strikes === 2 ? 0.1 : 0); // 2ストライク → ゾーン際を狙う
+
+  const targetInZone = rng.chance(strikeZoneTargetRate);
+  const target: PitchLocation = targetInZone
+    ? {
+        row: rng.intBetween(1, 3),
+        col: rng.intBetween(1, 3),
+      }
+    : {
+        row: rng.intBetween(0, 4),
+        col: rng.intBetween(0, 4),
+      };
+
+  return { selection, target };
+}

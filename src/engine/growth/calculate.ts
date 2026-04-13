@@ -2,6 +2,7 @@ import type { Player, PlayerStats, Mood, Grade, GrowthType, TraitId } from '../t
 import type { PracticeMenu, StatTarget } from '../types/calendar';
 import type { RNG } from '../core/rng';
 import { GROWTH_CONSTANTS } from './constants';
+import { ceilingPenalty as sharedCeilingPenalty, getMoodMultiplier } from '../shared/stat-utils';
 
 export interface GrowthModifiers {
   growthRate: number;
@@ -25,14 +26,7 @@ function gradeMultiplier(grade: Grade, growthType: GrowthType): number {
 }
 
 function moodMultiplier(mood: Mood): number {
-  const map: Record<Mood, number> = {
-    excellent: 1.3,
-    good: 1.1,
-    normal: 1.0,
-    poor: 0.8,
-    terrible: 0.5,
-  };
-  return map[mood];
+  return getMoodMultiplier(mood);
 }
 
 function fatigueMultiplier(fatigue: number): number {
@@ -54,12 +48,7 @@ function traitMultiplier(traits: TraitId[]): number {
 }
 
 function ceilingPenalty(current: number, ceiling: number): number {
-  if (ceiling <= 0) return 0;
-  const ratio = current / ceiling;
-  if (ratio < 0.5) return 1.0;
-  if (ratio < 0.8) return 1.0 - (ratio - 0.5) * 0.5;
-  if (ratio < 0.95) return 0.3;
-  return 0.05;
+  return sharedCeilingPenalty(current, ceiling);
 }
 
 /** Get current stat value by target path */
