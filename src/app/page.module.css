@@ -460,3 +460,250 @@
   text-align: center;
   padding: 4px 0;
 }
+
+/* ============================================================
+   ウェルカムバナー（初回プレイ）
+   ============================================================ */
+
+.welcomeBanner {
+  background: linear-gradient(135deg, #fff8e1, #fff3cd);
+  border: 1px solid #ffe082;
+  border-left: 4px solid #f5a623;
+  padding: 16px 20px;
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.welcomeTitle {
+  font-family: var(--font-serif);
+  font-size: 16px;
+  font-weight: bold;
+  color: #8b5e00;
+  margin-bottom: 6px;
+  letter-spacing: 0.05em;
+}
+
+.welcomeText {
+  font-size: 13px;
+  color: var(--color-text);
+  margin-bottom: 10px;
+}
+
+.welcomeSteps {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0;
+  margin: 0;
+}
+
+.welcomeSteps li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.stepNum {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #f5a623;
+  color: #fff;
+  font-size: 11px;
+  font-weight: bold;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.stepText {
+  font-size: 13px;
+  color: var(--color-text);
+  line-height: 1.5;
+}
+
+.stepLink {
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+
+/* ============================================================
+   進行状況インジケーター
+   ============================================================ */
+
+.progressBar {
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0;
+  padding: 8px 16px;
+}
+
+.progressItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px 20px;
+  text-align: center;
+}
+
+.progressLabel {
+  font-size: 10px;
+  color: var(--color-text-sub);
+  letter-spacing: 0.05em;
+  margin-bottom: 2px;
+}
+
+.progressValue {
+  font-size: 13px;
+  font-weight: bold;
+  color: var(--color-text);
+  font-family: var(--font-serif);
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.progressSub {
+  font-size: 10px;
+  color: var(--color-text-sub);
+  font-weight: normal;
+  font-family: inherit;
+}
+
+.progressOverall {
+  font-size: 18px;
+  color: var(--color-primary);
+}
+
+.progressDivider {
+  width: 1px;
+  height: 28px;
+  background: var(--color-border);
+  flex-shrink: 0;
+}
+
+/* ============================================================
+   モバイル対応 (max-width: 768px)
+   ============================================================ */
+
+@media (max-width: 768px) {
+  /* ヘッダー */
+  .headerInner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .headerTitle {
+    font-size: 16px;
+  }
+
+  .headerMeta {
+    text-align: left;
+    font-size: 11px;
+  }
+
+  /* ナビゲーション：横スクロール */
+  .navInner {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap;
+    padding-bottom: 2px;
+  }
+
+  .navLink {
+    padding: 10px 14px;
+    font-size: 13px;
+    white-space: nowrap;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+  }
+
+  /* メインコンテンツ：1カラム */
+  .main {
+    grid-template-columns: 1fr;
+    padding: 12px 12px;
+    gap: 12px;
+  }
+
+  .cardFull {
+    grid-column: 1;
+  }
+
+  /* 今日やること */
+  .menuRow {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .menuSelect {
+    max-width: 100%;
+    width: 100%;
+    font-size: 14px;
+    padding: 10px 12px;
+    min-height: 44px;
+  }
+
+  .btnRow {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .btn {
+    min-height: 48px;
+    font-size: 14px;
+    flex: unset;
+  }
+
+  /* チームグリッド */
+  .teamGrid {
+    font-size: 14px;
+  }
+
+  /* ウェルカムバナー */
+  .welcomeBanner {
+    margin: 0;
+    border-radius: 0;
+    border-left: none;
+    border-top: 4px solid #f5a623;
+  }
+
+  /* 進行状況インジケーター */
+  .progressBar {
+    gap: 4px;
+    padding: 8px 8px;
+    justify-content: flex-start;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap;
+  }
+
+  .progressItem {
+    padding: 4px 12px;
+    flex-shrink: 0;
+  }
+
+  .progressDivider {
+    flex-shrink: 0;
+  }
+
+  /* セットアップ画面 */
+  .setupScreen {
+    margin: 20px auto;
+    padding: 20px 16px;
+    max-width: 100%;
+  }
+
+  .setupTitle {
+    font-size: 22px;
+  }
+}

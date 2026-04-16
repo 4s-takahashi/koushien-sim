@@ -146,3 +146,43 @@
   padding: 40px;
   color: var(--color-text-sub);
 }
+
+/* ============================================================
+   モバイル対応 (max-width: 768px)
+   ============================================================ */
+
+@media (max-width: 768px) {
+  .headerInner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .headerTitle {
+    font-size: 16px;
+  }
+
+  .navInner {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap;
+  }
+
+  .navLink {
+    padding: 10px 14px;
+    white-space: nowrap;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+  }
+
+  .main {
+    padding: 12px 12px;
+  }
+
+  .btn {
+    min-height: 44px;
+    padding: 10px 16px;
+    font-size: 14px;
+  }
+}

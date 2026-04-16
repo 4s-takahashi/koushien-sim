@@ -1,36 +1,191 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 甲子園への道 — 高校野球シミュレーション
 
-## Getting Started
+高校野球の監督となり、選手を育て、練習メニューを組み、大会で勝ち上がって**甲子園**を目指すシミュレーションゲームです。
 
-First, run the development server:
+---
+
+## 遊び方
+
+1. **ゲームを開始する** — 学校名・都道府県・監督名を入力してスタート
+2. **チームを確認する** — チーム画面で選手一覧とラインナップを確認
+3. **練習メニューを選ぶ** — ホーム画面で今日の練習内容を選択
+4. **1日ずつ進める** — 「練習して1日進む」で時間を進める
+5. **スカウトする** — 中学生を視察・勧誘して有望選手を獲得
+6. **大会で勝ち上がる** — 夏季大会・秋季大会で勝利を積み重ねる
+7. **甲子園を目指す** — 地方予選を突破して全国大会へ
+
+---
+
+## 操作説明
+
+### ホーム画面（`/`）
+- 今日の練習メニュー選択（7種類）
+- 「練習して1日進む」または「1週間まとめて進む」
+- チーム概要・注目選手・今後の予定を確認
+- 最近のニュース（試合結果・スカウト情報）
+- セーブ・ロードボタン
+
+### チーム（`/team`）
+- 選手一覧（背番号・ポジション・総合力・コンディション）
+- 自動生成されたラインナップ
+- 各選手の詳細ページへのリンク
+
+### 選手詳細（`/team/[id]`）
+- プロフィール（学年・ポジション・体格）
+- 能力値（打撃・投球・走塁・守備）バーグラフ付き
+- コンディション（疲労・怪我・精神状態）
+- 通算成績
+
+### スカウト（`/scout`）
+- 中学生選手のリスト・フィルター
+- 視察（スカウトレポート生成）
+- 勧誘（獲得交渉）
+- ウォッチリスト管理
+- 月ごとの視察予算管理
+
+### 試合結果（`/results`）
+- 通算成績（勝敗）
+- 試合カード（スコア・ハイライト）
+- イニングごとのスコアボード
+- 先発投手情報
+- 打席フロー
+
+### 大会（`/tournament`）
+- 現在の大会フェーズ表示
+- トーナメント表（ブラケット形式）
+- 過去大会の成績履歴
+
+### OB（`/ob`）
+- 卒業生一覧（進路：プロ・大学・社会人・引退）
+- 通算成績
+- 全体統計（総卒業生数・プロ輩出数など）
+
+### セーブ・ロード
+- **手動スロット 3つ**（いつでも上書き可能）
+- **自動セーブ 3種**：年度替わり前・月次・大会前
+  - 年度セーブは保護（上書き不可）
+- データはブラウザの localStorage に保存
+- ストレージ使用量の表示
+
+---
+
+## 画面一覧
+
+| 画面 | URL | 主な機能 |
+|------|-----|---------|
+| ホーム | `/` | 練習選択・日進行・ニュース |
+| チーム | `/team` | 選手一覧・ラインナップ |
+| 選手詳細 | `/team/:id` | 個人能力値・成績 |
+| スカウト | `/scout` | 中学生視察・勧誘 |
+| 大会 | `/tournament` | トーナメント表・履歴 |
+| 試合結果 | `/results` | スコアボード・ハイライト |
+| OB | `/ob` | 卒業生追跡 |
+
+---
+
+## 練習メニュー
+
+| ID | 名称 | 効果 |
+|----|------|------|
+| `batting_basic` | 基礎打撃練習 | コンタクト・技術向上 |
+| `batting_live` | 実戦打撃練習 | 実戦的打撃力向上 |
+| `pitching_basic` | 投球基礎練習 | コントロール向上 |
+| `pitching_bullpen` | 投手ブルペン強化 | 球速・スタミナ向上 |
+| `fielding_drill` | 守備練習 | 守備力・肩力向上 |
+| `running` | 走塁・体力練習 | 速度・スタミナ向上 |
+| `rest` | 休養（疲労回復） | 疲労大幅回復 |
+
+---
+
+## 技術スタック
+
+- **フレームワーク**: Next.js 16 (App Router)
+- **UI**: React + TypeScript
+- **状態管理**: Zustand
+- **スタイル**: CSS Modules（和風デザイン）
+- **テスト**: Vitest
+- **アーキテクチャ**: ViewState Projector パターン
+- **セーブ**: localStorage（SHA-256 チェックサム付き）
+
+### デザインシステム
+
+和風の配色を採用：
+
+| CSS変数 | 色コード | 用途 |
+|---------|---------|------|
+| `--color-primary` | `#8b0000` | 深紅（メインカラー） |
+| `--color-accent` | `#2d4a3e` | 深緑（アクセント） |
+| `--color-bg` | `#f5f0e8` | 和紙色（背景） |
+| `--color-surface` | `#fffdf7` | 薄和紙（カード背景） |
+| `--color-border` | `#c8b99a` | 枯草色（ボーダー） |
+
+---
+
+## セットアップ
+
+### 必要環境
+
+- Node.js 20.9 以上
+- npm
+
+### インストールと起動
 
 ```bash
+# 依存関係インストール
+npm install
+
+# 開発サーバー起動
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+ブラウザで http://localhost:3000 を開く。
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 本番ビルド
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run build
+npm start
+```
 
-## Learn More
+---
 
-To learn more about Next.js, take a look at the following resources:
+## テスト
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+# 全テスト実行
+npx vitest run
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+# ウォッチモード（開発中）
+npx vitest
+```
 
-## Deploy on Vercel
+テスト構成（505テスト）：
+- `tests/engine/player/` — 選手生成・成長
+- `tests/engine/save/` — セーブ/ロード（チェックサム・破損データ検出）
+- `tests/engine/sim/` — 試合シミュレーション
+- `tests/engine/calendar/` — カレンダー・スケジュール
+- `tests/engine/world/` — ワールドステート・年度処理
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+---
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## デプロイ
+
+[Vercel](https://vercel.com) でのデプロイを推奨します。
+
+```bash
+vercel
+```
+
+または GitHub リポジトリを Vercel に接続することで自動デプロイが可能です。
+
+---
+
+## ライセンス
+
+MIT
+
+---
+
+## GitHub
+
+https://github.com/4s-takahashi/koushien-sim

@@ -135,3 +135,64 @@
   padding: 6px 8px;
   text-align: center;
 }
+
+/* ============================================================
+   モバイル対応 (max-width: 768px)
+   ============================================================ */
+
+@media (max-width: 768px) {
+  .headerInner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .navInner {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap;
+  }
+
+  .navLink {
+    padding: 10px 14px;
+    white-space: nowrap;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+  }
+
+  /* メインコンテンツ：1カラム */
+  .main {
+    grid-template-columns: 1fr;
+    padding: 12px 12px;
+  }
+
+  /* プロフィールグリッド */
+  .profileGrid {
+    font-size: 14px;
+  }
+
+  .condGrid {
+    font-size: 14px;
+  }
+
+  /* 能力値テーブル */
+  .statTable {
+    font-size: 13px;
+  }
+
+  .statLabel {
+    font-size: 13px;
+    width: 52px;
+  }
+
+  /* 通算成績：横スクロール */
+  .section {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .recordTable {
+    min-width: 360px;
+  }
+}

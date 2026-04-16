@@ -214,3 +214,66 @@
 .abStrikeout { color: var(--color-accent); }
 .abExtra { color: #0055bb; }
 .atBatScore { font-family: var(--font-serif); font-size: 12px; text-align: center; }
+
+/* ============================================================
+   モバイル対応 (max-width: 768px)
+   ============================================================ */
+
+@media (max-width: 768px) {
+  .headerInner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .navInner {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap;
+  }
+
+  .navLink {
+    padding: 10px 14px;
+    white-space: nowrap;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+  }
+
+  .main {
+    padding: 12px 12px;
+  }
+
+  .recordRow {
+    font-size: 20px;
+  }
+
+  /* スコアボード：横スクロール（既存の scoreboard overflow-x を補強） */
+  .scoreTable {
+    font-size: 11px;
+  }
+
+  /* 試合カード */
+  .matchHeader {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .matchScore {
+    font-size: 13px;
+  }
+
+  .matchNum {
+    font-size: 18px;
+  }
+
+  /* 打席フロー：横スクロール */
+  .atBatSection {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .atBatTable {
+    min-width: 360px;
+  }
+}

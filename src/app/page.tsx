@@ -83,6 +83,101 @@ function SetupScreen({ onStart }: { onStart: (name: string, pref: string, manage
 }
 
 // ============================================================
+// ウェルカムバナー（初回プレイ Day 1）
+// ============================================================
+
+function WelcomeBanner({ schoolName, managerName }: { schoolName: string; managerName: string }) {
+  return (
+    <div className={styles.welcomeBanner}>
+      <div className={styles.welcomeTitle}>ようこそ、{managerName}監督！</div>
+      <p className={styles.welcomeText}>
+        <strong>{schoolName}</strong> での新任監督生活がはじまりました。まずは以下の3ステップで始めましょう。
+      </p>
+      <ol className={styles.welcomeSteps}>
+        <li>
+          <span className={styles.stepNum}>1</span>
+          <span className={styles.stepText}>
+            <strong>チームを確認する</strong> —{' '}
+            <a href="/team" className={styles.stepLink}>チーム画面</a>で選手一覧とラインナップを確認しましょう
+          </span>
+        </li>
+        <li>
+          <span className={styles.stepNum}>2</span>
+          <span className={styles.stepText}>
+            <strong>練習メニューを選ぶ</strong> — 下の「今日やること」で練習メニューを選択してください
+          </span>
+        </li>
+        <li>
+          <span className={styles.stepNum}>3</span>
+          <span className={styles.stepText}>
+            <strong>1日進める</strong> — 「練習して1日進む」ボタンで時間を進めましょう
+          </span>
+        </li>
+      </ol>
+    </div>
+  );
+}
+
+// ============================================================
+// 進行状況インジケーター
+// ============================================================
+
+function ProgressIndicator({ view }: { view: HomeViewState }) {
+  // 次の大会までの月を計算
+  const { month } = view.date;
+  let nextTournament = '';
+  let daysLabel = '';
+
+  if (month < 7) {
+    const remaining = 7 - month;
+    nextTournament = '夏季大会';
+    daysLabel = `あと約${remaining}ヶ月`;
+  } else if (month < 9) {
+    const remaining = 9 - month;
+    nextTournament = '秋季大会';
+    daysLabel = `あと約${remaining}ヶ月`;
+  } else {
+    nextTournament = '翌年夏季大会';
+    daysLabel = `来年7月`;
+  }
+
+  // 大会期間中
+  if (view.isInTournamentSeason) {
+    nextTournament = view.seasonPhaseLabel;
+    daysLabel = '開催中！';
+  }
+
+  return (
+    <div className={styles.progressBar}>
+      <div className={styles.progressItem}>
+        <span className={styles.progressLabel}>現在</span>
+        <span className={styles.progressValue}>{view.date.japaneseDisplay}</span>
+      </div>
+      <div className={styles.progressDivider} />
+      <div className={styles.progressItem}>
+        <span className={styles.progressLabel}>シーズン</span>
+        <span className={styles.progressValue}>{view.seasonPhaseLabel}</span>
+      </div>
+      <div className={styles.progressDivider} />
+      <div className={styles.progressItem}>
+        <span className={styles.progressLabel}>次の大会</span>
+        <span className={styles.progressValue}>
+          {nextTournament}
+          <span className={styles.progressSub}>{daysLabel}</span>
+        </span>
+      </div>
+      <div className={styles.progressDivider} />
+      <div className={styles.progressItem}>
+        <span className={styles.progressLabel}>チーム総合力</span>
+        <span className={`${styles.progressValue} ${styles.progressOverall}`}>
+          {view.team.teamOverall}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
 // ホーム画面本体
 // ============================================================
 
@@ -175,6 +270,17 @@ function HomeContent({ view }: { view: HomeViewState }) {
           🏆 大会進行中 — {view.seasonPhaseLabel}開催中！全力で勝利を目指せ
         </div>
       )}
+
+      {/* 初回プレイ（Year1 4月1日）ウェルカムメッセージ */}
+      {view.date.year === 1 && view.date.month === 4 && view.date.day === 1 && (
+        <WelcomeBanner
+          schoolName={view.team.schoolName}
+          managerName="新任"
+        />
+      )}
+
+      {/* 進行状況インジケーター */}
+      <ProgressIndicator view={view} />
 
       {/* メインコンテンツ */}
       <main className={styles.main}>

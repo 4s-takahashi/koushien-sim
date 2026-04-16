@@ -334,3 +334,80 @@
 
 .msgSuccess { background: rgba(45,74,62,0.1); color: var(--color-accent); border: 1px solid var(--color-accent); border-radius: 3px; padding: 8px 12px; font-size: 13px; margin-bottom: 12px; }
 .msgFail    { background: rgba(139,0,0,0.08); color: var(--color-primary); border: 1px solid var(--color-primary); border-radius: 3px; padding: 8px 12px; font-size: 13px; margin-bottom: 12px; }
+
+/* ============================================================
+   モバイル対応 (max-width: 768px)
+   ============================================================ */
+
+@media (max-width: 768px) {
+  .headerInner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .navInner {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap;
+  }
+
+  .navLink {
+    padding: 10px 14px;
+    white-space: nowrap;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+  }
+
+  .main {
+    padding: 12px 12px;
+  }
+
+  /* グリッド：1カラム */
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .sectionFull {
+    grid-column: 1;
+  }
+
+  /* スカウトテーブル：横スクロール */
+  .section {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .scoutTable {
+    min-width: 420px;
+    font-size: 12px;
+  }
+
+  /* ボタン：タップしやすいサイズ */
+  .btn {
+    min-height: 40px;
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
+  /* フィルターバー */
+  .filterBar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .filterSelect {
+    width: 100%;
+    font-size: 14px;
+    min-height: 44px;
+  }
+
+  /* 予算バー */
+  .budgetBar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+}
