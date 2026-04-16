@@ -1,0 +1,148 @@
+/* ============================================================
+   共通レイアウト
+   ============================================================ */
+
+.wrapper {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
+/* ヘッダー */
+.header {
+  background: var(--color-primary);
+  color: #fff;
+  padding: 10px 16px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.headerInner {
+  max-width: 960px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.headerTitle {
+  font-family: var(--font-serif);
+  font-size: 18px;
+  font-weight: bold;
+  color: #fff;
+  letter-spacing: 0.05em;
+}
+
+.headerDate {
+  font-size: 12px;
+  color: rgba(255,255,255,0.8);
+}
+
+/* ナビゲーション */
+.nav {
+  background: var(--color-accent);
+  padding: 0;
+}
+
+.navInner {
+  max-width: 960px;
+  margin: 0 auto;
+  display: flex;
+  gap: 0;
+}
+
+.navLink {
+  color: rgba(255,255,255,0.85);
+  padding: 8px 16px;
+  font-size: 13px;
+  display: block;
+  transition: background 0.15s;
+}
+
+.navLink:hover {
+  background: rgba(255,255,255,0.12);
+  text-decoration: none;
+  color: #fff;
+}
+
+.navLinkActive {
+  background: rgba(255,255,255,0.2);
+  color: #fff;
+  font-weight: bold;
+}
+
+/* メインコンテンツ */
+.main {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 20px 16px;
+}
+
+/* カード */
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.cardTitle {
+  font-family: var(--font-serif);
+  font-size: 14px;
+  color: var(--color-primary);
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 8px;
+  margin-bottom: 12px;
+  letter-spacing: 0.08em;
+}
+
+/* ランクバッジ */
+.rankS { color: var(--color-rank-s); font-weight: bold; }
+.rankA { color: var(--color-rank-a); font-weight: bold; }
+.rankB { color: var(--color-rank-b); font-weight: bold; }
+.rankC { color: var(--color-rank-c); }
+.rankD { color: var(--color-rank-d); }
+.rankE { color: var(--color-rank-e); }
+
+/* ボタン */
+.btn {
+  border: none;
+  border-radius: 3px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: bold;
+  transition: opacity 0.15s;
+}
+
+.btn:hover { opacity: 0.85; }
+
+.btnPrimary {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.btnAccent {
+  background: var(--color-accent);
+  color: #fff;
+}
+
+.btnOutline {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+}
+
+/* ニュース重要度 */
+.newsHigh   { border-left: 3px solid var(--color-primary); }
+.newsMedium { border-left: 3px solid var(--color-accent); }
+.newsLow    { border-left: 3px solid var(--color-border); }
+
+/* ローディング */
+.loading {
+  text-align: center;
+  padding: 40px;
+  color: var(--color-text-sub);
+}

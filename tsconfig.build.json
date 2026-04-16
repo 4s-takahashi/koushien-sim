@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "exclude": [
+    "node_modules",
+    "scripts",
+    "tests",
+    "src/engine/match/game.ts",
+    "src/engine/match/inning.ts",
+    "src/engine/match/result.ts",
+    "src/engine/match/tactics.ts"
+  ]
+}

@@ -36,6 +36,10 @@ export type {
   SeasonState,
   WeeklyPlan,
   GameSettings,
+  ScoutSearchFilter,
+  ScoutReport,
+  RecruitResult,
+  ScoutState,
 } from './world-state';
 
 export type {
@@ -44,13 +48,34 @@ export type {
 } from './world-ticker';
 
 // 関数
-export { hydratePlayer, dehydratePlayer } from './hydrate';
+export { hydratePlayer, dehydratePlayer, convertToHighSchoolPlayer } from './hydrate';
 export { createEmptyCumulativeGrowth, createEmptyCareerRecord } from './person-state';
 export {
   createEmptyYearResults,
   createDefaultWeeklyPlan,
   createInitialSeasonState,
+  createInitialScoutState,
 } from './world-state';
+
+// スカウトシステム
+export {
+  searchMiddleSchoolers,
+  addToWatchList,
+  removeFromWatchList,
+  conductScoutVisit,
+  recruitPlayer,
+  runAISchoolScouting,
+  computeMiddleSchoolOverall,
+} from './scout/scout-system';
+
+// ドラフト・進路システム
+export type { DraftCandidate, DraftResult } from './career/draft-system';
+export {
+  identifyDraftCandidates,
+  executeDraft,
+  determineCareerPath,
+  computePlayerOverall,
+} from './career/draft-system';
 export {
   peakMultiplier,
   calculateStatGainV3,
@@ -61,3 +86,7 @@ export {
 } from './growth-curve';
 export type { GrowthContextV3 } from './growth-curve';
 export { advanceWorldDay } from './world-ticker';
+export { createWorldState, gameStateToWorldState } from './create-world';
+export { generateAISchools } from './school-generator';
+export { updateSimulationTiers, applyTournamentFacing } from './tier-manager';
+export { processYearTransition } from './year-transition';

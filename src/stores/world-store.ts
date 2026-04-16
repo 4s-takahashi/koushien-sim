@@ -1,0 +1,405 @@
+/**
+ * world-store — WorldState 用 Zustand ストア
+ *
+ * WorldState を管理し、UI に ViewState を提供する。
+ * game-store.ts（GameState 用）と並列して動作する。
+ */
+
+import { create } from 'zustand';
+import type { PracticeMenuId } from '../engine/types/calendar';
+import type { WorldState } from '../engine/world/world-state';
+import type { WorldDayResult } from '../engine/world/world-ticker';
+import type { ScoutSearchFilter } from '../engine/world/world-state';
+import type {
+  HomeViewState, TeamViewState, PlayerDetailViewState,
+  ScoutViewState, TournamentViewState, ResultsViewState, OBViewState,
+} from '../ui/projectors/view-state-types';
+import { createRNG } from '../engine/core/rng';
+import { createWorldState } from '../engine/world/create-world';
+import { advanceWorldDay } from '../engine/world/world-ticker';
+import { addToWatchList, removeFromWatchList, conductScoutVisit, recruitPlayer } from '../engine/world/scout/scout-system';
+import { projectHome } from '../ui/projectors/homeProjector';
+import { projectTeam } from '../ui/projectors/teamProjector';
+import { projectPlayer } from '../ui/projectors/playerProjector';
+import { projectScout } from '../ui/projectors/scoutProjector';
+import { projectTournament } from '../ui/projectors/tournamentProjector';
+import { projectResults } from '../ui/projectors/resultsProjector';
+import { projectOB } from '../ui/projectors/obProjector';
+import { generateId } from '../engine/core/id';
+import { generatePlayer } from '../engine/player/generate';
+import { autoGenerateLineup } from '../engine/team/lineup';
+import {
+  saveWorldState, loadWorldState, deleteWorldSave, listWorldSaves,
+  autoSaveYearEnd, autoSaveMonthly, autoSavePreTournament,
+  getStorageUsedBytes,
+  WORLD_SAVE_SLOTS,
+} from '../engine/save/world-save-manager';
+import type { WorldSaveSlotId, WorldSaveSlotMeta, WorldSaveResult, WorldLoadResult } from '../engine/save/world-save-manager';
+import {
+  createTournamentBracket,
+  simulateFullTournament,
+} from '../engine/world/tournament-bracket';
+import type { TournamentType } from '../engine/world/tournament-bracket';
+
+// ============================================================
+// 新規ゲーム設定
+// ============================================================
+
+export interface NewWorldConfig {
+  schoolName: string;
+  prefecture: string;
+  managerName: string;
+  seed?: string;
+}
+
+// ============================================================
+// ストア型定義
+// ============================================================
+
+interface WorldStore {
+  // --- 状態 ---
+  worldState: WorldState | null;
+  isLoading: boolean;
+  lastDayResult: WorldDayResult | null;
+  /** 直近の WorldDayResult リスト（最大30件、最新順） */
+  recentResults: WorldDayResult[];
+  /** 最近のニュース（最大20件、最新順） */
+  recentNews: WorldDayResult['worldNews'];
+
+  // --- ゲーム初期化 ---
+  newWorldGame: (config: NewWorldConfig) => void;
+
+  // --- 進行アクション ---
+  advanceDay: (menuId?: PracticeMenuId) => WorldDayResult | null;
+  advanceWeek: (menuId?: PracticeMenuId) => WorldDayResult[];
+
+  // --- ViewState 取得（projector 経由） ---
+  getHomeView: () => HomeViewState | null;
+  getTeamView: () => TeamViewState | null;
+  getPlayerView: (playerId: string) => PlayerDetailViewState | null;
+  getScoutView: (filters?: ScoutSearchFilter) => ScoutViewState | null;
+  getTournamentView: () => TournamentViewState | null;
+  getResultsView: () => ResultsViewState | null;
+  getOBView: () => OBViewState | null;
+
+  // --- スカウトアクション ---
+  scoutVisit: (playerId: string) => { success: boolean; message: string };
+  recruitPlayerAction: (playerId: string) => { success: boolean; message: string };
+  addToWatch: (playerId: string) => void;
+  removeFromWatch: (playerId: string) => void;
+
+  // --- セーブ/ロードアクション ---
+  saveGame: (slotId: WorldSaveSlotId, displayName: string) => Promise<WorldSaveResult>;
+  loadGame: (slotId: WorldSaveSlotId) => Promise<WorldLoadResult>;
+  deleteSave: (slotId: WorldSaveSlotId) => void;
+  listSaves: () => WorldSaveSlotMeta[];
+  triggerAutoSave: (trigger: 'monthly' | 'year_end' | 'pre_tournament') => Promise<WorldSaveResult>;
+  getStorageUsage: () => number;
+
+  // --- 大会アクション ---
+  startTournament: (type: TournamentType) => void;
+  simulateTournament: () => void;
+}
+
+// ============================================================
+// 定数
+// ============================================================
+
+const DEFAULT_MENU: PracticeMenuId = 'batting_basic';
+const MAX_RECENT_RESULTS = 30;
+const MAX_RECENT_NEWS = 20;
+
+// ============================================================
+// Zustand ストア
+// ============================================================
+
+export const useWorldStore = create<WorldStore>((set, get) => ({
+  worldState: null,
+  isLoading: false,
+  lastDayResult: null,
+  recentResults: [],
+  recentNews: [],
+
+  // ----------------------------------------------------------------
+  // 新規ゲーム
+  // ----------------------------------------------------------------
+  newWorldGame: (config: NewWorldConfig) => {
+    set({ isLoading: true });
+
+    try {
+      const seed = config.seed ?? generateId().replace(/-/g, '').slice(0, 16);
+      const rng = createRNG(seed);
+
+      // 仮の Team データを作成（自校）
+      const playerRng = createRNG(seed + ':team');
+      const reputation = 50;
+
+      const players = [];
+      for (let i = 0; i < 8; i++) {
+        players.push({
+          ...generatePlayer(playerRng.derive(`g3:${i}`), { enrollmentYear: -1, schoolReputation: reputation }),
+          enrollmentYear: -1,
+        });
+      }
+      for (let i = 0; i < 7; i++) {
+        players.push({
+          ...generatePlayer(playerRng.derive(`g2:${i}`), { enrollmentYear: 0, schoolReputation: reputation }),
+          enrollmentYear: 0,
+        });
+      }
+      for (let i = 0; i < 8; i++) {
+        players.push(generatePlayer(playerRng.derive(`g1:${i}`), { enrollmentYear: 1, schoolReputation: reputation }));
+      }
+
+      const teamBase = {
+        id: generateId(),
+        name: config.schoolName,
+        prefecture: config.prefecture,
+        reputation,
+        players,
+        lineup: null,
+        facilities: { ground: 3, bullpen: 3, battingCage: 3, gym: 3 },
+      };
+      const teamWithLineup = { ...teamBase, lineup: autoGenerateLineup(teamBase, 1) };
+
+      const manager = {
+        name: config.managerName,
+        yearsActive: 0,
+        fame: 10,
+        totalWins: 0,
+        totalLosses: 0,
+        koshienAppearances: 0,
+        koshienWins: 0,
+      };
+
+      const worldState = createWorldState(
+        teamWithLineup,
+        manager,
+        config.prefecture,
+        seed,
+        rng,
+      );
+
+      set({ worldState, isLoading: false, recentResults: [], recentNews: [], lastDayResult: null });
+    } catch (err) {
+      set({ isLoading: false });
+      throw err;
+    }
+  },
+
+  // ----------------------------------------------------------------
+  // 1日進行
+  // ----------------------------------------------------------------
+  advanceDay: (menuId: PracticeMenuId = DEFAULT_MENU) => {
+    const { worldState, recentResults, recentNews } = get();
+    if (!worldState) return null;
+
+    const dateStr = `${worldState.currentDate.year}-${worldState.currentDate.month}-${worldState.currentDate.day}`;
+    const rng = createRNG(worldState.seed + ':' + dateStr);
+
+    const { nextWorld, result } = advanceWorldDay(worldState, menuId, rng);
+
+    // ニュース蓄積（最新順）
+    const allNews = [...result.worldNews, ...recentNews].slice(0, MAX_RECENT_NEWS);
+
+    // 直近結果蓄積（最新順）
+    const allResults = [result, ...recentResults].slice(0, MAX_RECENT_RESULTS);
+
+    set({
+      worldState: nextWorld,
+      lastDayResult: result,
+      recentResults: allResults,
+      recentNews: allNews,
+    });
+
+    return result;
+  },
+
+  // ----------------------------------------------------------------
+  // 1週間進行
+  // ----------------------------------------------------------------
+  advanceWeek: (menuId: PracticeMenuId = DEFAULT_MENU) => {
+    const results: WorldDayResult[] = [];
+    for (let i = 0; i < 7; i++) {
+      const result = get().advanceDay(menuId);
+      if (result) results.push(result);
+    }
+    return results;
+  },
+
+  // ----------------------------------------------------------------
+  // ViewState 取得
+  // ----------------------------------------------------------------
+  getHomeView: () => {
+    const { worldState, recentNews } = get();
+    if (!worldState) return null;
+    return projectHome(worldState, recentNews);
+  },
+
+  getTeamView: () => {
+    const { worldState } = get();
+    if (!worldState) return null;
+    return projectTeam(worldState);
+  },
+
+  getPlayerView: (playerId: string) => {
+    const { worldState } = get();
+    if (!worldState) return null;
+    return projectPlayer(worldState, playerId);
+  },
+
+  getScoutView: (filters: ScoutSearchFilter = {}) => {
+    const { worldState } = get();
+    if (!worldState) return null;
+    return projectScout(worldState, filters);
+  },
+
+  getTournamentView: () => {
+    const { worldState } = get();
+    if (!worldState) return null;
+    return projectTournament(worldState);
+  },
+
+  getResultsView: () => {
+    const { worldState, recentResults } = get();
+    if (!worldState) return null;
+    return projectResults(worldState, recentResults);
+  },
+
+  getOBView: () => {
+    const { worldState } = get();
+    if (!worldState) return null;
+    return projectOB(worldState);
+  },
+
+  // ----------------------------------------------------------------
+  // スカウトアクション
+  // ----------------------------------------------------------------
+  scoutVisit: (playerId: string) => {
+    const { worldState } = get();
+    if (!worldState) return { success: false, message: 'ゲームが開始されていません' };
+
+    try {
+      const dateStr = `${worldState.currentDate.year}-${worldState.currentDate.month}-${worldState.currentDate.day}`;
+      const rng = createRNG(worldState.seed + ':scout:' + dateStr + ':' + playerId);
+      const { world: newWorld, scoutReport } = conductScoutVisit(worldState, playerId, rng);
+      set({ worldState: newWorld });
+      return {
+        success: true,
+        message: `視察完了。評価: ${scoutReport.estimatedQuality}級（確度: ${Math.round(scoutReport.confidence * 100)}%）`,
+      };
+    } catch (err) {
+      return { success: false, message: err instanceof Error ? err.message : '視察に失敗しました' };
+    }
+  },
+
+  recruitPlayerAction: (playerId: string) => {
+    const { worldState } = get();
+    if (!worldState) return { success: false, message: 'ゲームが開始されていません' };
+
+    const dateStr = `${worldState.currentDate.year}-${worldState.currentDate.month}-${worldState.currentDate.day}`;
+    const rng = createRNG(worldState.seed + ':recruit:' + dateStr + ':' + playerId);
+    const { world: newWorld, success, reason } = recruitPlayer(worldState, playerId, rng);
+    set({ worldState: newWorld });
+    return { success, message: reason };
+  },
+
+  addToWatch: (playerId: string) => {
+    const { worldState } = get();
+    if (!worldState) return;
+    set({ worldState: addToWatchList(worldState, playerId) });
+  },
+
+  removeFromWatch: (playerId: string) => {
+    const { worldState } = get();
+    if (!worldState) return;
+    set({ worldState: removeFromWatchList(worldState, playerId) });
+  },
+
+  // ----------------------------------------------------------------
+  // セーブ/ロード
+  // ----------------------------------------------------------------
+  saveGame: async (slotId: WorldSaveSlotId, displayName: string) => {
+    const { worldState } = get();
+    if (!worldState) return { success: false, error: 'ゲームが開始されていません' };
+    return saveWorldState(slotId, worldState, displayName);
+  },
+
+  loadGame: async (slotId: WorldSaveSlotId) => {
+    const result = await loadWorldState(slotId);
+    if (result.success && result.world) {
+      set({
+        worldState: result.world,
+        recentResults: [],
+        recentNews: [],
+        lastDayResult: null,
+      });
+    }
+    return result;
+  },
+
+  deleteSave: (slotId: WorldSaveSlotId) => {
+    deleteWorldSave(slotId);
+  },
+
+  listSaves: () => listWorldSaves(),
+
+  triggerAutoSave: async (trigger: 'monthly' | 'year_end' | 'pre_tournament') => {
+    const { worldState } = get();
+    if (!worldState) return { success: false, error: 'ゲームが開始されていません' };
+    switch (trigger) {
+      case 'monthly':        return autoSaveMonthly(worldState);
+      case 'year_end':       return autoSaveYearEnd(worldState);
+      case 'pre_tournament': return autoSavePreTournament(worldState);
+    }
+  },
+
+  getStorageUsage: () => getStorageUsedBytes(),
+
+  // ----------------------------------------------------------------
+  // 大会
+  // ----------------------------------------------------------------
+  startTournament: (type: TournamentType) => {
+    const { worldState } = get();
+    if (!worldState) return;
+
+    const date = worldState.currentDate;
+    const id = `tournament-${type}-${date.year}-${date.month}`;
+    const rng = createRNG(worldState.seed + ':tournament:' + id);
+
+    const bracket = createTournamentBracket(
+      id,
+      type,
+      date.year,
+      worldState.schools,
+      rng,
+    );
+
+    set({ worldState: { ...worldState, activeTournament: bracket } });
+  },
+
+  simulateTournament: () => {
+    const { worldState } = get();
+    if (!worldState || !worldState.activeTournament) return;
+
+    const rng = createRNG(worldState.seed + ':sim-tournament:' + worldState.activeTournament.id);
+    const completed = simulateFullTournament(
+      worldState.activeTournament,
+      worldState.schools,
+      rng,
+    );
+
+    const history = [
+      ...(worldState.tournamentHistory ?? []),
+      completed,
+    ].slice(-10);
+
+    set({
+      worldState: {
+        ...worldState,
+        activeTournament: completed,
+        tournamentHistory: history,
+      },
+    });
+  },
+}));

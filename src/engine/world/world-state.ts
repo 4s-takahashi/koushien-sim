@@ -7,9 +7,10 @@
 
 import type { GameDate, PracticeMenuId } from '../types/calendar';
 import type { Manager, FacilityLevel, Lineup } from '../types/team';
-import type { Player } from '../types/player';
+import type { Player, PlayerStats, Position } from '../types/player';
 import type { PersonRegistry } from './person-state';
 import type { CoachStyle, SchoolBlueprint } from './person-blueprint';
+import type { TournamentBracket } from './tournament-bracket';
 
 // ============================================================
 // 計算粒度
@@ -119,6 +120,41 @@ export interface WeeklyPlan {
 }
 
 // ============================================================
+// スカウト関連型
+// ============================================================
+
+export interface ScoutSearchFilter {
+  grade?: 1 | 2 | 3;
+  position?: Position;
+  minReputation?: number;
+  qualityTier?: 'S' | 'A' | 'B' | 'C' | 'D';
+  prefecture?: string;
+}
+
+export interface ScoutReport {
+  playerId: string;
+  observedStats: Partial<PlayerStats>;
+  confidence: number;           // 0-1
+  scoutComment: string;
+  estimatedQuality: 'S' | 'A' | 'B' | 'C' | 'D';
+}
+
+export interface RecruitResult {
+  playerId: string;
+  success: boolean;
+  reason: string;
+  attemptDate: GameDate;
+}
+
+export interface ScoutState {
+  watchList: string[];
+  scoutReports: Map<string, ScoutReport>;
+  recruitAttempts: Map<string, RecruitResult>;
+  monthlyScoutBudget: number;   // 月あたり視察可能回数（3-5）
+  usedScoutThisMonth: number;
+}
+
+// ============================================================
 // WorldState 本体
 // ============================================================
 
@@ -139,12 +175,17 @@ export interface WorldState {
   middleSchoolPool: MiddleSchoolPlayer[];
   personRegistry: PersonRegistry;
 
-  // --- 大会（Phase 3.0b で型を詳細化） ---
-  // activeTournaments: Tournament[];
-  // completedTournaments: TournamentSummary[];
+  // --- 大会 ---
+  /** 現在進行中のトーナメント（大会期間外は null、未対応 WorldState は undefined） */
+  activeTournament?: TournamentBracket | null;
+  /** 過去の大会履歴（最大10件） */
+  tournamentHistory?: TournamentBracket[];
 
   // --- 年間進行 ---
   seasonState: SeasonState;
+
+  // --- スカウト状態 ---
+  scoutState: ScoutState;
 }
 
 export interface GameSettings {
@@ -183,5 +224,15 @@ export function createInitialSeasonState(): SeasonState {
     phase: 'spring_practice',
     currentTournamentId: null,
     yearResults: createEmptyYearResults(),
+  };
+}
+
+export function createInitialScoutState(): ScoutState {
+  return {
+    watchList: [],
+    scoutReports: new Map(),
+    recruitAttempts: new Map(),
+    monthlyScoutBudget: 4,
+    usedScoutThisMonth: 0,
   };
 }

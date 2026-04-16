@@ -15,6 +15,10 @@ import { getDayType, advanceDate } from '../calendar/game-calendar';
 import { getAnnualSchedule, isInCamp } from '../calendar/schedule';
 import { processDay } from '../calendar/day-processor';
 import type { GameState } from '../types/game-state';
+import { applyBatchGrowth } from '../growth/batch-growth';
+import { applyBulkGrowth } from '../growth/bulk-growth';
+import { processYearTransition } from './year-transition';
+import { generateDailyNews } from './news/news-generator';
 
 // ============================================================
 // WorldDayResult
@@ -26,6 +30,18 @@ export interface WorldDayResult {
   playerSchoolResult: DayResult;
   /** 大会の全試合結果（Phase 3.0b で実装） */
   // tournamentResults: TournamentDayResults | null;
+  /** 自校の試合結果（Phase 4.1 以降で入力される。試合がない日は null） */
+  playerMatchResult?: import('../match/types').MatchResult | null;
+  /** 自校の試合の相手チーム名（試合がある日のみ） */
+  playerMatchOpponent?: string | null;
+  /** 自校が先攻(away)か後攻(home)か */
+  playerMatchSide?: 'home' | 'away' | null;
+  /**
+   * イニング詳細（Phase 6 で追加）。
+   * MatchResult があり、かつ詳細データが取れた場合のみ存在。
+   * 自校の打席結果フロー・ハイライト生成に使用する。
+   */
+  playerMatchInnings?: import('../match/types').InningResult[] | null;
   /** 世界のニュース */
   worldNews: WorldNewsItem[];
   /** シーズンフェーズ変更 */
@@ -92,40 +108,91 @@ function advanceSchoolFull(
  */
 function advanceSchoolStandard(
   school: HighSchool,
-  dayType: DayType,
+  _dayType: DayType,
   seasonMultiplier: number,
+  currentYear: number,
   rng: RNG,
 ): HighSchool {
-  // TODO Phase 3.0b: applyBatchGrowth() を実装
-  // 現時点ではスケルトンのみ — 選手は変更なしで返す
-  return { ...school, _summary: null };
+  const updatedPlayers = school.players.map((player) =>
+    applyBatchGrowth(player, currentYear, school.coachStyle.practiceEmphasis, seasonMultiplier, rng.derive(player.id))
+  );
+
+  return { ...school, players: updatedPlayers, _summary: null };
 }
 
 /**
  * Tier 3 (Minimal): 週次バッチ成長。
- * 7日分をまとめて1回で計算する。大会日のみ個別処理。
+ * 7日分をまとめて1回で計算する。日曜日のみ実行。
  */
 function advanceSchoolMinimal(
   school: HighSchool,
-  dayType: DayType,
+  _dayType: DayType,
   dayOfWeek: number,
   seasonMultiplier: number,
+  currentYear: number,
   rng: RNG,
 ): HighSchool {
   // 日曜日（dayOfWeek === 0）のみ週次バッチ処理
-  // TODO Phase 3.0b: applyBulkGrowth() を実装
-  return { ...school, _summary: null };
+  if (dayOfWeek !== 0) {
+    return school;
+  }
+
+  const updatedPlayers = applyBulkGrowth(
+    school.players,
+    currentYear,
+    school.coachStyle.practiceEmphasis,
+    seasonMultiplier,
+    rng,
+  );
+
+  return { ...school, players: updatedPlayers, _summary: null };
 }
 
 /**
- * 中学生の日次成長（全中学生を一括処理）。
+ * 中学生の日次成長（Tier 3 相当：日曜のみ週次バッチ）
  */
 function advanceMiddleSchool(
   pool: MiddleSchoolPlayer[],
+  dayOfWeek: number,
+  seasonMultiplier: number,
   rng: RNG,
 ): MiddleSchoolPlayer[] {
-  // TODO Phase 3.5: 中学生の成長処理
-  return pool;
+  // 日曜日のみ成長処理
+  if (dayOfWeek !== 0) {
+    return pool;
+  }
+
+  return pool.map((ms) => {
+    const msRng = rng.derive(ms.id);
+    // 中学生学年に応じた成長倍率
+    const gradeMultiplier = ms.middleSchoolGrade === 1 ? 0.8 : ms.middleSchoolGrade === 2 ? 1.0 : 1.2;
+    const weeklyGain = 0.3 * gradeMultiplier * seasonMultiplier; // 基本値
+
+    function addGain(v: number, max: number): number {
+      const gain = weeklyGain * (0.7 + msRng.next() * 0.6);
+      return Math.max(1, Math.min(max, v + gain));
+    }
+
+    const newStats = {
+      base: {
+        stamina:     addGain(ms.currentStats.base.stamina,     50),
+        speed:       addGain(ms.currentStats.base.speed,       50),
+        armStrength: addGain(ms.currentStats.base.armStrength, 50),
+        fielding:    addGain(ms.currentStats.base.fielding,    50),
+        focus:       addGain(ms.currentStats.base.focus,       50),
+        mental:      addGain(ms.currentStats.base.mental,      50),
+      },
+      batting: {
+        contact:   addGain(ms.currentStats.batting.contact,   50),
+        power:     addGain(ms.currentStats.batting.power,     50),
+        eye:       addGain(ms.currentStats.batting.eye,       50),
+        technique: addGain(ms.currentStats.batting.technique, 50),
+      },
+      pitching: null,
+    };
+
+    return { ...ms, currentStats: newStats };
+  });
 }
 
 // ============================================================
@@ -159,6 +226,7 @@ function getDayOfWeek(date: GameDate): number {
  * 2. 中学生の成長処理
  * 3. 大会がある日は全試合実行（Phase 3.0b）
  * 4. 日付進行
+ * 5. 年度替わり（3/31 → 4/1）
  */
 export function advanceWorldDay(
   world: WorldState,
@@ -170,6 +238,7 @@ export function advanceWorldDay(
   const dayType = getDayType(date, schedule);
   const seasonMultiplier = isInCamp(date) ? 1.5 : 1.0;
   const dayOfWeek = getDayOfWeek(date);
+  const currentYear = date.year;
 
   let playerSchoolResult: DayResult | null = null;
   const updatedSchools: HighSchool[] = [];
@@ -195,13 +264,13 @@ export function advanceWorldDay(
       }
       case 'standard': {
         updatedSchools.push(
-          advanceSchoolStandard(school, dayType, seasonMultiplier, schoolRng),
+          advanceSchoolStandard(school, dayType, seasonMultiplier, currentYear, schoolRng),
         );
         break;
       }
       case 'minimal': {
         updatedSchools.push(
-          advanceSchoolMinimal(school, dayType, dayOfWeek, seasonMultiplier, schoolRng),
+          advanceSchoolMinimal(school, dayType, dayOfWeek, seasonMultiplier, currentYear, schoolRng),
         );
         break;
       }
@@ -211,19 +280,30 @@ export function advanceWorldDay(
   // --- 中学生の成長処理 ---
   const updatedMiddleSchool = advanceMiddleSchool(
     world.middleSchoolPool,
+    dayOfWeek,
+    seasonMultiplier,
     rng.derive('middle-school'),
   );
+
+  // --- 世界ニュース生成 ---
+  const generatedNews = generateDailyNews(world, rng.derive('news-gen'));
+  worldNews.push(...generatedNews);
 
   // --- 日付進行 ---
   const newDate = advanceDate(date);
 
   // --- WorldState 更新 ---
-  const nextWorld: WorldState = {
+  let nextWorld: WorldState = {
     ...world,
     currentDate: newDate,
     schools: updatedSchools,
     middleSchoolPool: updatedMiddleSchool,
   };
+
+  // --- 年度替わり（3/31 から 4/1 への遷移） ---
+  if (newDate.month === 4 && newDate.day === 1) {
+    nextWorld = processYearTransition(nextWorld, rng.derive('year-transition'));
+  }
 
   // fallback: 自校が full tier でない場合（通常ありえないが安全策）
   if (!playerSchoolResult) {
