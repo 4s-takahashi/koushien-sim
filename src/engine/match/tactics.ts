@@ -172,6 +172,106 @@ export function applyPitchingChange(
   };
 }
 
+export function applyPinchRun(
+  state: MatchState,
+  outPlayerId: string,
+  inPlayerId: string,
+): MatchState {
+  const battingTeam = state.currentHalf === 'top' ? state.awayTeam : state.homeTeam;
+  const inPlayer = battingTeam.players.find((p) => p.player.id === inPlayerId);
+
+  if (!inPlayer) return state;
+
+  // 塁上の outPlayerId を inPlayerId で置き換える
+  const replaceRunner = (
+    runner: import('./types').RunnerInfo | null,
+  ): import('./types').RunnerInfo | null => {
+    if (!runner || runner.playerId !== outPlayerId) return runner;
+    return {
+      playerId: inPlayerId,
+      speed: inPlayer.player.stats.base.speed,
+    };
+  };
+
+  const newBases = {
+    first: replaceRunner(state.bases.first),
+    second: replaceRunner(state.bases.second),
+    third: replaceRunner(state.bases.third),
+  };
+
+  const newBench = battingTeam.benchPlayerIds.filter((id) => id !== inPlayerId);
+  const newUsed = new Set([...battingTeam.usedPlayerIds, outPlayerId, inPlayerId]);
+
+  const updatedTeam: MatchTeam = {
+    ...battingTeam,
+    benchPlayerIds: newBench,
+    usedPlayerIds: newUsed,
+  };
+
+  const isTop = state.currentHalf === 'top';
+  return {
+    ...state,
+    bases: newBases,
+    awayTeam: isTop ? updatedTeam : state.awayTeam,
+    homeTeam: isTop ? state.homeTeam : updatedTeam,
+    log: [
+      ...state.log,
+      {
+        inning: state.currentInning,
+        half: state.currentHalf,
+        type: 'substitution',
+        description: `Pinch run: ${outPlayerId} → ${inPlayerId}`,
+      },
+    ],
+  };
+}
+
+export function applyDefensiveSub(
+  state: MatchState,
+  order: { type: 'defensive_sub'; inPlayerId: string; outPlayerId: string; position: Position },
+): MatchState {
+  const fieldingTeam = state.currentHalf === 'top' ? state.homeTeam : state.awayTeam;
+  const outPlayerIndex = fieldingTeam.battingOrder.indexOf(order.outPlayerId);
+
+  if (outPlayerIndex < 0) return state;
+
+  // battingOrder の outPlayerId を inPlayerId に置き換える
+  const newBattingOrder = [...fieldingTeam.battingOrder];
+  newBattingOrder[outPlayerIndex] = order.inPlayerId;
+
+  // fieldPositions を更新: outPlayerId を削除し inPlayerId を追加
+  const newFieldPositions = new Map(fieldingTeam.fieldPositions);
+  newFieldPositions.delete(order.outPlayerId);
+  newFieldPositions.set(order.inPlayerId, order.position);
+
+  const newBench = fieldingTeam.benchPlayerIds.filter((id) => id !== order.inPlayerId);
+  const newUsed = new Set([...fieldingTeam.usedPlayerIds, order.outPlayerId, order.inPlayerId]);
+
+  const updatedTeam: MatchTeam = {
+    ...fieldingTeam,
+    battingOrder: newBattingOrder,
+    fieldPositions: newFieldPositions,
+    benchPlayerIds: newBench,
+    usedPlayerIds: newUsed,
+  };
+
+  const isTop = state.currentHalf === 'top';
+  return {
+    ...state,
+    homeTeam: isTop ? updatedTeam : state.homeTeam,
+    awayTeam: isTop ? state.awayTeam : updatedTeam,
+    log: [
+      ...state.log,
+      {
+        inning: state.currentInning,
+        half: state.currentHalf,
+        type: 'substitution',
+        description: `Defensive sub: ${order.outPlayerId} → ${order.inPlayerId} (${order.position})`,
+      },
+    ],
+  };
+}
+
 export function applyMoundVisit(state: MatchState): MatchState {
   const fieldingTeam = state.currentHalf === 'top' ? state.homeTeam : state.awayTeam;
   const pitcherId = fieldingTeam.currentPitcherId;

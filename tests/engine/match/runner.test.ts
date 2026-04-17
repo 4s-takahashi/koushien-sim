@@ -440,6 +440,106 @@ describe('MatchRunner', () => {
         expect(true).toBe(true);
       }
     });
+
+    it('applies pinch_run immediately and updates bases', () => {
+      const homeTeam = createTestTeam('Home', 'order-pr-home', 'h-school');
+      const awayTeam = createTestTeam('Away', 'order-pr-away', 'a-school');
+
+      // 表（away攻撃）で1塁に走者を置く
+      const runnerId = awayTeam.battingOrder[2];
+      const inPlayerId = awayTeam.benchPlayerIds[0];
+
+      const state: MatchState = {
+        ...createInitialState(homeTeam, awayTeam, DEFAULT_CONFIG),
+        currentHalf: 'top',
+        bases: {
+          first: { playerId: runnerId, speed: 30 },
+          second: null,
+          third: null,
+        },
+      };
+
+      const runner = new MatchRunner(state, (s, r) => ({ type: 'none' }), 'h-school');
+
+      const result = runner.applyPlayerOrder({
+        type: 'pinch_run',
+        outPlayerId: runnerId,
+        inPlayerId,
+      });
+
+      expect(result.applied).toBe(true);
+
+      const newState = runner.getState();
+      // 1塁の走者が代走選手に置き換わっていること
+      expect(newState.bases.first).not.toBeNull();
+      expect(newState.bases.first!.playerId).toBe(inPlayerId);
+      // ベンチから削除
+      expect(newState.awayTeam.benchPlayerIds).not.toContain(inPlayerId);
+      // usedPlayerIds に追加
+      expect(newState.awayTeam.usedPlayerIds.has(runnerId)).toBe(true);
+      expect(newState.awayTeam.usedPlayerIds.has(inPlayerId)).toBe(true);
+    });
+
+    it('applies defensive_sub immediately and updates fieldPositions', () => {
+      const homeTeam = createTestTeam('Home', 'order-ds-home', 'h-school');
+      const awayTeam = createTestTeam('Away', 'order-ds-away', 'a-school');
+
+      // 表（home守備）で home のライトを交代
+      const outPlayerId = homeTeam.battingOrder[8]; // right fielder
+      const inPlayerId = homeTeam.benchPlayerIds[0];
+
+      const state: MatchState = {
+        ...createInitialState(homeTeam, awayTeam, DEFAULT_CONFIG),
+        currentHalf: 'top',
+      };
+
+      const runner = new MatchRunner(state, (s, r) => ({ type: 'none' }), 'h-school');
+
+      const result = runner.applyPlayerOrder({
+        type: 'defensive_sub',
+        outPlayerId,
+        inPlayerId,
+        position: 'right',
+      });
+
+      expect(result.applied).toBe(true);
+
+      const newState = runner.getState();
+      // battingOrder が更新されていること
+      expect(newState.homeTeam.battingOrder).toContain(inPlayerId);
+      expect(newState.homeTeam.battingOrder).not.toContain(outPlayerId);
+      // fieldPositions が更新されていること
+      expect(newState.homeTeam.fieldPositions.get(inPlayerId)).toBe('right');
+      expect(newState.homeTeam.fieldPositions.has(outPlayerId)).toBe(false);
+      // ベンチから削除
+      expect(newState.homeTeam.benchPlayerIds).not.toContain(inPlayerId);
+    });
+
+    it('pinch_run: invalid order returns applied: false when inPlayer not in bench', () => {
+      const homeTeam = createTestTeam('Home', 'order-pr-inv-home', 'h-school');
+      const awayTeam = createTestTeam('Away', 'order-pr-inv-away', 'a-school');
+
+      const runnerId = awayTeam.battingOrder[2];
+      const state: MatchState = {
+        ...createInitialState(homeTeam, awayTeam, DEFAULT_CONFIG),
+        currentHalf: 'top',
+        bases: {
+          first: { playerId: runnerId, speed: 30 },
+          second: null,
+          third: null,
+        },
+      };
+
+      const runner = new MatchRunner(state, (s, r) => ({ type: 'none' }), 'h-school');
+      const result = runner.applyPlayerOrder({
+        type: 'pinch_run',
+        outPlayerId: runnerId,
+        inPlayerId: 'not-in-bench',
+      });
+
+      expect(result.applied).toBe(false);
+      expect(result.reason).toBeTruthy();
+    });
   });
 
   // ----------------------------------------------------------

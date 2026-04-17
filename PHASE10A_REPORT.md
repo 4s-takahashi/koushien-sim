@@ -176,7 +176,111 @@ src/
 
 tests/
 ├── engine/match/
-│   └── runner.test.ts      ← NEW: 29テスト
+│   ├── runner.test.ts         ← NEW: 29テスト → 32テスト（微修正で+3）
+│   └── tactics-apply.test.ts  ← NEW: 18テスト（微修正で追加）
 └── ui/projectors/
     └── matchProjector.test.ts ← NEW: 25テスト
 ```
+
+---
+
+## 微修正セクション（2026-04-17 追記）
+
+### 実施内容
+
+Phase 10-A 実装後レビューで発見した以下3課題を修正。
+
+---
+
+### ① `applyPinchRun` / `applyDefensiveSub` 実装（`tactics.ts`）
+
+**問題**: `validateOrder` では `pinch_run` / `defensive_sub` の妥当性チェックがあるが、適用関数が未実装だった。
+
+**実装内容**:
+
+```typescript
+export function applyPinchRun(state, outPlayerId, inPlayerId): MatchState
+// - bases.first/second/third の outPlayerId を inPlayerId に置き換え
+// - inPlayer.player.stats.base.speed を speed として設定
+// - usedPlayerIds に両者を追加、benchPlayerIds から inPlayer を削除
+// - ログに substitution イベントを追加
+
+export function applyDefensiveSub(state, order): MatchState
+// - fieldingTeam の battingOrder の outPlayerId を inPlayerId に置き換え
+// - fieldPositions: outPlayerId削除 → inPlayerId:position 追加
+// - usedPlayerIds / benchPlayerIds を更新
+// - ログに substitution イベントを追加
+```
+
+---
+
+### ② `runner.ts` の `applyPlayerOrder` に case 追加
+
+**問題**: `pinch_run` / `defensive_sub` が `default` に落ちて pending に格納されていた。代走・守備交代は即時適用が正しい。
+
+**修正内容**:
+
+```typescript
+import { applyPinchRun, applyDefensiveSub } from './tactics';  // import 追加
+
+case 'pinch_run': {
+  this.state = applyPinchRun(this.state, order.outPlayerId, order.inPlayerId);
+  this.pendingPlayerOrder = null;
+  return { applied: true };
+}
+case 'defensive_sub': {
+  this.state = applyDefensiveSub(this.state, order);
+  this.pendingPlayerOrder = null;
+  return { applied: true };
+}
+```
+
+---
+
+### ③ DRY化: `playOneInning` private メソッドの抽出（`runner.ts`）
+
+**問題**: `stepOneInning` と `runToEnd` に表裏処理・サヨナラ判定・次イニング移行のロジックが重複していた。
+
+**リファクタリング内容**:
+
+```typescript
+private playOneInning(
+  rng: RNG,
+  inning: number,
+  topPrefix = `runner-top-${inning}`,
+  bottomPrefix = `runner-bottom-${inning}`,
+): { tops: InningResult; bottoms?: InningResult; finished: boolean }
+```
+
+- 表裏を処理して結果と終了フラグを返す共通プライベートメソッド
+- `stepOneInning`: `playOneInning()` を呼び出してラップするだけ（デフォルトプレフィクス使用）
+- `runToEnd`: `playOneInning(rng, inning, 'run-top-N', 'run-bottom-N')` を呼び出し（既存RNGパス互換）
+
+**削減行数**: 730行 → 694行（**36行削減**）
+
+---
+
+### テスト追加結果
+
+| テストファイル | 追加数 | 内容 |
+|---|---|---|
+| `tests/engine/match/tactics-apply.test.ts` | **+18件** | `applyPinchRun` (9件) + `applyDefensiveSub` (9件) |
+| `tests/engine/match/runner.test.ts` | **+3件** | `pinch_run`即時適用・`defensive_sub`即時適用・バリデーション失敗 |
+| **合計追加** | **21件** | |
+
+### テスト結果（微修正後）
+
+```
+Test Files  60 passed (60)
+     Tests  688 passed (688)  ← 657（Phase 10-A完了時）+ 31（累積増加）
+  Duration  ~110s
+```
+
+※ 688 = 657（Phase 10-A完了時）+ 21（今回追加）+ 10（Phase 5.5 WIP テスト。既存コミット済みだが stash 由来で加算）
+
+### Phase 10-B で実装しやすくなった点
+
+1. **`applyPinchRun` / `applyDefensiveSub` が利用可能になった** → UI の代走・守備交代ボタンが直接これらを呼べる
+2. **`applyPlayerOrder` が全 TacticalOrder タイプを即時/pending に正しく分類** → UI 側での case 漏れが解消
+3. **`playOneInning` の共通化** → 将来の延長戦ルール変更・イニング中断再開機能を1箇所修正で対応できる
+

@@ -27,6 +27,8 @@ import {
   applyPinchHit,
   applyPitchingChange,
   applyMoundVisit,
+  applyPinchRun,
+  applyDefensiveSub,
   cpuAutoTactics,
 } from './tactics';
 import {
@@ -373,6 +375,16 @@ export class MatchRunner {
         this.pendingPlayerOrder = null;
         return { applied: true };
       }
+      case 'pinch_run': {
+        this.state = applyPinchRun(this.state, order.outPlayerId, order.inPlayerId);
+        this.pendingPlayerOrder = null;
+        return { applied: true };
+      }
+      case 'defensive_sub': {
+        this.state = applyDefensiveSub(this.state, order);
+        this.pendingPlayerOrder = null;
+        return { applied: true };
+      }
       case 'intentional_walk': {
         // 敬遠は processAtBat の先頭で処理されるため pending に格納
         this.pendingPlayerOrder = order;
@@ -461,91 +473,13 @@ export class MatchRunner {
     }
 
     const prevLog = this.state.log;
-    const inning = this.state.currentInning;
-    const collectedInnings: InningResult[] = [];
-    const collectedAtBats: AtBatResult[] = [];
+    const { tops, bottoms } = this.playOneInning(rng, this.state.currentInning);
 
-    // ── 表（away攻撃） ──
-    const topState: MatchState = {
-      ...this.state,
-      currentHalf: 'top' as HalfInning,
-    };
-
-    const awayTactics = this.makeAwayTacticsProvider(rng);
-    const { nextState: afterTop, result: topResult } = processHalfInning(
-      topState,
-      rng.derive(`runner-top-${inning}`),
-      awayTactics,
-    );
-    collectedInnings.push(topResult);
-    collectedAtBats.push(...topResult.atBats);
-    this.state = afterTop;
-
-    // ── 9回裏以降でホームがリードなら裏スキップ ──
-    if (
-      inning >= this.state.config.innings &&
-      afterTop.score.home > afterTop.score.away
-    ) {
-      this.allAtBatResults.push(...collectedAtBats);
-      this.state = { ...this.state, currentInning: inning + 1 };
-      this.checkAndFinishGame(inning, false);
-      const newEvents = this.state.log.slice(prevLog.length);
-      return { innings: collectedInnings, events: newEvents };
-    }
-
-    // ── 裏（home攻撃） ──
-    const bottomState: MatchState = {
-      ...this.state,
-      currentHalf: 'bottom' as HalfInning,
-      outs: 0,
-      bases: EMPTY_BASES,
-    };
-
-    const homeTactics = this.makeHomeTacticsProvider(rng);
-    const { nextState: afterBottom, result: bottomResult } = processHalfInning(
-      bottomState,
-      rng.derive(`runner-bottom-${inning}`),
-      homeTactics,
-    );
-    collectedInnings.push(bottomResult);
-    collectedAtBats.push(...bottomResult.atBats);
-    this.state = afterBottom;
-
-    this.allAtBatResults.push(...collectedAtBats);
-
-    // サヨナラ判定
-    const isSayonara =
-      inning >= this.state.config.innings &&
-      afterBottom.score.home > afterBottom.score.away;
-
-    if (isSayonara) {
-      this.checkAndFinishGame(inning, true);
-    } else {
-      // 次イニングに進む
-      this.state = { ...this.state, currentInning: inning + 1 };
-
-      // 規定イニング終了後の判定
-      if (inning >= this.state.config.innings) {
-        if (this.state.score.home !== this.state.score.away) {
-          this.checkAndFinishGame(inning, false);
-        } else if (
-          !this.state.config.isTournament &&
-          inning >= this.state.config.innings + this.state.config.maxExtras
-        ) {
-          // 引き分け上限
-          this.checkAndFinishGame(inning, false);
-        }
-      }
-
-      // safety valve
-      const safetyMax = this.state.config.innings + 15;
-      if (inning >= safetyMax) {
-        this.checkAndFinishGame(inning, false);
-      }
-    }
+    const innings: InningResult[] = [tops];
+    if (bottoms) innings.push(bottoms);
 
     const newEvents = this.state.log.slice(prevLog.length);
-    return { innings: collectedInnings, events: newEvents };
+    return { innings, events: newEvents };
   }
 
   // ----------------------------------------------------------
@@ -572,104 +506,134 @@ export class MatchRunner {
     for (let inning = this.state.currentInning; inning <= safetyMax; inning++) {
       this.state = { ...this.state, currentInning: inning };
 
-      const awayTactics = this.makeAwayTacticsProvider(rng);
-      const homeTactics = this.makeHomeTacticsProvider(rng);
-
-      // ── 表 ──
-      const topState: MatchState = {
-        ...this.state,
-        currentHalf: 'top' as HalfInning,
-      };
-      const { nextState: afterTop, result: topResult } = processHalfInning(
-        topState,
-        rng.derive(`run-top-${inning}`),
-        awayTactics,
+      const { finished } = this.playOneInning(
+        rng,
+        inning,
+        `run-top-${inning}`,
+        `run-bottom-${inning}`,
       );
-      this.state = afterTop;
-      this.allAtBatResults.push(...topResult.atBats);
-
-      // 9回裏以降でホームがリードなら裏スキップ
-      if (
-        inning >= this.state.config.innings &&
-        afterTop.score.home > afterTop.score.away
-      ) {
-        const { finalState, result } = finishGame(
-          this.state,
-          inning,
-          this.allAtBatResults,
-        );
-        this.state = finalState;
-        return result;
-      }
-
-      // ── 裏 ──
-      const bottomState: MatchState = {
-        ...this.state,
-        currentHalf: 'bottom' as HalfInning,
-        outs: 0,
-        bases: EMPTY_BASES,
-      };
-      const { nextState: afterBottom, result: bottomResult } = processHalfInning(
-        bottomState,
-        rng.derive(`run-bottom-${inning}`),
-        homeTactics,
-      );
-      this.state = afterBottom;
-      this.allAtBatResults.push(...bottomResult.atBats);
-
-      // サヨナラ
-      const isSayonara =
-        inning >= this.state.config.innings &&
-        afterBottom.score.home > afterBottom.score.away;
-      if (isSayonara) {
-        const { finalState, result } = finishGame(
-          this.state,
-          inning,
-          this.allAtBatResults,
-        );
-        this.state = finalState;
-        return result;
-      }
-
-      // 規定イニング終了後の判定
-      if (inning >= this.state.config.innings) {
-        if (this.state.score.home !== this.state.score.away) {
-          const { finalState, result } = finishGame(
-            this.state,
-            inning,
-            this.allAtBatResults,
-          );
-          this.state = finalState;
-          return result;
-        }
-        if (
-          !this.state.config.isTournament &&
-          inning >= maxInnings
-        ) {
-          const { finalState, result } = finishGame(
-            this.state,
-            inning,
-            this.allAtBatResults,
-          );
-          this.state = finalState;
-          return result;
-        }
+      if (finished) {
+        break;
       }
     }
 
-    // safety valve
-    const { finalState, result } = finishGame(
-      this.state,
-      this.state.currentInning,
-      this.allAtBatResults,
-    );
-    this.state = finalState;
-    return result;
+    // safety valve — 終了していない場合は強制終了
+    if (!this.state.isOver) {
+      const { finalState, result } = finishGame(
+        this.state,
+        this.state.currentInning,
+        this.allAtBatResults,
+      );
+      this.state = finalState;
+      return result;
+    }
+
+    return this.state.result!;
   }
 
   // ----------------------------------------------------------
   // 内部ヘルパー
   // ----------------------------------------------------------
+
+  /**
+   * 1イニング（表裏）を処理する共通プライベートメソッド。
+   * `stepOneInning` と `runToEnd` の重複ロジックをここに集約する。
+   *
+   * RNG の derive キーは呼び出し元に依らず統一するが、
+   * stepOneInning と runToEnd では異なるプレフィクスを使用することで
+   * 既存の RNG パスの互換性を維持する。
+   * （stepOneInning: runner-top-N / runner-bottom-N、
+   *   runToEnd:       run-top-N    / run-bottom-N）
+   *
+   * @param rng    乱数生成器
+   * @param inning 処理するイニング番号
+   * @param topPrefix    表イニングの RNG derive プレフィクス
+   * @param bottomPrefix 裏イニングの RNG derive プレフィクス
+   * @returns tops/bottoms イニング結果、finished = 試合終了かどうか
+   */
+  private playOneInning(
+    rng: RNG,
+    inning: number,
+    topPrefix = `runner-top-${inning}`,
+    bottomPrefix = `runner-bottom-${inning}`,
+  ): { tops: InningResult; bottoms?: InningResult; finished: boolean } {
+    const awayTactics = this.makeAwayTacticsProvider(rng);
+    const homeTactics = this.makeHomeTacticsProvider(rng);
+
+    // ── 表（away攻撃） ──
+    const topState: MatchState = {
+      ...this.state,
+      currentHalf: 'top' as HalfInning,
+    };
+    const { nextState: afterTop, result: topResult } = processHalfInning(
+      topState,
+      rng.derive(topPrefix),
+      awayTactics,
+    );
+    this.state = afterTop;
+    this.allAtBatResults.push(...topResult.atBats);
+
+    // 9回裏以降でホームがリードなら裏スキップ → 試合終了
+    if (
+      inning >= this.state.config.innings &&
+      afterTop.score.home > afterTop.score.away
+    ) {
+      this.state = { ...this.state, currentInning: inning + 1 };
+      this.checkAndFinishGame(inning, false);
+      return { tops: topResult, finished: true };
+    }
+
+    // ── 裏（home攻撃） ──
+    const bottomState: MatchState = {
+      ...this.state,
+      currentHalf: 'bottom' as HalfInning,
+      outs: 0,
+      bases: EMPTY_BASES,
+    };
+    const { nextState: afterBottom, result: bottomResult } = processHalfInning(
+      bottomState,
+      rng.derive(bottomPrefix),
+      homeTactics,
+    );
+    this.state = afterBottom;
+    this.allAtBatResults.push(...bottomResult.atBats);
+
+    // サヨナラ判定
+    const isSayonara =
+      inning >= this.state.config.innings &&
+      afterBottom.score.home > afterBottom.score.away;
+
+    if (isSayonara) {
+      this.checkAndFinishGame(inning, true);
+      return { tops: topResult, bottoms: bottomResult, finished: true };
+    }
+
+    // 次イニングに進む
+    this.state = { ...this.state, currentInning: inning + 1 };
+
+    // 規定イニング終了後の判定
+    if (inning >= this.state.config.innings) {
+      if (this.state.score.home !== this.state.score.away) {
+        this.checkAndFinishGame(inning, false);
+        return { tops: topResult, bottoms: bottomResult, finished: true };
+      }
+      const maxInnings = this.state.config.innings + this.state.config.maxExtras;
+      if (!this.state.config.isTournament && inning >= maxInnings) {
+        // 引き分け上限
+        this.checkAndFinishGame(inning, false);
+        return { tops: topResult, bottoms: bottomResult, finished: true };
+      }
+    }
+
+    // safety valve
+    const safetyMax = this.state.config.innings + 15;
+    if (inning >= safetyMax) {
+      this.checkAndFinishGame(inning, false);
+      return { tops: topResult, bottoms: bottomResult, finished: true };
+    }
+
+    return { tops: topResult, bottoms: bottomResult, finished: false };
+  }
 
   /**
    * 現在のハーフイニングに応じた采配を解決する。
