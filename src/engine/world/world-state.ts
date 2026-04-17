@@ -11,6 +11,7 @@ import type { Player, PlayerStats, Position } from '../types/player';
 import type { PersonRegistry } from './person-state';
 import type { CoachStyle, SchoolBlueprint } from './person-blueprint';
 import type { TournamentBracket } from './tournament-bracket';
+import type { ScheduledPracticeGame, PracticeGameRecord } from '../types/practice-game';
 
 // ============================================================
 // 計算粒度
@@ -186,6 +187,12 @@ export interface WorldState {
 
   // --- スカウト状態 ---
   scoutState: ScoutState;
+
+  // --- 練習試合 ---
+  /** 予約済み練習試合・紅白戦（最大3件） */
+  scheduledPracticeGames?: ScheduledPracticeGame[];
+  /** 練習試合・紅白戦の実施履歴（最大30件） */
+  practiceGameHistory?: PracticeGameRecord[];
 }
 
 export interface GameSettings {

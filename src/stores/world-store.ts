@@ -7,13 +7,14 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { PracticeMenuId } from '../engine/types/calendar';
+import type { PracticeMenuId, GameDate } from '../engine/types/calendar';
 import type { WorldState } from '../engine/world/world-state';
 import type { WorldDayResult } from '../engine/world/world-ticker';
 import type { ScoutSearchFilter } from '../engine/world/world-state';
 import type {
   HomeViewState, TeamViewState, PlayerDetailViewState,
   ScoutViewState, TournamentViewState, ResultsViewState, OBViewState,
+  PracticeViewState,
 } from '../ui/projectors/view-state-types';
 import { createRNG } from '../engine/core/rng';
 import { createWorldState } from '../engine/world/create-world';
@@ -26,6 +27,12 @@ import { projectScout } from '../ui/projectors/scoutProjector';
 import { projectTournament } from '../ui/projectors/tournamentProjector';
 import { projectResults } from '../ui/projectors/resultsProjector';
 import { projectOB } from '../ui/projectors/obProjector';
+import { projectPracticeView } from '../ui/projectors/practiceProjector';
+import {
+  schedulePracticeMatch,
+  scheduleIntraSquad,
+  cancelPracticeGame,
+} from '../engine/world/practice-game';
 import { generateId } from '../engine/core/id';
 import { generatePlayer } from '../engine/player/generate';
 import { autoGenerateLineup } from '../engine/team/lineup';
@@ -86,6 +93,12 @@ interface WorldStore {
   getTournamentView: () => TournamentViewState | null;
   getResultsView: () => ResultsViewState | null;
   getOBView: () => OBViewState | null;
+  getPracticeView: () => PracticeViewState | null;
+
+  // --- 練習試合アクション ---
+  schedulePracticeGame: (opponentSchoolId: string, date: GameDate) => { success: boolean; message: string };
+  scheduleIntraSquadGame: (date: GameDate) => { success: boolean; message: string };
+  cancelPracticeGameAction: (scheduleId: string) => void;
 
   // --- スカウトアクション ---
   scoutVisit: (playerId: string) => { success: boolean; message: string };
@@ -347,6 +360,62 @@ export const useWorldStore = create<WorldStore>()(
     const { worldState } = get();
     if (!worldState) return null;
     return projectOB(worldState);
+  },
+
+  getPracticeView: () => {
+    const { worldState } = get();
+    if (!worldState) return null;
+    return projectPracticeView(worldState);
+  },
+
+  // ----------------------------------------------------------------
+  // 練習試合アクション
+  // ----------------------------------------------------------------
+  schedulePracticeGame: (opponentSchoolId: string, date: GameDate) => {
+    const { worldState } = get();
+    if (!worldState) return { success: false, message: 'ゲームが開始されていません' };
+
+    const result = schedulePracticeMatch(worldState, opponentSchoolId, date);
+    if (typeof result === 'string') {
+      const messages: Record<string, string> = {
+        tournament_active: '大会期間中は練習試合を予約できません',
+        date_conflict: 'その日はすでに練習試合が予約されています',
+        date_too_far: '7日先より遠い日付は予約できません',
+        date_past: '過去の日付には予約できません',
+        opponent_not_found: '相手校が見つかりません',
+        max_scheduled: '予約は最大3件までです',
+      };
+      return { success: false, message: messages[result] ?? '予約に失敗しました' };
+    }
+    set({ worldState: result });
+    const opponentName = result.schools.find((s) => s.id === opponentSchoolId)?.name ?? '相手校';
+    return { success: true, message: `${opponentName} との練習試合を ${date.month}月${date.day}日 に予約しました` };
+  },
+
+  scheduleIntraSquadGame: (date: GameDate) => {
+    const { worldState } = get();
+    if (!worldState) return { success: false, message: 'ゲームが開始されていません' };
+
+    const result = scheduleIntraSquad(worldState, date);
+    if (typeof result === 'string') {
+      const messages: Record<string, string> = {
+        tournament_active: '大会期間中は紅白戦を予約できません',
+        date_conflict: 'その日はすでに試合が予約されています',
+        date_too_far: '7日先より遠い日付は予約できません',
+        date_past: '過去の日付には予約できません',
+        opponent_not_found: '予約に失敗しました',
+        max_scheduled: '予約は最大3件までです',
+      };
+      return { success: false, message: messages[result] ?? '予約に失敗しました' };
+    }
+    set({ worldState: result });
+    return { success: true, message: `紅白戦を ${date.month}月${date.day}日 に予約しました` };
+  },
+
+  cancelPracticeGameAction: (scheduleId: string) => {
+    const { worldState } = get();
+    if (!worldState) return;
+    set({ worldState: cancelPracticeGame(worldState, scheduleId) });
   },
 
   // ----------------------------------------------------------------

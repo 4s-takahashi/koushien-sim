@@ -692,6 +692,7 @@ function HomeContent({ view }: { view: HomeViewState }) {
             {[
               { href: '/team', label: '選手一覧・ラインナップ' },
               { href: '/scout', label: 'スカウト・勧誘' },
+              { href: '/play/practice', label: '練習試合・紅白戦' },
               { href: '/tournament', label: '大会情報' },
               { href: '/results', label: '試合結果' },
               { href: '/ob', label: 'OB・卒業生' },

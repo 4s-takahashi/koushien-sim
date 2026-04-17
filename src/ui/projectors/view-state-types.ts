@@ -571,3 +571,67 @@ export interface MatchViewState {
   // プレイヤーが攻撃中か
   isPlayerBatting: boolean;
 }
+
+// ============================================================
+// 練習試合・紅白戦画面 ViewState（Phase 5-B）
+// ============================================================
+
+/** 練習試合の種別（practice-game.ts と同期） */
+export type PracticeGameTypeView = 'scrimmage' | 'intra_squad';
+
+/** 予約済み練習試合の表示用 */
+export interface PracticeScheduleItemView {
+  id: string;
+  type: PracticeGameTypeView;
+  typeLabel: string;   // '練習試合' | '紅白戦'
+  dateLabel: string;   // '5月15日'
+  opponentName: string;
+  opponentSchoolId: string | null;
+}
+
+/** 実施履歴の1件分 */
+export interface PracticeHistoryItemView {
+  id: string;
+  type: PracticeGameTypeView;
+  typeLabel: string;
+  dateLabel: string;
+  opponentName: string;
+  result: 'win' | 'loss' | 'draw';
+  resultLabel: string;  // '○ 勝利' | '● 敗戦' | '△ 引き分け'
+  scoreLabel: string;   // '5 - 3'
+  highlights: string[];
+  mvpPlayerName: string | null;
+}
+
+/** 練習試合の相手候補校 */
+export interface OpponentCandidateView {
+  schoolId: string;
+  schoolName: string;
+  prefecture: string;
+  reputation: number;
+  reputationDiff: number;  // 自校との評判差（正 = 相手が強い）
+}
+
+/** 練習試合・紅白戦画面の ViewState */
+export interface PracticeViewState {
+  /** 練習試合を新規予約できるか（大会期間外なら true） */
+  canSchedule: boolean;
+  /** 予約不可の理由（canSchedule=false のとき） */
+  cannotScheduleReason: string | null;
+  /** 予約済み一覧 */
+  scheduleItems: PracticeScheduleItemView[];
+  /** 実施履歴（新しい順、最大20件） */
+  historyItems: PracticeHistoryItemView[];
+  /** 相手候補校 */
+  opponentCandidates: OpponentCandidateView[];
+  /** 現在の予約件数 */
+  scheduledCount: number;
+  /** 予約上限件数 */
+  maxScheduled: number;
+  /** 通算勝利数 */
+  totalWins: number;
+  /** 通算敗戦数 */
+  totalLosses: number;
+  /** 通算引き分け数 */
+  totalDraws: number;
+}

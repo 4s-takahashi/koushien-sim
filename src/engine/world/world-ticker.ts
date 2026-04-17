@@ -23,6 +23,8 @@ import {
   simulateTournamentRound,
 } from './tournament-bracket';
 import type { TournamentBracket } from './tournament-bracket';
+import { processPracticeGameDay } from './practice-game';
+import type { PracticeGameRecord } from '../types/practice-game';
 
 // ============================================================
 // WorldDayResult
@@ -50,6 +52,8 @@ export interface WorldDayResult {
   worldNews: WorldNewsItem[];
   /** シーズンフェーズ変更 */
   seasonTransition: import('./world-state').SeasonPhase | null;
+  /** 練習試合・紅白戦の結果（実施した日のみ設定） */
+  practiceGameResult?: PracticeGameRecord | null;
 }
 
 export interface WorldNewsItem {
@@ -660,6 +664,43 @@ export function advanceWorldDay(
     };
   }
 
+  // --- 練習試合・紅白戦の処理（新日付の予約分） ---
+  // nextWorld.currentDate === newDate なのでそのまま渡す。
+  let practiceGameResult: PracticeGameRecord | null = null;
+  const practiceOutcome = processPracticeGameDay(
+    nextWorld,
+    rng.derive('practice-game'),
+  );
+  if (practiceOutcome) {
+    practiceGameResult = practiceOutcome.record;
+    // 練習試合後の学校状態（疲労反映済み）と履歴を nextWorld に適用
+    nextWorld = {
+      ...nextWorld,
+      schools: practiceOutcome.nextWorld.schools,
+      scheduledPracticeGames: practiceOutcome.nextWorld.scheduledPracticeGames,
+      practiceGameHistory: practiceOutcome.nextWorld.practiceGameHistory,
+    };
+    // ニュースに追加
+    if (practiceOutcome.record.type === 'scrimmage') {
+      const opponentName = practiceOutcome.record.opponentSchoolName ?? '相手校';
+      const resultLabel =
+        practiceOutcome.record.result === 'win' ? '勝利'
+        : practiceOutcome.record.result === 'loss' ? '敗退'
+        : '引き分け';
+      const score = practiceOutcome.record.finalScore;
+      worldNews.push({
+        type: 'tournament_result',
+        headline: `練習試合: ${opponentName} と ${score.player}対${score.opponent} で${resultLabel}`,
+        involvedSchoolIds: [
+          world.playerSchoolId,
+          ...(practiceOutcome.record.opponentSchoolId ? [practiceOutcome.record.opponentSchoolId] : []),
+        ],
+        involvedPlayerIds: [],
+        importance: 'low',
+      });
+    }
+  }
+
   // fallback: 自校が full tier でない場合（通常ありえないが安全策）
   if (!playerSchoolResult) {
     playerSchoolResult = {
@@ -685,6 +726,7 @@ export function advanceWorldDay(
     ...(playerMatchResult !== undefined ? { playerMatchResult } : {}),
     ...(playerMatchOpponent !== undefined ? { playerMatchOpponent } : {}),
     ...(playerMatchSide !== undefined ? { playerMatchSide } : {}),
+    ...(practiceGameResult !== null ? { practiceGameResult } : {}),
   };
 
   return { nextWorld, result };
