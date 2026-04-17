@@ -22,7 +22,7 @@ import {
   createTournamentBracket,
   simulateTournamentRound,
 } from './tournament-bracket';
-import type { TournamentBracket } from './tournament-bracket';
+import type { TournamentBracket, TournamentMatch } from './tournament-bracket';
 import { processPracticeGameDay } from './practice-game';
 import type { PracticeGameRecord } from '../types/practice-game';
 
@@ -277,6 +277,7 @@ export function computeSeasonPhase(date: GameDate): SeasonPhase {
 
 /**
  * トーナメントラウンドから自校の試合を見つける。
+ * Phase 5.5: inningScores, totalInnings, mvpPlayerId も返すよう拡張。
  */
 function findPlayerMatchInRound(
   bracket: TournamentBracket,
@@ -288,6 +289,9 @@ function findPlayerMatchInRound(
   playerWon: boolean;
   homeScore: number | null;
   awayScore: number | null;
+  inningScores: TournamentMatch['inningScores'];
+  totalInnings: number | null;
+  mvpPlayerId: string | null;
 } | null {
   const round = bracket.rounds.find((r) => r.roundNumber === roundNumber);
   if (!round) return null;
@@ -300,6 +304,9 @@ function findPlayerMatchInRound(
         playerWon: match.winnerId === playerSchoolId,
         homeScore: match.homeScore,
         awayScore: match.awayScore,
+        inningScores: match.inningScores,
+        totalInnings: match.totalInnings,
+        mvpPlayerId: match.mvpPlayerId,
       };
     }
     if (match.awaySchoolId === playerSchoolId) {
@@ -309,6 +316,9 @@ function findPlayerMatchInRound(
         playerWon: match.winnerId === playerSchoolId,
         homeScore: match.homeScore,
         awayScore: match.awayScore,
+        inningScores: match.inningScores,
+        totalInnings: match.totalInnings,
+        mvpPlayerId: match.mvpPlayerId,
       };
     }
   }
@@ -469,12 +479,10 @@ export function advanceWorldDay(
         playerMatchResult = {
           winner,
           finalScore: { home: homeScore, away: awayScore },
-          inningScores: {
-            home: distributeScore(homeScore, 9),
-            away: distributeScore(awayScore, 9),
-          },
-          totalInnings: 9,
-          mvpPlayerId: null,
+          // Phase 5.5: quickGame の実シミュ結果から直接取得（distributeScore 廃止）
+          inningScores: playerMatch.inningScores ?? { home: [], away: [] },
+          totalInnings: playerMatch.totalInnings ?? 9,
+          mvpPlayerId: playerMatch.mvpPlayerId ?? null,
           batterStats: [],
           pitcherStats: [],
         };
@@ -732,16 +740,4 @@ export function advanceWorldDay(
   return { nextWorld, result };
 }
 
-/**
- * スコアをイニングに分散する（簡易版）
- */
-function distributeScore(totalScore: number, innings: number): number[] {
-  const result = Array(innings).fill(0);
-  let remaining = totalScore;
-  for (let i = 0; i < innings && remaining > 0; i++) {
-    const run = Math.min(remaining, Math.ceil(remaining / (innings - i)));
-    result[i] = run;
-    remaining -= run;
-  }
-  return result;
-}
+// distributeScore は Phase 5.5 で廃止。quickGame の実イニングスコアを直接使用。

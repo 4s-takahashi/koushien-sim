@@ -236,11 +236,14 @@ describe('simulateFullTournament', () => {
 
   it('シード（RNG）が同じなら結果が再現可能', () => {
     const world = createTestWorld();
+    // 同じブラケットIDを使って2回独立したシミュレーションを実施
+    // (matchId が bracketId を含むため、bracketId が異なると別の RNG パスになる)
     const rng1 = createRNG('deterministic');
     const rng2 = createRNG('deterministic');
 
-    const b1 = createTournamentBracket('t1', 'summer', 1, world.schools, rng1);
-    const b2 = createTournamentBracket('t2', 'summer', 1, world.schools, rng2);
+    // 同じ id を使う
+    const b1 = createTournamentBracket('same-id', 'summer', 1, world.schools, rng1);
+    const b2 = createTournamentBracket('same-id', 'summer', 1, world.schools, rng2);
 
     const s1 = simulateFullTournament(b1, world.schools, rng1.derive('sim'));
     const s2 = simulateFullTournament(b2, world.schools, rng2.derive('sim'));

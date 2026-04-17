@@ -19,6 +19,9 @@
 
 import type { RNG } from '../core/rng';
 import type { HighSchool } from './world-state';
+import { quickGame } from '../match/quick-game';
+import type { MatchConfig } from '../match/types';
+import { buildMatchTeam } from './match-team-builder';
 
 // ============================================================
 // 型定義
@@ -37,6 +40,10 @@ export interface TournamentMatch {
   awayScore: number | null;
   isBye: boolean;
   isUpset: boolean;
+  // --- Phase 5.5 追加: 実シミュ結果 ---
+  inningScores: { home: number[]; away: number[] } | null;
+  totalInnings: number | null;
+  mvpPlayerId: string | null;
 }
 
 export interface TournamentRound {
@@ -122,6 +129,9 @@ export function createTournamentBracket(
       awayScore: null,
       isBye: false,
       isUpset: false,
+      inningScores: null,
+      totalInnings: null,
+      mvpPlayerId: null,
     });
   }
 
@@ -141,6 +151,9 @@ export function createTournamentBracket(
       awayScore: null,
       isBye: false,
       isUpset: false,
+      inningScores: null,
+      totalInnings: null,
+      mvpPlayerId: null,
     });
   }
 
@@ -160,6 +173,9 @@ export function createTournamentBracket(
       awayScore: null,
       isBye: false,
       isUpset: false,
+      inningScores: null,
+      totalInnings: null,
+      mvpPlayerId: null,
     }));
     laterRounds.push({ roundNumber: r, roundName: getRoundName(r, TOTAL_ROUNDS), matches });
   }
@@ -185,14 +201,31 @@ export function createTournamentBracket(
 // 1ラウンドシミュレーション
 // ============================================================
 
+/**
+ * トーナメントの1ラウンドを quickGame で実シミュレートする。
+ *
+ * Phase 5.5: reputation差による疑似計算を撤廃し、quickGame による実打席シミュを導入。
+ *
+ * @param options.skipPlayerMatch - true の場合、自校の試合をスキップ（未決のまま返す）
+ * @param options.playerSchoolId - スキップ対象の学校 ID（Phase 10-C 統合用）
+ */
 export function simulateTournamentRound(
   bracket: TournamentBracket,
   roundNumber: number,
   schools: HighSchool[],
   rng: RNG,
+  options: { skipPlayerMatch?: boolean; playerSchoolId?: string } = {},
 ): TournamentBracket {
   const schoolMap = new Map<string, HighSchool>();
   for (const s of schools) schoolMap.set(s.id, s);
+
+  const matchConfig: MatchConfig = {
+    innings: 9,
+    maxExtras: 3,
+    useDH: false,
+    isTournament: true,
+    isKoshien: bracket.type === 'koshien',
+  };
 
   const newRounds = bracket.rounds.map((round) => {
     if (round.roundNumber !== roundNumber) return round;
@@ -204,25 +237,65 @@ export function simulateTournamentRound(
       const away = match.awaySchoolId ? schoolMap.get(match.awaySchoolId) ?? null : null;
 
       if (!home && !away) return match;
-      if (!home) return { ...match, winnerId: away!.id, homeScore: 0, awayScore: 0 };
-      if (!away) return { ...match, winnerId: home.id, isBye: true, homeScore: 0, awayScore: 0 };
 
-      const repDiff = (home.reputation - away.reputation) / 100;
-      const homeWinProb = Math.max(0.15, Math.min(0.85, 0.5 + repDiff * 0.6));
-      const rand = rng.derive(`${match.matchId}`).next();
-      const homeWins = rand < homeWinProb;
-      const winner = homeWins ? home : away;
-      const loser = homeWins ? away : home;
+      // 一方が不在 → 不戦勝/bye 処理
+      if (!home) {
+        return {
+          ...match,
+          winnerId: away!.id,
+          homeScore: 0,
+          awayScore: 0,
+          inningScores: { home: Array(9).fill(0) as number[], away: Array(9).fill(0) as number[] },
+          totalInnings: 9,
+          mvpPlayerId: null,
+        };
+      }
+      if (!away) {
+        return {
+          ...match,
+          winnerId: home.id,
+          isBye: true,
+          homeScore: 0,
+          awayScore: 0,
+          inningScores: { home: Array(9).fill(0) as number[], away: Array(9).fill(0) as number[] },
+          totalInnings: 9,
+          mvpPlayerId: null,
+        };
+      }
 
-      const runDiff = Math.max(1, Math.round(1 + (winner.reputation - loser.reputation) / 30 + rng.derive(`${match.matchId}-score`).next() * 3));
-      const loserScore = Math.max(0, Math.round(rng.derive(`${match.matchId}-ls`).next() * 5));
-      const winnerScore = loserScore + runDiff;
+      // Phase 10-C 向け: 自校の試合をスキップ（未決のまま返す）
+      if (
+        options.skipPlayerMatch &&
+        options.playerSchoolId &&
+        (match.homeSchoolId === options.playerSchoolId ||
+          match.awaySchoolId === options.playerSchoolId)
+      ) {
+        return match; // winnerId=null のまま返す
+      }
 
-      const homeScore = homeWins ? winnerScore : loserScore;
-      const awayScore = homeWins ? loserScore : winnerScore;
+      // --- 実シミュレーション: quickGame ---
+      const homeTeam = buildMatchTeam(home);
+      const awayTeam = buildMatchTeam(away);
+      const gameRng = rng.derive(`${match.matchId}-game`);
+      const gameResult = quickGame(homeTeam, awayTeam, matchConfig, gameRng);
+
+      const homeScore = gameResult.score.home;
+      const awayScore = gameResult.score.away;
+      const winnerId = gameResult.winnerId;
+      const winner = winnerId === home.id ? home : away;
+      const loser = winnerId === home.id ? away : home;
       const isUpset = loser.reputation - winner.reputation > 15;
 
-      return { ...match, winnerId: winner.id, homeScore, awayScore, isUpset };
+      return {
+        ...match,
+        winnerId,
+        homeScore,
+        awayScore,
+        isUpset,
+        inningScores: gameResult.inningScores,
+        totalInnings: gameResult.inningScores.home.length,
+        mvpPlayerId: gameResult.mvpId,
+      };
     });
 
     return { ...round, matches: newMatches };
