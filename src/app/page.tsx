@@ -257,6 +257,7 @@ function HomeContent({ view }: { view: HomeViewState }) {
         <div className={styles.navInner}>
           <Link href="/" className={`${styles.navLink} ${styles.navLinkActive}`}>ホーム</Link>
           <Link href="/team" className={styles.navLink}>チーム</Link>
+          <Link href="/news" className={styles.navLink}>ニュース</Link>
           <Link href="/scout" className={styles.navLink}>スカウト</Link>
           <Link href="/tournament" className={styles.navLink}>大会</Link>
           <Link href="/results" className={styles.navLink}>試合結果</Link>
@@ -365,6 +366,27 @@ function HomeContent({ view }: { view: HomeViewState }) {
               </>
             )}
           </div>
+          {/* スタメン選手一覧 */}
+          {view.featuredPlayers.length > 0 && (
+            <div className={styles.startersList}>
+              {view.featuredPlayers.map((p) => (
+                <Link
+                  key={p.id}
+                  href={`/team/${p.id}`}
+                  className={styles.starterItem}
+                >
+                  <span className={`${styles.starterRank} ${
+                    p.overallRank === 'S' ? styles.rankS
+                    : p.overallRank === 'A' ? styles.rankA
+                    : p.overallRank === 'B' ? styles.rankB
+                    : styles.rankC
+                  }`}>{p.overallRank}</span>
+                  <span className={styles.starterName}>{p.name}</span>
+                  <span className={styles.starterOverall}>{p.overall}</span>
+                </Link>
+              ))}
+            </div>
+          )}
           <div style={{ marginTop: 10 }}>
             <Link href="/team" style={{ fontSize: 12, color: 'var(--color-accent)' }}>
               選手一覧 →
@@ -449,12 +471,17 @@ function HomeContent({ view }: { view: HomeViewState }) {
 
         {/* 最近のニュース */}
         <div className={`${styles.card} ${styles.cardFull}`}>
-          <div className={styles.cardTitle}>最近のニュース</div>
+          <div className={styles.cardTitleRow}>
+            <div className={styles.cardTitle}>最近のニュース</div>
+            <Link href="/news" style={{ fontSize: 12, color: 'var(--color-accent)' }}>
+              もっと見る →
+            </Link>
+          </div>
           {view.recentNews.length === 0 ? (
             <p className={styles.newsEmpty}>まだニュースはありません。日を進めると情報が集まります。</p>
           ) : (
             <ul className={styles.newsList}>
-              {view.recentNews.map((item, i) => (
+              {view.recentNews.slice(0, 5).map((item, i) => (
                 <li
                   key={i}
                   className={`${styles.newsItem} ${

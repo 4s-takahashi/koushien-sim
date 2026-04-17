@@ -219,6 +219,7 @@ export default function ResultsPage() {
         <div className={styles.navInner}>
           <Link href="/" className={styles.navLink}>ホーム</Link>
           <Link href="/team" className={styles.navLink}>チーム</Link>
+          <Link href="/news" className={styles.navLink}>ニュース</Link>
           <Link href="/scout" className={styles.navLink}>スカウト</Link>
           <Link href="/tournament" className={styles.navLink}>大会</Link>
           <Link href="/results" className={`${styles.navLink} ${styles.navLinkActive}`}>試合結果</Link>

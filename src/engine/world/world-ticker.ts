@@ -7,9 +7,8 @@
 
 import type { RNG } from '../core/rng';
 import type { DayResult, DayType, GameDate, PracticeMenuId } from '../types/calendar';
-import type { Player } from '../types/player';
 import type {
-  WorldState, HighSchool, SimulationTier, MiddleSchoolPlayer,
+  WorldState, HighSchool, SimulationTier, MiddleSchoolPlayer, SeasonPhase,
 } from './world-state';
 import { getDayType, advanceDate } from '../calendar/game-calendar';
 import { getAnnualSchedule, isInCamp } from '../calendar/schedule';
@@ -19,6 +18,11 @@ import { applyBatchGrowth } from '../growth/batch-growth';
 import { applyBulkGrowth } from '../growth/bulk-growth';
 import { processYearTransition } from './year-transition';
 import { generateDailyNews } from './news/news-generator';
+import {
+  createTournamentBracket,
+  simulateTournamentRound,
+} from './tournament-bracket';
+import type { TournamentBracket } from './tournament-bracket';
 
 // ============================================================
 // WorldDayResult
@@ -216,17 +220,145 @@ function getDayOfWeek(date: GameDate): number {
 }
 
 // ============================================================
+// シーズンフェーズ遷移
+// ============================================================
+
+/**
+ * 日付からシーズンフェーズを決定する。
+ *
+ * 遷移ルール（その日付がどのフェーズに属するかを返す）:
+ *  - 4/1〜7/9:   spring_practice
+ *  - 7/10〜7/30: summer_tournament
+ *  - 7/31〜9/14: post_summer
+ *  - 9/15〜10/14: autumn_tournament
+ *  - 10/15〜1/31: off_season
+ *  - 2/1〜3/31: pre_season
+ */
+export function computeSeasonPhase(date: GameDate): SeasonPhase {
+  const { month, day } = date;
+
+  // 4月1日〜7月9日: 春季練習
+  if (month >= 4 && month <= 6) return 'spring_practice';
+  if (month === 7 && day < 10) return 'spring_practice';
+
+  // 7月10日〜7月30日: 夏大会
+  if (month === 7 && day >= 10 && day <= 30) return 'summer_tournament';
+
+  // 7月31日〜9月14日: 夏以降練習
+  if (month === 7 && day >= 31) return 'post_summer';
+  if (month === 8) return 'post_summer';
+  if (month === 9 && day < 15) return 'post_summer';
+
+  // 9月15日〜10月14日: 秋大会
+  if (month === 9 && day >= 15) return 'autumn_tournament';
+  if (month === 10 && day < 15) return 'autumn_tournament';
+
+  // 10月15日〜1月31日: オフシーズン
+  if (month === 10 && day >= 15) return 'off_season';
+  if (month === 11) return 'off_season';
+  if (month === 12) return 'off_season';
+  if (month === 1) return 'off_season';
+
+  // 2月1日〜3月31日: プレシーズン
+  if (month === 2) return 'pre_season';
+  if (month === 3) return 'pre_season';
+
+  // フォールバック
+  return 'spring_practice';
+}
+
+// ============================================================
+// トーナメントヘルパー
+// ============================================================
+
+/**
+ * トーナメントラウンドから自校の試合を見つける。
+ */
+function findPlayerMatchInRound(
+  bracket: TournamentBracket,
+  roundNumber: number,
+  playerSchoolId: string,
+): {
+  opponent: string | null;
+  side: 'home' | 'away' | null;
+  playerWon: boolean;
+  homeScore: number | null;
+  awayScore: number | null;
+} | null {
+  const round = bracket.rounds.find((r) => r.roundNumber === roundNumber);
+  if (!round) return null;
+
+  for (const match of round.matches) {
+    if (match.homeSchoolId === playerSchoolId) {
+      return {
+        opponent: match.awaySchoolId,
+        side: 'home',
+        playerWon: match.winnerId === playerSchoolId,
+        homeScore: match.homeScore,
+        awayScore: match.awayScore,
+      };
+    }
+    if (match.awaySchoolId === playerSchoolId) {
+      return {
+        opponent: match.homeSchoolId,
+        side: 'away',
+        playerWon: match.winnerId === playerSchoolId,
+        homeScore: match.homeScore,
+        awayScore: match.awayScore,
+      };
+    }
+  }
+  return null;
+}
+
+/**
+ * 日付から今日のトーナメントラウンド番号を返す。
+ * 大会は数日おきに1ラウンドずつ進行する（6ラウンド合計）。
+ * 夏大会: 7/10〜7/30 の期間で6ラウンドを分散
+ * 秋大会: 9/15〜10/14 の期間で6ラウンドを分散
+ *
+ * @returns ラウンド番号 (1〜6)、試合のない日は 0
+ */
+function getTodayRound(date: GameDate, tournamentType: 'summer' | 'autumn'): number {
+  if (tournamentType === 'summer') {
+    // 7/10〜7/30 = 21日間 (index 0〜20)
+    if (date.month !== 7 || date.day < 10 || date.day >= 31) return 0;
+    const dayIdx = date.day - 10; // 0-indexed
+    // ラウンドを均等配置: 0,3,7,11,15,18 の日にラウンド1〜6
+    const schedule: Record<number, number> = { 0: 1, 3: 2, 7: 3, 11: 4, 15: 5, 18: 6 };
+    return schedule[dayIdx] ?? 0;
+  } else {
+    // 秋大会: 9/15〜10/14 = 30日間
+    // 9/15 = idx 0, 9/30 = idx 15, 10/1 = idx 16, 10/14 = idx 29
+    let dayIdx = -1;
+    if (date.month === 9 && date.day >= 15) {
+      dayIdx = date.day - 15; // 9/15=0 ... 9/30=15
+    } else if (date.month === 10 && date.day <= 14) {
+      dayIdx = 16 + (date.day - 1); // 10/1=16 ... 10/14=29
+    }
+    if (dayIdx < 0) return 0;
+    // ラウンドを均等配置
+    const schedule: Record<number, number> = { 0: 1, 4: 2, 9: 3, 14: 4, 20: 5, 25: 6 };
+    return schedule[dayIdx] ?? 0;
+  }
+}
+
+// ============================================================
 // メイン: 世界の1日を進める
 // ============================================================
 
 /**
  * 世界全体の1日を進行させる。
  *
+ * 処理順序:
  * 1. 全高校の日次処理（Tier ごとに分岐）
  * 2. 中学生の成長処理
- * 3. 大会がある日は全試合実行（Phase 3.0b）
- * 4. 日付進行
- * 5. 年度替わり（3/31 → 4/1）
+ * 3. 大会の進行（今日が大会日ならラウンドを進める）
+ * 4. ニュース生成
+ * 5. 日付進行
+ * 6. シーズンフェーズを新日付に基づいて更新
+ * 7. 大会の新規作成（新日付が大会開始日なら）
+ * 8. 年度替わり（3/31 → 4/1）
  */
 export function advanceWorldDay(
   world: WorldState,
@@ -285,12 +417,170 @@ export function advanceWorldDay(
     rng.derive('middle-school'),
   );
 
-  // --- 世界ニュース生成 ---
+  // --- 今日の大会進行（今日のラウンドを消化） ---
+  let activeTournament = world.activeTournament ?? null;
+  let tournamentHistory = world.tournamentHistory ?? [];
+  let playerMatchResult: import('../match/types').MatchResult | null | undefined = undefined;
+  let playerMatchOpponent: string | null | undefined = undefined;
+  let playerMatchSide: 'home' | 'away' | null | undefined = undefined;
+
+  // 大会が進行中なら今日のラウンドを消化する
+  if (activeTournament && !activeTournament.isCompleted) {
+    const tournamentType: 'summer' | 'autumn' =
+      activeTournament.type === 'summer' ? 'summer' : 'autumn';
+    const todayRound = getTodayRound(date, tournamentType);
+
+    if (todayRound > 0) {
+      activeTournament = simulateTournamentRound(
+        activeTournament,
+        todayRound,
+        updatedSchools,
+        rng.derive(`tournament-round-${todayRound}`),
+      );
+
+      // 自校の試合を探す
+      const playerMatch = findPlayerMatchInRound(
+        activeTournament,
+        todayRound,
+        world.playerSchoolId,
+      );
+
+      if (playerMatch && playerMatch.side !== null) {
+        const opponentId = playerMatch.opponent;
+        const opponentSchool = opponentId
+          ? updatedSchools.find((s) => s.id === opponentId) ?? null
+          : null;
+        playerMatchOpponent = opponentSchool?.name ?? opponentId ?? null;
+        playerMatchSide = playerMatch.side;
+
+        const homeScore = playerMatch.homeScore ?? 0;
+        const awayScore = playerMatch.awayScore ?? 0;
+        const isHome = playerMatch.side === 'home';
+        const playerScore = isHome ? homeScore : awayScore;
+        const opponentScore = isHome ? awayScore : homeScore;
+        const winner: 'home' | 'away' = playerMatch.playerWon
+          ? (isHome ? 'home' : 'away')
+          : (isHome ? 'away' : 'home');
+
+        playerMatchResult = {
+          winner,
+          finalScore: { home: homeScore, away: awayScore },
+          inningScores: {
+            home: distributeScore(homeScore, 9),
+            away: distributeScore(awayScore, 9),
+          },
+          totalInnings: 9,
+          mvpPlayerId: null,
+          batterStats: [],
+          pitcherStats: [],
+        };
+
+        const playerSchoolName = world.schools.find(s => s.id === world.playerSchoolId)?.name ?? '自校';
+        if (playerScore > opponentScore) {
+          worldNews.push({
+            type: 'tournament_result',
+            headline: `${playerSchoolName} が ${playerMatchOpponent ?? '対戦校'} に ${playerScore}対${opponentScore} で勝利！`,
+            involvedSchoolIds: [world.playerSchoolId, ...(opponentId ? [opponentId] : [])],
+            involvedPlayerIds: [],
+            importance: 'high',
+          });
+        } else {
+          worldNews.push({
+            type: 'tournament_result',
+            headline: `${playerSchoolName} が ${playerMatchOpponent ?? '対戦校'} に ${playerScore}対${opponentScore} で敗れた`,
+            involvedSchoolIds: [world.playerSchoolId, ...(opponentId ? [opponentId] : [])],
+            involvedPlayerIds: [],
+            importance: 'high',
+          });
+        }
+      }
+    }
+
+    // 大会終了チェック
+    if (activeTournament.isCompleted) {
+      tournamentHistory = [...tournamentHistory, activeTournament].slice(-10);
+
+      // 自校の最高到達ラウンドを更新
+      let playerBestRound = 0;
+      for (const round of activeTournament.rounds) {
+        for (const match of round.matches) {
+          if (
+            (match.homeSchoolId === world.playerSchoolId || match.awaySchoolId === world.playerSchoolId) &&
+            match.winnerId === world.playerSchoolId
+          ) {
+            if (round.roundNumber > playerBestRound) {
+              playerBestRound = round.roundNumber;
+            }
+          }
+        }
+      }
+
+      const champion = activeTournament.champion
+        ? (updatedSchools.find((s) => s.id === activeTournament!.champion)?.name ?? activeTournament.champion)
+        : null;
+      if (champion) {
+        worldNews.push({
+          type: 'tournament_result',
+          headline: `【大会結果】${activeTournament.type === 'summer' ? '夏季' : '秋季'}大会優勝: ${champion}`,
+          involvedSchoolIds: activeTournament.champion ? [activeTournament.champion] : [],
+          involvedPlayerIds: [],
+          importance: 'high',
+        });
+      }
+
+      activeTournament = null;
+    }
+  }
+
+  // --- ニュース生成 ---
   const generatedNews = generateDailyNews(world, rng.derive('news-gen'));
   worldNews.push(...generatedNews);
 
   // --- 日付進行 ---
   const newDate = advanceDate(date);
+
+  // --- 新日付に基づいてシーズンフェーズを決定 ---
+  const oldPhase = world.seasonState.phase;
+  let newPhase = computeSeasonPhase(newDate);
+
+  // 大会が進行中なら大会フェーズを維持
+  if (activeTournament && !activeTournament.isCompleted) {
+    newPhase = activeTournament.type === 'summer' ? 'summer_tournament' : 'autumn_tournament';
+  }
+
+  const seasonTransition: SeasonPhase | null = newPhase !== oldPhase ? newPhase : null;
+
+  let updatedSeasonState = {
+    ...world.seasonState,
+    phase: newPhase,
+    currentTournamentId: activeTournament?.id ?? null,
+  };
+
+  // 大会終了後に yearResults を更新
+  if (!activeTournament && world.activeTournament?.isCompleted === false) {
+    // 大会が今日完了した場合（activeTournament が null になった）
+    const completedTournament = tournamentHistory[tournamentHistory.length - 1];
+    if (completedTournament) {
+      let playerBestRound = 0;
+      for (const round of completedTournament.rounds) {
+        for (const match of round.matches) {
+          if (
+            (match.homeSchoolId === world.playerSchoolId || match.awaySchoolId === world.playerSchoolId) &&
+            match.winnerId === world.playerSchoolId
+          ) {
+            if (round.roundNumber > playerBestRound) playerBestRound = round.roundNumber;
+          }
+        }
+      }
+      const yearResults = { ...updatedSeasonState.yearResults };
+      if (completedTournament.type === 'summer') {
+        yearResults.summerBestRound = playerBestRound;
+      } else if (completedTournament.type === 'autumn') {
+        yearResults.autumnBestRound = playerBestRound;
+      }
+      updatedSeasonState = { ...updatedSeasonState, yearResults };
+    }
+  }
 
   // --- WorldState 更新 ---
   let nextWorld: WorldState = {
@@ -298,11 +588,70 @@ export function advanceWorldDay(
     currentDate: newDate,
     schools: updatedSchools,
     middleSchoolPool: updatedMiddleSchool,
+    seasonState: updatedSeasonState,
+    activeTournament,
+    tournamentHistory,
   };
+
+  // --- 新日付が大会開始日なら大会を自動作成 ---
+  // 夏大会: 7/10 開始
+  if (newDate.month === 7 && newDate.day === 10 && !nextWorld.activeTournament) {
+    const id = `tournament-summer-${newDate.year}`;
+    const newTournament = createTournamentBracket(
+      id,
+      'summer',
+      newDate.year,
+      nextWorld.schools,
+      rng.derive('create-summer-tournament'),
+    );
+    nextWorld = {
+      ...nextWorld,
+      activeTournament: newTournament,
+      seasonState: {
+        ...nextWorld.seasonState,
+        phase: 'summer_tournament',
+        currentTournamentId: newTournament.id,
+      },
+    };
+    // 遷移を記録
+    if (oldPhase !== 'summer_tournament') {
+      // seasonTransition は上で計算済み（summer_tournament になるはず）
+    }
+  }
+
+  // 秋大会: 9/15 開始
+  if (newDate.month === 9 && newDate.day === 15 && !nextWorld.activeTournament) {
+    const id = `tournament-autumn-${newDate.year}`;
+    const newTournament = createTournamentBracket(
+      id,
+      'autumn',
+      newDate.year,
+      nextWorld.schools,
+      rng.derive('create-autumn-tournament'),
+    );
+    nextWorld = {
+      ...nextWorld,
+      activeTournament: newTournament,
+      seasonState: {
+        ...nextWorld.seasonState,
+        phase: 'autumn_tournament',
+        currentTournamentId: newTournament.id,
+      },
+    };
+  }
 
   // --- 年度替わり（3/31 から 4/1 への遷移） ---
   if (newDate.month === 4 && newDate.day === 1) {
     nextWorld = processYearTransition(nextWorld, rng.derive('year-transition'));
+    // 年度替わり後は spring_practice に
+    nextWorld = {
+      ...nextWorld,
+      seasonState: {
+        ...nextWorld.seasonState,
+        phase: 'spring_practice',
+        currentTournamentId: null,
+      },
+    };
   }
 
   // fallback: 自校が full tier でない場合（通常ありえないが安全策）
@@ -318,12 +667,33 @@ export function advanceWorldDay(
     };
   }
 
+  // seasonTransition は nextWorld の phase と元の phase を比較
+  const finalSeasonTransition: SeasonPhase | null =
+    nextWorld.seasonState.phase !== oldPhase ? nextWorld.seasonState.phase : null;
+
   const result: WorldDayResult = {
     date,
     playerSchoolResult,
     worldNews,
-    seasonTransition: null,
+    seasonTransition: finalSeasonTransition,
+    ...(playerMatchResult !== undefined ? { playerMatchResult } : {}),
+    ...(playerMatchOpponent !== undefined ? { playerMatchOpponent } : {}),
+    ...(playerMatchSide !== undefined ? { playerMatchSide } : {}),
   };
 
   return { nextWorld, result };
+}
+
+/**
+ * スコアをイニングに分散する（簡易版）
+ */
+function distributeScore(totalScore: number, innings: number): number[] {
+  const result = Array(innings).fill(0);
+  let remaining = totalScore;
+  for (let i = 0; i < innings && remaining > 0; i++) {
+    const run = Math.min(remaining, Math.ceil(remaining / (innings - i)));
+    result[i] = run;
+    remaining -= run;
+  }
+  return result;
 }
