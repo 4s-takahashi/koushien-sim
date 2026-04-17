@@ -7,7 +7,8 @@
  * すべての ViewState は純粋関数: (worldState: WorldState) => XxxViewState
  */
 
-import type { Position, Mood } from '../../engine/types/player';
+import type { Position, Mood, PitchType } from '../../engine/types/player';
+import type { RunnerMode, PauseReason } from '../../engine/match/runner-types';
 
 // ============================================================
 // 共通型
@@ -463,4 +464,110 @@ export interface OBViewState {
   corporateCount: number;
   retiredCount: number;
   playerSchoolGraduates: OBPlayerView[];
+}
+
+// ============================================================
+// 試合画面 ViewState（Phase 10-A）
+// ============================================================
+
+/** 投球ログの1エントリ */
+export interface PitchLogEntry {
+  inning: number;
+  half: 'top' | 'bottom';
+  pitchType: string;
+  outcome: string;
+  location: { row: number; col: number };
+  batterId: string;
+  batterName: string;
+}
+
+/** ランナー情報（UI用） */
+export interface RunnerBaseView {
+  runnerName: string;
+  speedClass: 'fast' | 'normal' | 'slow';
+}
+
+/** 投手情報（UI用） */
+export interface PitcherView {
+  id: string;
+  name: string;
+  pitchCount: number;
+  staminaPct: number;
+  staminaClass: 'fresh' | 'normal' | 'tired' | 'exhausted';
+  moodLabel: string;
+  availablePitches: { type: string; level: number }[];
+}
+
+/** 打者情報（UI用） */
+export interface BatterView {
+  id: string;
+  name: string;
+  battingAvg: string;   // 今日の成績 "2-3" 形式
+  overall: number;
+  moodLabel: string;
+  trait: string | null; // 最初の特性名
+}
+
+/** リリーフ候補（UI用） */
+export interface RelieverView {
+  id: string;
+  name: string;
+  staminaPct: number;
+}
+
+/** 代打候補（UI用） */
+export interface PinchHitterView {
+  id: string;
+  name: string;
+  overall: number;
+}
+
+/**
+ * 試合画面の ViewState
+ * projectMatch(state, playerSchoolId) → MatchViewState
+ */
+export interface MatchViewState {
+  // スコアボード
+  inningLabel: string;         // "7回裏"
+  outsLabel: string;           // "2アウト"
+  count: { balls: number; strikes: number };
+  score: { home: number; away: number };
+  inningScores: { home: number[]; away: number[] };
+
+  // チーム名
+  homeSchoolName: string;
+  awaySchoolName: string;
+
+  // ダイヤモンド
+  bases: {
+    first: RunnerBaseView | null;
+    second: RunnerBaseView | null;
+    third: RunnerBaseView | null;
+  };
+
+  // 現在の対戦
+  pitcher: PitcherView;
+  batter: BatterView;
+
+  // ベンチ
+  availableRelievers: RelieverView[];
+  availablePinchHitters: PinchHitterView[];
+
+  // 直近ログ（最大10球）
+  recentPitches: PitchLogEntry[];
+
+  // 采配可能性
+  canBunt: boolean;
+  canSteal: boolean;
+  canPinchHit: boolean;
+  canChangePitcher: boolean;
+
+  // 一時停止情報
+  pauseReason: PauseReason | null;
+
+  // 進行モード
+  runnerMode: RunnerMode;
+
+  // プレイヤーが攻撃中か
+  isPlayerBatting: boolean;
 }
