@@ -48,17 +48,22 @@
 
 ## 2. 設計方針（4つの基本原則）
 
-### P1. **打席単位の采配**が基本、1球介入はオプション
+### P1. **打席単位の采配**が基本、1球モードはトグルで切替
 
-- デフォルトは「打席が始まる前に1回だけサインを選ぶ」
-- 1球ごとの細かい操作は `詳細モード` でオンにできる（コアファン向け）
-- これにより操作回数を現実的に（1試合あたり 約60〜80回 → 慣れれば 20〜30回）
+- デフォルトは「打席が始まる前に1回だけサインを選ぶ」（打席単位モード）
+- 試合中いつでも `[1球モード]` ボタンで切り替え可能
+  - 1球モード ON: 1球ごとに停止し、投球・打撃の詳細な指示（コース指定、バスター等）も可能
+  - 1球モード OFF: 通常の打席単位に戻る
+- モード変更は1打席内のいつでも可能（次の投球から反映）
+- 勝負所では1球モードに関わらず自動停止
 
-### P2. **"おまかせ進行"を常時併設**
+### P2. **時間モードをいつでも切替可能**
 
-- 「このイニングは自動で進めて」「1回ずつストップ」「打席ごと」「1球ごと」の4段階スピード
-- 勝負所（チャンス、ピンチ、同点、9回裏等）では自動的に一時停止し、監督の判断を求める
-- ユーザーが **いつでもおまかせに切り替え可能**、いつでも復帰可能
+- **⚡ 短縮モード（目標5分）**: 勝負所のみ停止して自動進行。ピンチ・チャンス・継投判断だけ監督が介入
+- **🎯 標準モード（目標15分）**: 打席ごとに停止。全打席で監督がサインを出す
+- 試合画面のヘッダーで `[⚡短縮|🎯標準]` トグルが常時表示、1クリックで切替
+- どちらのモードでも「1球モード ON/OFF」は独立したトグル（直交する2軸）
+- 切替は即時反映（次の投球から）
 
 ### P3. **監督体験の中核は"読み合い"と"決断"**
 
@@ -175,15 +180,29 @@ type TacticalOrder =
   | { type: 'mound_visit' };
 ```
 
-### 4.2 新規: `RunnerMode`
+### 4.2 新規: `RunnerMode`（2軸の直交設計）
 
 ```typescript
-export type RunnerMode =
-  | 'pitch_by_pitch'       // 1球ごとに停止（詳細モード）
-  | 'at_bat_by_at_bat'     // 打席開始時に停止（標準）
-  | 'inning_by_inning'     // イニング終わりに停止（ライト）
-  | 'full_auto'            // 自動最後まで（勝負所だけ止まる）
-  | 'key_moments_only';    // 勝負所のみ停止（最速 + 見どころ確保）
+/** 時間モード: プレイ時間の目安を決める主軸 */
+export type TimeMode =
+  | 'short'     // ⚡ 短縮: 勝負所のみ停止（目標5分）
+  | 'standard'; // 🎯 標準: 打席ごとに停止（目標15分）
+
+/** ピッチモード: 1球ごとの詳細介入 */
+export type PitchMode =
+  | 'off'       // 打席単位で結果を見る
+  | 'on';       // 1球ごとに停止＆詳細指示可能
+
+export interface RunnerMode {
+  time: TimeMode;
+  pitch: PitchMode;
+}
+
+// 実効的な停止タイミング:
+//   short  + off → 勝負所のみ
+//   short  + on  → 勝負所 + 1球ごと
+//   standard + off → 打席開始ごと + 勝負所
+//   standard + on  → 全投球 + 勝負所
 ```
 
 ### 4.3 新規: `PauseReason`（なぜ止まったか）
@@ -307,21 +326,31 @@ export class MatchRunner {
 
 ```typescript
 shouldPause(mode: RunnerMode): PauseReason | null {
-  if (mode === 'pitch_by_pitch') return { kind: 'pitch_start' };
-  if (mode === 'at_bat_by_at_bat') return { kind: 'at_bat_start', batterId: ... };
-  if (mode === 'inning_by_inning' && this.state.outs === 3) return { kind: 'inning_end' };
+  // 勝負所判定は time mode に関わらず常に優先される
+  const keyMomentPause = detectKeyMoment(this.state);
+  if (keyMomentPause) return keyMomentPause;
 
-  // key_moments_only と full_auto 共通の「勝負所」判定
-  if (mode === 'key_moments_only' || mode === 'full_auto') {
-    // 満塁 or 2死3塁 の攻防
-    if (isPinch(this.state)) return { kind: 'pinch', detail: ... };
-    // 7回以降で1点差以内
-    if (this.state.currentInning >= 7 && Math.abs(scoreDiff) <= 1) {
-      return { kind: 'close_and_late', inning: ... };
-    }
-    // 投手スタミナ 20% 以下（継投判断を促す）
-    if (pitcher.staminaPct < 0.2) return { kind: 'pitcher_tired', ... };
+  // pitch モード ON → 全ての投球前で停止
+  if (mode.pitch === 'on' && isBeforePitch(this.state)) {
+    return { kind: 'pitch_start' };
   }
+
+  // 標準モード → 打席開始で停止
+  if (mode.time === 'standard' && isAtBatStart(this.state)) {
+    return { kind: 'at_bat_start', batterId: ... };
+  }
+
+  // 短縮モード (short) は勝負所のみ（= keyMomentPause でのみ停止）
+  return null;
+}
+
+function detectKeyMoment(state: MatchState): PauseReason | null {
+  if (isPinch(state)) return { kind: 'pinch', detail: ... };
+  if (isBigChance(state)) return { kind: 'scoring_chance', detail: ... };
+  if (state.currentInning >= 7 && Math.abs(scoreDiff(state)) <= 1)
+    return { kind: 'close_and_late', inning: state.currentInning };
+  if (pitcherStaminaPct(state) < 0.2)
+    return { kind: 'pitcher_tired', staminaPct: ... };
   return null;
 }
 ```
@@ -364,10 +393,10 @@ pendingOrder に格納
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│  [桜葉] 2 - 1 [佐渡北商業]     7回裏  2アウト  B:2 S:1           │
-│  1│2│3│4│5│6│7│8│9 │R│H│                                        │
-│  0│1│0│0│0│1│0│ │  │2│4│  桜葉                                  │
-│  0│0│0│0│1│0│ │ │  │1│3│  佐渡北商業                            │
+│  [桜葉] 2 - 1 [佐渡北商業]     7回裏  2アウト  B:2 S:1            │
+│  1│2│3│4│5│6│7│8│9│R│H│     [⚡短縮|🎯標準]  [1球モード ○]     │
+│  0│1│0│0│0│1│0│ │ │2│4│  桜葉                                   │
+│  0│0│0│0│1│0│ │ │ │1│3│  佐渡北商業                             │
 ├──────────────────────────────────────────────────────────────────┤
 │                                                                   │
 │                     ⚾  [投球コース 5×5]                           │
@@ -382,19 +411,24 @@ pendingOrder に格納
 │  投手: 佐藤 (エース)              打者: 山田 (4番・三塁)           │
 │  球数: 87球  スタミナ: ▓▓▓▓▓▓░░░░ 62%     打率: 2-3 (安打1)    │
 │  調子: 普通   自信: 高い                  オバオール: 78           │
-│  持ち球: 直球★★★ スライダー★★ カーブ★   特性: 勝負強い        │
+│  持ち球: 直球★★★ スライダー★★ カーブ★   特性: 勝負強い         │
 ├──────────────────────────────────────────────────────────────────┤
 │  ⏸  一時停止中 — 勝負所: 7回裏 1点リード 2死満塁                  │
 │                                                                   │
 │  [采配を選択]                                                      │
 │  ┌────────────┬────────────┬────────────┬────────────┐         │
-│  │ そのまま    │ 敬遠        │ 代打         │ 投手交代     │         │
-│  │ (サインなし) │ (ピッチャー側) │ (7番 → 15番) │ (リリーフ)   │         │
+│  │ そのまま     │ 敬遠        │ 代打         │ 投手交代    │         │
+│  │ (サインなし) │ (ピッチャー側)│ (7番 → 15番) │ (リリーフ)   │         │
 │  └────────────┴────────────┴────────────┴────────────┘         │
 │                                                                   │
-│  [進行速度]  ● 打席ごと  ○ 1球ごと  ○ 勝負所  ○ 自動             │
 │  [▶ 進める]  [⏭ イニング終了まで]  [⏩ 試合終了まで]              │
 └──────────────────────────────────────────────────────────────────┘
+
+画面上部トグル:
+  ⚡短縮 ⇄ 🎯標準  (TimeMode切替。いつでも変更可、次の判定から反映)
+  1球モード ○/●  (PitchMode切替。ONにすると全投球で停止&詳細指示)
+
+※ 1球モードONの場合、采配バーに [コース指示] [バスター] [流し打ち] 等が追加表示される
 ```
 
 ### 6.2 情報優先度
@@ -549,32 +583,37 @@ if (activeTournament && todayRound > 0) {
 
 ## 9. 実装ロードマップ
 
-### Phase 10-A: エンジン統合（1〜2日）
-- [ ] `MatchRunner` クラス実装（`engine/match/runner.ts`）
-- [ ] 単体テスト追加（runGameと同等の結果が得られること）
-- [ ] `shouldPause` のケース別テスト
-- [ ] `matchProjector` 実装
+**並行作業戦略**: A（エンジン）→ B/C は並行可能 → D は仕上げ
 
-### Phase 10-B: 試合画面基本UI（2〜3日）
+### Phase 10-A: エンジン層（先行必須・1〜2日）
+- [ ] `MatchRunner` クラス実装（`engine/match/runner.ts`）
+- [ ] `RunnerMode` (TimeMode × PitchMode) の `shouldPause` 実装
+- [ ] 勝負所検知関数（`detectKeyMoment`）
+- [ ] 単体テスト（既存 `runGame` と同等の結果、ケース別停止）
+- [ ] `matchProjector` 実装（`MatchState` → `MatchViewState`）
+
+### Phase 10-B: 試合画面UI（A完了後、Cと並行・2〜3日）
 - [ ] `useMatchStore` 実装
-- [ ] `/play/match/[matchId]` 画面
+- [ ] `/play/match/[matchId]` ページ
 - [ ] スコアボード、カウント、アウト、ダイヤモンド表示
-- [ ] 「打席ごと」「自動」「勝負所のみ」3モード
-- [ ] 采配ボタン群（バント・盗塁・代打・継投）
+- [ ] TimeMode トグル (⚡短縮 / 🎯標準)
+- [ ] PitchMode トグル (1球モード ON/OFF)
+- [ ] 采配ボタン群（バント・盗塁・代打・継投・マウンド訪問）
 - [ ] 最小限の演出（数値フラッシュ、結果テロップ）
 
-### Phase 10-C: 大会統合（1〜2日）
+### Phase 10-C: 大会統合（Bと並行・1〜2日）
+- [ ] `WorldState.pendingInteractiveMatch` フィールド追加
 - [ ] `world-ticker.ts` のインタラクティブ分岐
-- [ ] `pendingInteractiveMatch` フィールドを `WorldState` に追加
+- [ ] `play/page.tsx` の試合予告→試合画面遷移
 - [ ] 試合終了後の大会ブラケット更新
-- [ ] セーブ/ロード対応（`MatchState` の永続化）
+- [ ] セーブ/ロード対応（`MatchState` の中断保存）
 
-### Phase 10-D: 演出・ブラッシュアップ（2〜3日）
-- [ ] 勝負所バナー、ホームラン演出
-- [ ] 投球5×5グリッド
-- [ ] ログティッカー
+### Phase 10-D: 演出・ブラッシュアップ（B+C完了後・2〜3日）
+- [ ] 勝負所バナー、ホームラン演出、`framer-motion` 導入
+- [ ] 投球5×5グリッド描画
+- [ ] ログティッカー（最近10球）
 - [ ] サウンド（オプション）
-- [ ] レスポンシブ対応
+- [ ] レスポンシブ対応・モバイル最適化
 
 ### Phase 11: ビジュアル（立ち絵）（別フェーズ）
 - [ ] SVGレイヤーベース立ち絵システム
@@ -636,12 +675,11 @@ if (activeTournament && todayRound > 0) {
 
 ## 12. 次の一手
 
-**高橋さんの確認事項**:
+**高橋さんとの確定事項 (2026-04-17):**
+- ✅ 打席単位が基本、1球モードはトグル切替
+- ✅ Phase 7 を Phase 10 に吸収
+- ✅ A → (B + C 並行) → D の流れ
+- ✅ 立ち絵は後回し（Phase 11）
+- ✅ ⚡短縮(5分) / 🎯標準(15分) をいつでも切替可能
 
-1. **設計方針 P1〜P4 は OK か**（特に「打席単位が基本」の判断）
-2. **Phase 7（ビジュアル）を Phase 10 に吸収することは OK か**
-3. **実装順序は A→B→C→D でいいか**、それとも並行作業したいか
-4. **立ち絵（Phase 11）の優先度** — 今やりたい vs 後回し
-5. **1試合の目標時間** — 5分派 vs 15分派
-
-OKなら、Phase 10-A（MatchRunner）から実装に入る。
+**これから着手: Phase 10-A（MatchRunner + shouldPause + projector）**
