@@ -1,0 +1,356 @@
+╔════════════════════════════════════════════════════════════════════════════════════════╗
+║                    KOUSHIEN-SIM PHASE 9 ARCHITECTURE DIAGRAM                           ║
+║                  Cloud Save + Login + School Selection                                  ║
+╚════════════════════════════════════════════════════════════════════════════════════════╝
+
+
+┌──────────────────────────────────────────────────────────────────────────────────────┐
+│                              CLIENT SIDE (Browser)                                    │
+├──────────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                        │
+│  ┌────────────────────────────────────────────────────────────────────────────────┐  │
+│  │                            Next.js Pages (App Router)                           │  │
+│  ├────────────────────────────────────────────────────────────────────────────────┤  │
+│  │  • /                    (Home - game hub with login button)                     │  │
+│  │  • /auth/login          (Email/password form) ← NEW                            │  │
+│  │  • /auth/signup         (Registration form) ← NEW                              │  │
+│  │  • /school-select       (Choose school from 47 options) ← NEW                  │  │
+│  │  • /dashboard           (Post-login user hub) ← NEW                            │  │
+│  │  • /team, /scout, /results, /tournament, ... (game pages)                      │  │
+│  └────────────────────────────────────────────────────────────────────────────────┘  │
+│                                    ↓                                                   │
+│  ┌────────────────────────────────────────────────────────────────────────────────┐  │
+│  │                              Zustand Stores                                     │  │
+│  ├────────────────────────────────────────────────────────────────────────────────┤  │
+│  │                                                                                 │  │
+│  │  ┌─────────────────────┐      ┌──────────────────┐      ┌──────────────────┐  │  │
+│  │  │  useWorldStore()    │      │  useAuthStore()  │      │  useGameStore()  │  │  │
+│  │  │  (Game State)       │      │  (User Info)     │      │  (Deprecated)    │  │  │
+│  │  ├─────────────────────┤      ├──────────────────┤      └──────────────────┘  │  │
+│  │  │ • worldState        │      │ • user           │                            │  │
+│  │  │ • advanceDay()      │      │ • isAuth         │                            │  │
+│  │  │ • saveGame()    ────┼─────→│ • token          │  ← NEW                      │  │
+│  │  │ • loadGame()        │      │ • login()        │                            │  │
+│  │  │ • saveToCloud() ────┼──────→│ • logout()   ← NEW                            │  │
+│  │  │ • loadFromCloud()   │      │ • restoreSession()                            │  │
+│  │  └─────────────────────┘      └──────────────────┘                            │  │
+│  │                                                                                 │  │
+│  └────────────────────────────────────────────────────────────────────────────────┘  │
+│                                    ↓                                                   │
+│  ┌────────────────────────────────────────────────────────────────────────────────┐  │
+│  │                            Components                                           │  │
+│  ├────────────────────────────────────────────────────────────────────────────────┤  │
+│  │  • SaveLoadPanel.tsx      (Save/Load UI with cloud section) ← MODIFIED         │  │
+│  │  • LoginForm.tsx           (Email/password input) ← NEW                         │  │
+│  │  • SchoolGrid.tsx          (47 school selector) ← NEW                          │  │
+│  │  • AuthRequired.tsx        (Login guard) ← NEW                                 │  │
+│  │  • SyncIndicator.tsx       (Sync status) ← NEW                                 │  │
+│  └────────────────────────────────────────────────────────────────────────────────┘  │
+│                                    ↓                                                   │
+│  ┌────────────────────────────────────────────────────────────────────────────────┐  │
+│  │                            Engine & Services                                    │  │
+│  ├────────────────────────────────────────────────────────────────────────────────┤  │
+│  │  • world-save-manager.ts    (Local save logic + cloud method) ← MODIFIED       │  │
+│  │  • cloud-save-manager.ts    (Cloud sync) ← NEW                                 │  │
+│  │  • sync-manager.ts          (Conflict resolution) ← NEW                        │  │
+│  │  • auth-client.ts           (Fetch wrapper for auth) ← NEW                     │  │
+│  │  • save-client.ts           (Fetch wrapper for saves) ← NEW                    │  │
+│  └────────────────────────────────────────────────────────────────────────────────┘  │
+│                                    ↓                                                   │
+│  ┌────────────────────────────────────────────────────────────────────────────────┐  │
+│  │                          Storage Layer                                          │  │
+│  ├────────────────────────────────────────────────────────────────────────────────┤  │
+│  │  • localStorage         (Local save slots: slot_1, slot_2, slot_3, auto)       │  │
+│  │  • sessionStorage       (Temp auth token during session)                       │  │
+│  │  • IndexedDB            (Fallback for large saves, future use)                 │  │
+│  └────────────────────────────────────────────────────────────────────────────────┘  │
+│                                                                                        │
+│                              HTTP / HTTPS / WebSocket                                  │
+│                                                                                        │
+└──────────────────────────────────────────────────────────────────────────────────────┘
+
+                                         ⬇⬇⬇
+
+┌──────────────────────────────────────────────────────────────────────────────────────┐
+│                            SERVER SIDE (Next.js/Backend)                             │
+├──────────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                        │
+│  ┌────────────────────────────────────────────────────────────────────────────────┐  │
+│  │                          Next.js API Routes                                     │  │
+│  ├────────────────────────────────────────────────────────────────────────────────┤  │
+│  │                                                                                 │  │
+│  │  Authentication (NEW)                                                           │  │
+│  │  ├─ POST /api/auth/signup          Validate email, hash password               │  │
+│  │  ├─ POST /api/auth/login           Check credentials, issue token              │  │
+│  │  ├─ POST /api/auth/logout          Invalidate token                            │  │
+│  │  └─ POST /api/auth/refresh         Issue new token from refresh_token          │  │
+│  │                                                                                 │  │
+│  │  Save Management (NEW)                                                          │  │
+│  │  ├─ GET  /api/saves                List user's cloud saves                     │  │
+│  │  ├─ POST /api/saves                Create new cloud save                       │  │
+│  │  ├─ GET  /api/saves/[saveId]       Download specific save                     │  │
+│  │  ├─ PUT  /api/saves/[saveId]       Update save (version check)                 │  │
+│  │  └─ DELETE /api/saves/[saveId]     Delete save                                 │  │
+│  │                                                                                 │  │
+│  │  School Data (NEW)                                                              │  │
+│  │  └─ GET  /api/schools              List all 47 schools                         │  │
+│  │                                                                                 │  │
+│  │  Protected by middleware.ts:                                                    │  │
+│  │  • Verify JWT in Authorization header                                          │  │
+│  │  • Extract userId from token                                                   │  │
+│  │  • Attach user to request context                                              │  │
+│  │                                                                                 │  │
+│  └────────────────────────────────────────────────────────────────────────────────┘  │
+│                                    ↓                                                   │
+│  ┌────────────────────────────────────────────────────────────────────────────────┐  │
+│  │                        Middleware (NEW)                                         │  │
+│  ├────────────────────────────────────────────────────────────────────────────────┤  │
+│  │  • src/middleware.ts                                                            │  │
+│  │  • Intercepts all /api/saves/* requests                                        │  │
+│  │  • Verifies JWT token                                                          │  │
+│  │  • Extracts user ID from token payload                                         │  │
+│  │  • Returns 401 if unauthorized                                                 │  │
+│  │  • Attaches user info to request headers                                       │  │
+│  └────────────────────────────────────────────────────────────────────────────────┘  │
+│                                    ↓                                                   │
+│  ┌────────────────────────────────────────────────────────────────────────────────┐  │
+│  │                          Services & Business Logic                              │  │
+│  ├────────────────────────────────────────────────────────────────────────────────┤  │
+│  │  • Password hashing (bcrypt)                                                    │  │
+│  │  • JWT token generation / validation                                           │  │
+│  │  • Checksum validation (SHA-256)                                               │  │
+│  │  • Version conflict resolution                                                 │  │
+│  │  • Rate limiting (future)                                                      │  │
+│  │  • Logging & monitoring (future)                                               │  │
+│  └────────────────────────────────────────────────────────────────────────────────┘  │
+│                                    ↓                                                   │
+│  ┌────────────────────────────────────────────────────────────────────────────────┐  │
+│  │                           Database (MongoDB or Firebase)                        │  │
+│  ├────────────────────────────────────────────────────────────────────────────────┤  │
+│  │                                                                                 │  │
+│  │  Collections:                                                                   │  │
+│  │                                                                                 │  │
+│  │  users                                                                          │  │
+│  │  ├─ _id: ObjectId                                                              │  │
+│  │  ├─ email: string (unique)                                                     │  │
+│  │  ├─ passwordHash: string (bcrypt)                                              │  │
+│  │  ├─ displayName: string                                                        │  │
+│  │  ├─ createdAt: Date                                                            │  │
+│  │  └─ lastLogin: Date                                                            │  │
+│  │                                                                                 │  │
+│  │  saves                                                                          │  │
+│  │  ├─ _id: ObjectId                                                              │  │
+│  │  ├─ userId: ObjectId (FK → users._id)                                          │  │
+│  │  ├─ displayName: string                                                        │  │
+│  │  ├─ schoolName: string                                                         │  │
+│  │  ├─ currentDate: { year, month, day }                                          │  │
+│  │  ├─ stateJson: string (WorldState serialized)                                  │  │
+│  │  ├─ checksum: string (SHA-256)                                                 │  │
+│  │  ├─ version: number (for conflict resolution)                                  │  │
+│  │  ├─ createdAt: Date                                                            │  │
+│  │  ├─ updatedAt: Date                                                            │  │
+│  │  └─ isLocalOnly: boolean (not yet synced)                                      │  │
+│  │                                                                                 │  │
+│  │  schools                                                                        │  │
+│  │  ├─ _id: ObjectId                                                              │  │
+│  │  ├─ name: string                                                               │  │
+│  │  ├─ prefecture: string                                                         │  │
+│  │  ├─ historicalReputation: number                                               │  │
+│  │  ├─ suggestedPlaystyle: 'aggressive'|'defensive'|'balanced'                    │  │
+│  │  └─ description: string                                                        │  │
+│  │                                                                                 │  │
+│  │  Indexes:                                                                       │  │
+│  │  • users.email (unique)                                                        │  │
+│  │  • saves.userId                                                                │  │
+│  │  • saves.updatedAt (for recent saves)                                          │  │
+│  │                                                                                 │  │
+│  └────────────────────────────────────────────────────────────────────────────────┘  │
+│                                                                                        │
+└──────────────────────────────────────────────────────────────────────────────────────┘
+
+
+╔════════════════════════════════════════════════════════════════════════════════════════╗
+║                            DATA FLOW: USER SAVES TO CLOUD                              ║
+╚════════════════════════════════════════════════════════════════════════════════════════╝
+
+1. User clicks "💾 セーブ" in game
+   ↓
+2. SaveLoadPanel shows:
+   - Local slots (save locally)
+   - Cloud section (if authenticated)
+   ↓
+3. User clicks "Save to Cloud" button
+   ↓
+4. Frontend calls POST /api/saves
+   {
+     displayName: "My Save",
+     worldState: { ... },
+     slotId: "world_slot_1"
+   }
+   ↓
+5. Middleware intercepts request
+   - Validates JWT token
+   - Extracts userId from token
+   ↓
+6. API route processes:
+   - Serialize worldState
+   - Compute checksum
+   - Check for version conflicts
+   - Store in saves collection
+   ↓
+7. Response: { success: true, saveId: "..." }
+   ↓
+8. UI shows success notification
+   ↓
+9. User can now load this save on any device after logging in
+
+
+╔════════════════════════════════════════════════════════════════════════════════════════╗
+║                          DATA FLOW: USER LOGS IN                                       ║
+╚════════════════════════════════════════════════════════════════════════════════════════╝
+
+1. User visits /auth/login
+   ↓
+2. Enters email & password
+   ↓
+3. Frontend calls POST /api/auth/login
+   { email: "user@example.com", password: "secret" }
+   ↓
+4. Server:
+   - Look up user by email
+   - Verify password with bcrypt
+   - Generate JWT token (exp: 7 days)
+   - Generate refresh token (exp: 30 days)
+   ↓
+5. Response: { token: "eyJh...", refreshToken: "eyJh...", user: { id, email } }
+   ↓
+6. Frontend:
+   - Store token in localStorage (or httpOnly cookie)
+   - Update useAuthStore
+   ↓
+7. Redirect to /school-select
+   ↓
+8. User selects school
+   ↓
+9. Game starts with newWorldGame()
+
+
+╔════════════════════════════════════════════════════════════════════════════════════════╗
+║                     MODIFIED COMPONENTS IN PHASE 9                                     ║
+╚════════════════════════════════════════════════════════════════════════════════════════╝
+
+src/app/page.tsx (HOME PAGE)
+┌─────────────────────────────────────────────────────────────────────┐
+│ Old:                                                                │
+│ • SetupScreen with school name, prefecture, manager name inputs   │
+│                                                                     │
+│ New (Phase 9):                                                      │
+│ • Check if user is authenticated (useAuthStore)                   │
+│ • If not → Show "Cloud Login" button instead of setup             │
+│ • If yes → Show school selection or game (if already started)     │
+│ • If game exists → Show game (as before)                          │
+│                                                                     │
+│ Button in header:                                                   │
+│ • "👤 user@example.com" → Dropdown with logout                    │
+│ • "🔐 Login" → Redirect to /auth/login                            │
+└─────────────────────────────────────────────────────────────────────┘
+
+src/app/save/SaveLoadPanel.tsx (SAVE/LOAD DIALOG)
+┌─────────────────────────────────────────────────────────────────────┐
+│ Old:                                                                │
+│ • Save tab: 3 manual slots                                        │
+│ • Load tab: 3 manual + 3 auto slots                               │
+│ • Storage bar (4MB limit)                                         │
+│                                                                     │
+│ New (Phase 9):                                                      │
+│ • If authenticated:                                                 │
+│   ├─ Local section (unchanged)                                    │
+│   ├─ Cloud section                                                │
+│   │  ├─ List of cloud saves                                       │
+│   │  ├─ "Sync to Cloud" button per local save                     │
+│   │  ├─ "Download from Cloud" for cloud saves                     │
+│   │  └─ Sync status indicator                                     │
+│   └─ Version conflict resolver (if local ≠ cloud)                │
+│ • If not authenticated:                                            │
+│   └─ "Please log in to use cloud save" message                   │
+└─────────────────────────────────────────────────────────────────────┘
+
+src/stores/world-store.ts (GAME STATE)
+┌─────────────────────────────────────────────────────────────────────┐
+│ New methods:                                                        │
+│ • saveToCloud(slotId: string, displayName: string)                │
+│ • loadFromCloud(saveId: string)                                   │
+│ • listCloudSaves()                                                │
+│ • syncSave(slotId: string)                                        │
+│ • getSyncStatus(slotId: string)                                   │
+│                                                                     │
+│ Unchanged:                                                          │
+│ • worldState, advanceDay, advanceWeek, etc.                      │
+└─────────────────────────────────────────────────────────────────────┘
+
+src/engine/save/world-save-manager.ts (LOCAL SAVE LOGIC)
+┌─────────────────────────────────────────────────────────────────────┐
+│ Old:                                                                │
+│ • saveWorldState()                                                 │
+│ • loadWorldState()                                                 │
+│ • deleteWorldSave()                                                │
+│ • listWorldSaves()                                                 │
+│                                                                     │
+│ New (Phase 9):                                                      │
+│ • Add optional 'syncToCloud' parameter to saveWorldState()        │
+│ • Add optional 'userId' parameter for cloud metadata              │
+│ • Keep all existing logic (no breaking changes)                   │
+│ • New internal function: _uploadToCloud()                         │
+└─────────────────────────────────────────────────────────────────────┘
+
+
+╔════════════════════════════════════════════════════════════════════════════════════════╗
+║                          ENVIRONMENT VARIABLES                                         ║
+╚════════════════════════════════════════════════════════════════════════════════════════╝
+
+.env.local (Git-ignored):
+
+# Database Connection
+MONGODB_URI=mongodb+srv://user:pass@cluster.mongodb.net/koushien
+# OR
+FIREBASE_PROJECT_ID=...
+FIREBASE_PRIVATE_KEY=...
+
+# Authentication
+JWT_SECRET=your-super-secret-key-min-32-chars
+JWT_EXPIRATION=7d
+REFRESH_TOKEN_SECRET=another-secret-key-min-32-chars
+REFRESH_TOKEN_EXPIRATION=30d
+
+# Application
+NEXT_PUBLIC_API_URL=http://localhost:3000
+NEXT_PUBLIC_APP_ENV=development
+
+# Security (optional)
+CORS_ORIGIN=http://localhost:3000
+NODE_ENV=development
+
+
+╔════════════════════════════════════════════════════════════════════════════════════════╗
+║                          IMPLEMENTATION TIMELINE                                       ║
+╚════════════════════════════════════════════════════════════════════════════════════════╝
+
+Week 1:
+├─ Day 1-2: Auth backend (signup/login endpoints, JWT, password hashing)
+├─ Day 3-4: Auth UI (login/signup pages, auth-store)
+└─ Day 5: Auth testing, integration with home page
+
+Week 2:
+├─ Day 1-2: Cloud save endpoints (/api/saves/*)
+├─ Day 3: SaveLoadPanel integration (show cloud section)
+├─ Day 4: Sync conflict resolution
+└─ Day 5: Testing, error handling
+
+Week 3:
+├─ Day 1-2: School selection screen (/school-select)
+├─ Day 3: Middleware + protected routes
+├─ Day 4: Database seeding (47 schools)
+└─ Day 5: E2E testing, polish
+
+Total: ~10-12 days of development
+

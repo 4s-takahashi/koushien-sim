@@ -1,0 +1,213 @@
+/* ============================================================
+   高校詳細画面
+   ============================================================ */
+
+.page { min-height: 100vh; background: var(--color-bg); }
+.header { background: var(--color-primary); color: #fff; padding: 10px 16px; }
+.headerInner { max-width: 960px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
+.headerTitle { font-family: var(--font-serif); font-size: 16px; font-weight: bold; letter-spacing: 0.06em; }
+.nav { background: var(--color-accent); }
+.navInner { max-width: 960px; margin: 0 auto; display: flex; overflow-x: auto; }
+.navLink { color: rgba(255,255,255,0.85); padding: 9px 18px; font-size: 13px; display: inline-block; text-decoration: none; white-space: nowrap; }
+.navLink:hover { background: rgba(255,255,255,0.12); color: #fff; }
+.navLinkActive { background: rgba(255,255,255,0.22); color: #fff; font-weight: bold; }
+
+.main {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 20px 16px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.section {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 16px;
+}
+
+.sectionFull {
+  grid-column: 1 / -1;
+}
+
+.sectionTitle {
+  font-family: var(--font-serif);
+  font-size: 12px;
+  color: var(--color-primary);
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 6px;
+  margin-bottom: 12px;
+  letter-spacing: 0.05em;
+}
+
+/* プロフィールグリッド */
+.profileGrid, .recordGrid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 14px;
+  font-size: 13px;
+}
+
+.pLabel {
+  color: var(--color-text-sub);
+  font-size: 12px;
+}
+
+.pValue {
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* 自校バッジ */
+.playerSchoolBadge {
+  font-size: 10px;
+  background: var(--color-primary);
+  color: #fff;
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-weight: normal;
+}
+
+/* 星評価 */
+.stars { display: inline-flex; gap: 1px; }
+.starFilled { color: #f5a623; font-size: 14px; }
+.starEmpty { color: var(--color-border); font-size: 14px; }
+.reputationLabel { font-size: 11px; color: var(--color-text-sub); font-weight: normal; }
+
+/* チーム戦力 */
+.strengthGrid {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 10px;
+}
+
+.strengthItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.strengthLabel {
+  font-size: 10px;
+  color: var(--color-text-sub);
+  margin-bottom: 4px;
+}
+
+.strengthValue {
+  font-size: 28px;
+  font-weight: bold;
+  font-family: var(--font-serif);
+}
+
+.strengthRank {
+  font-size: 20px;
+  font-weight: bold;
+  font-family: var(--font-serif);
+}
+
+.strengthBar {
+  height: 6px;
+  background: var(--color-border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.strengthBarInner {
+  height: 100%;
+  background: var(--color-primary);
+  border-radius: 3px;
+  transition: width 0.3s;
+}
+
+/* ランクカラー */
+.rankS { color: #c00020; }
+.rankA { color: #8b0000; }
+.rankB { color: var(--color-accent); }
+.rankC { color: var(--color-text-sub); }
+
+/* 主要選手リスト */
+.playerList {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.playerItem {
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.playerLink {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  background: var(--color-bg);
+  text-decoration: none;
+  color: var(--color-text);
+  font-size: 13px;
+  transition: background 0.12s;
+}
+
+.playerLink:hover {
+  background: rgba(139,0,0,0.06);
+}
+
+.playerRank {
+  font-size: 11px;
+  font-weight: bold;
+  width: 18px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.playerName {
+  flex: 1;
+  font-weight: bold;
+}
+
+.playerGrade {
+  font-size: 11px;
+  color: var(--color-text-sub);
+  width: 28px;
+  flex-shrink: 0;
+}
+
+.playerPos {
+  font-size: 11px;
+  color: var(--color-text-sub);
+  width: 48px;
+  flex-shrink: 0;
+}
+
+.playerStyle {
+  font-size: 11px;
+  color: var(--color-accent);
+  background: rgba(45,74,62,0.08);
+  padding: 1px 6px;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+
+.empty {
+  color: var(--color-text-sub);
+  font-size: 12px;
+  text-align: center;
+  padding: 20px;
+}
+
+/* モバイル対応 */
+@media (max-width: 768px) {
+  .main {
+    grid-template-columns: 1fr;
+    padding: 12px;
+    gap: 12px;
+  }
+  .sectionFull { grid-column: 1; }
+  .playerPos, .playerStyle { display: none; }
+}

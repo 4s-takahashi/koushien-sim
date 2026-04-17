@@ -1,0 +1,413 @@
+/* ============================================================
+   スカウト画面
+   ============================================================ */
+
+.page { min-height: 100vh; background: var(--color-bg); }
+.header { background: var(--color-primary); color: #fff; padding: 10px 16px; }
+.headerInner { max-width: 960px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
+.headerTitle { font-family: var(--font-serif); font-size: 16px; font-weight: bold; }
+.nav { background: var(--color-accent); }
+.navInner { max-width: 960px; margin: 0 auto; display: flex; }
+.navLink { color: rgba(255,255,255,0.85); padding: 9px 18px; font-size: 13px; display: inline-block; text-decoration: none; }
+.navLink:hover { background: rgba(255,255,255,0.12); color: #fff; }
+.navLinkActive { background: rgba(255,255,255,0.18); color: #fff; font-weight: bold; }
+
+.main { max-width: 960px; margin: 0 auto; padding: 20px 16px; }
+
+/* ============================================================
+   予算バー
+   ============================================================ */
+
+.budgetBar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-primary);
+  border-radius: 4px;
+  padding: 12px 16px;
+  flex-wrap: wrap;
+}
+
+.budgetLeft {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.budgetLabel {
+  font-size: 11px;
+  color: var(--color-text-sub);
+}
+
+.budgetValue {
+  font-size: 13px;
+}
+
+.budgetNum {
+  color: var(--color-primary);
+  font-size: 20px;
+  font-family: var(--font-serif);
+}
+
+.budgetSep { color: var(--color-text-sub); }
+
+.budgetDots {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid var(--color-border);
+}
+
+.dotUsed { background: var(--color-primary); border-color: var(--color-primary); }
+.dotFree { background: transparent; }
+
+.budgetHint {
+  font-size: 11px;
+  color: var(--color-accent);
+  font-weight: bold;
+}
+
+/* ============================================================
+   グリッドレイアウト
+   ============================================================ */
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.section {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 16px;
+}
+
+.sectionFull { grid-column: 1 / -1; }
+
+.sectionTitle {
+  font-family: var(--font-serif);
+  font-size: 13px;
+  color: var(--color-primary);
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 6px;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sectionCount {
+  font-size: 11px;
+  font-weight: normal;
+  color: var(--color-text-sub);
+  background: var(--color-bg);
+  padding: 1px 6px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+}
+
+/* ============================================================
+   ウォッチリスト カード
+   ============================================================ */
+
+.watchCardList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.watchCard {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--color-border);
+}
+
+.watchCardConfirmed { border-left-color: #cc9900 !important; }
+.watchCardCompeting  { border-left-color: var(--color-primary) !important; }
+
+.watchCardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.watchCardName {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.watchCardGrade {
+  font-size: 11px;
+  color: var(--color-text-sub);
+}
+
+.watchCardDetail {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--color-text-sub);
+  margin-bottom: 4px;
+}
+
+.watchCardOverall {
+  font-weight: bold;
+  color: var(--color-text);
+}
+
+.watchCardComment {
+  font-size: 11px;
+  color: var(--color-text-sub);
+  font-style: italic;
+  margin-bottom: 6px;
+  background: var(--color-surface);
+  padding: 3px 6px;
+  border-radius: 3px;
+}
+
+.watchCardActions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+/* ============================================================
+   ステータスバッジ
+   ============================================================ */
+
+.statusBadge {
+  font-size: 10px;
+  font-weight: bold;
+  padding: 2px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
+.badgeUnvisited  { background: #e0e0e0; color: #555; }
+.badgeVisited    { background: #ddeeff; color: #0055aa; }
+.badgeRecruited  { background: rgba(45,74,62,0.12); color: var(--color-accent); }
+.badgeCompeting  { background: rgba(139,0,0,0.12); color: var(--color-primary); }
+.badgeConfirmed  { background: #fff3cc; color: #996600; border: 1px solid #cc9900; }
+
+/* ============================================================
+   ティアバッジ
+   ============================================================ */
+
+.tierBadge {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border-radius: 3px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: bold;
+  line-height: 20px;
+}
+
+/* ============================================================
+   スカウトレポートカード
+   ============================================================ */
+
+.reportCard {
+  padding: 10px 12px;
+  background: var(--color-bg);
+  border-radius: 4px;
+  border-left: 3px solid var(--color-border);
+}
+
+.reportCardS { border-left-color: var(--color-rank-s); }
+.reportCardA { border-left-color: var(--color-rank-a); }
+
+.reportHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.reportName { font-size: 13px; }
+.reportConf { font-size: 10px; color: var(--color-text-sub); margin-left: auto; }
+
+.reportStats {
+  display: flex;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--color-text-sub);
+  margin-bottom: 4px;
+  flex-wrap: wrap;
+}
+
+.reportComment {
+  font-size: 11px;
+  color: var(--color-text-sub);
+  margin: 0;
+}
+
+/* ============================================================
+   ランク色
+   ============================================================ */
+
+.tierS { color: var(--color-rank-s); font-weight: bold; }
+.tierA { color: var(--color-rank-a); font-weight: bold; }
+.tierB { color: var(--color-rank-b); }
+.tierC { color: var(--color-rank-c); }
+.tierD { color: var(--color-rank-d); }
+
+/* ============================================================
+   ボタン
+   ============================================================ */
+
+.btn {
+  border: none;
+  border-radius: 3px;
+  padding: 5px 10px;
+  font-size: 11px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: opacity 0.15s;
+}
+.btn:hover { opacity: 0.8; }
+.btnVisit   { background: var(--color-accent); color: #fff; }
+.btnRecruit { background: var(--color-primary); color: #fff; }
+.btnRemove  { background: transparent; border: 1px solid var(--color-border); color: var(--color-text-sub); font-size: 12px; padding: 4px 8px; }
+.btnWatch   { background: transparent; border: 1px solid var(--color-accent); color: var(--color-accent); }
+.btnWatched { background: var(--color-accent); color: #fff; }
+.btnDisabled { background: #ccc; color: #888; cursor: not-allowed; }
+
+/* ============================================================
+   フィルターバー
+   ============================================================ */
+
+.filterBar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  font-size: 12px;
+}
+
+.filterSelect {
+  padding: 5px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  background: #fff;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--color-text);
+}
+
+.filterLabel { color: var(--color-text-sub); }
+
+/* ============================================================
+   検索テーブル
+   ============================================================ */
+
+.scoutTable { width: 100%; font-size: 12px; }
+.scoutTable th { font-size: 11px; }
+.scoutTable tr:hover { background: rgba(139,0,0,0.03); }
+
+.tdName { font-weight: bold; }
+.tdComment { font-size: 11px; color: var(--color-text-sub); max-width: 150px; }
+
+/* ============================================================
+   メッセージ
+   ============================================================ */
+
+.noData { color: var(--color-text-sub); font-size: 13px; padding: 8px 0; }
+
+.msgSuccess { background: rgba(45,74,62,0.1); color: var(--color-accent); border: 1px solid var(--color-accent); border-radius: 3px; padding: 8px 12px; font-size: 13px; margin-bottom: 12px; }
+.msgFail    { background: rgba(139,0,0,0.08); color: var(--color-primary); border: 1px solid var(--color-primary); border-radius: 3px; padding: 8px 12px; font-size: 13px; margin-bottom: 12px; }
+
+/* ============================================================
+   モバイル対応 (max-width: 768px)
+   ============================================================ */
+
+@media (max-width: 768px) {
+  .headerInner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .navInner {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap;
+  }
+
+  .navLink {
+    padding: 10px 14px;
+    white-space: nowrap;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+  }
+
+  .main {
+    padding: 12px 12px;
+  }
+
+  /* グリッド：1カラム */
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .sectionFull {
+    grid-column: 1;
+  }
+
+  /* スカウトテーブル：横スクロール */
+  .section {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .scoutTable {
+    min-width: 420px;
+    font-size: 12px;
+  }
+
+  /* ボタン：タップしやすいサイズ */
+  .btn {
+    min-height: 40px;
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
+  /* フィルターバー */
+  .filterBar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .filterSelect {
+    width: 100%;
+    font-size: 14px;
+    min-height: 44px;
+  }
+
+  /* 予算バー */
+  .budgetBar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+}

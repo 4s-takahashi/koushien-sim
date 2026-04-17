@@ -1,0 +1,1027 @@
+/* ============================================================
+   ホーム画面
+   ============================================================ */
+
+.page {
+  min-height: 100vh;
+  background: var(--color-bg);
+}
+
+/* ヘッダーバー */
+.header {
+  background: var(--color-primary);
+  color: #fff;
+  padding: 10px 16px;
+}
+
+.headerInner {
+  max-width: 960px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.headerTitle {
+  font-family: var(--font-serif);
+  font-size: 18px;
+  font-weight: bold;
+  letter-spacing: 0.08em;
+}
+
+.headerMeta {
+  font-size: 12px;
+  color: rgba(255,255,255,0.8);
+  text-align: right;
+}
+
+/* ナビゲーション */
+.nav {
+  background: var(--color-accent);
+}
+
+.navInner {
+  max-width: 960px;
+  margin: 0 auto;
+  display: flex;
+}
+
+.navLink {
+  color: rgba(255,255,255,0.85);
+  padding: 9px 18px;
+  font-size: 13px;
+  display: inline-block;
+  text-decoration: none;
+}
+
+.navLink:hover {
+  background: rgba(255,255,255,0.12);
+  color: #fff;
+}
+
+.navLinkActive {
+  background: rgba(255,255,255,0.22);
+  color: #fff;
+  font-weight: bold;
+}
+
+/* 大会バナー */
+.tournamentBanner {
+  background: linear-gradient(90deg, var(--color-primary), #c00020);
+  color: #fff;
+  text-align: center;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: bold;
+  font-family: var(--font-serif);
+  letter-spacing: 0.05em;
+}
+
+/* 試合日バナー（より目立つ） */
+.tournamentBannerMatchDay {
+  background: linear-gradient(90deg, #c00020, #8b0000);
+  padding: 12px 16px;
+  font-size: 16px;
+}
+
+/* 大会開始予告バナー */
+.tournamentPreBanner {
+  background: #fff8e1;
+  border-bottom: 1px solid #ffe082;
+  color: #8b5e00;
+  text-align: center;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: bold;
+}
+
+/* ナビゲーションインジケーター（大会中の赤ドット） */
+.navIndicator {
+  font-size: 8px;
+  margin-left: 3px;
+  vertical-align: middle;
+}
+
+/* 大会開始通知バナー */
+.tournamentStartBanner {
+  background: linear-gradient(135deg, #fff8e1, #fff3cd);
+  border-bottom: 2px solid #ffe082;
+  border-left: 4px solid var(--color-primary);
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 100%;
+}
+
+.tournamentStartIcon {
+  font-size: 28px;
+  flex-shrink: 0;
+}
+
+.tournamentStartContent {
+  flex: 1;
+}
+
+.tournamentStartTitle {
+  font-family: var(--font-serif);
+  font-size: 16px;
+  font-weight: bold;
+  color: var(--color-primary);
+  margin-bottom: 4px;
+}
+
+.tournamentStartDetail {
+  font-size: 12px;
+  color: var(--color-text-sub);
+}
+
+.tournamentStartClose {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--color-text-sub);
+  padding: 4px;
+  flex-shrink: 0;
+}
+
+.tournamentStartClose:hover {
+  color: var(--color-text);
+}
+
+/* 試合日カード */
+.matchDayCard {
+  border-left: 4px solid #c00020;
+  background: #fff0f0;
+}
+
+.matchDayTitle {
+  font-family: var(--font-serif);
+  font-size: 16px;
+  font-weight: bold;
+  color: #c00020;
+  margin-bottom: 6px;
+}
+
+.matchDayOpponent {
+  font-size: 14px;
+  color: var(--color-text);
+  margin-bottom: 8px;
+}
+
+.matchDayHint {
+  font-size: 12px;
+  color: var(--color-text-sub);
+  margin: 0;
+}
+
+/* 次の試合カード */
+.nextMatchCard {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  border-left: 4px solid var(--color-accent);
+  padding: 10px 16px;
+}
+
+.nextMatchLabel {
+  font-size: 12px;
+  color: var(--color-text-sub);
+  white-space: nowrap;
+}
+
+.nextMatchDate {
+  font-size: 14px;
+  font-weight: bold;
+  color: var(--color-primary);
+  font-family: var(--font-serif);
+}
+
+.nextMatchDays {
+  font-size: 12px;
+  color: var(--color-text-sub);
+}
+
+.nextMatchOpponent {
+  font-size: 13px;
+  color: var(--color-text);
+  margin-left: auto;
+}
+
+/* ============================================================
+   試合結果モーダル
+   ============================================================ */
+
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.modal {
+  background: var(--color-surface);
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  max-width: 400px;
+  width: 100%;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.modalHeader {
+  padding: 16px 20px;
+  font-family: var(--font-serif);
+  font-size: 18px;
+  font-weight: bold;
+  color: #fff;
+  text-align: center;
+}
+
+.modalHeaderWin {
+  background: linear-gradient(90deg, var(--color-primary), #c00020);
+}
+
+.modalHeaderLose {
+  background: #555;
+}
+
+.modalBody {
+  padding: 20px;
+  text-align: center;
+}
+
+.matchResultScore {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.matchResultSelf {
+  font-size: 40px;
+  font-weight: bold;
+  font-family: var(--font-serif);
+  color: var(--color-primary);
+}
+
+.matchResultVs {
+  font-size: 16px;
+  color: var(--color-text-sub);
+}
+
+.matchResultOpponent {
+  font-size: 40px;
+  font-weight: bold;
+  font-family: var(--font-serif);
+  color: var(--color-text-sub);
+}
+
+.matchResultVsName {
+  font-size: 14px;
+  color: var(--color-text-sub);
+  margin-bottom: 12px;
+}
+
+.matchResultMessage {
+  font-size: 13px;
+  color: var(--color-text);
+  margin: 0;
+  line-height: 1.6;
+}
+
+.modalFooter {
+  padding: 12px 20px 20px;
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.modalBtn {
+  padding: 10px 24px;
+  background: var(--color-primary);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.modalBtn:hover {
+  opacity: 0.88;
+}
+
+.modalBtnSecondary {
+  padding: 10px 20px;
+  background: var(--color-bg);
+  color: var(--color-accent);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  font-size: 13px;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+}
+
+.modalBtnSecondary:hover {
+  background: var(--color-border);
+}
+
+/* メインコンテンツ */
+.main {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 20px 16px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+/* カード共通 */
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 16px;
+}
+
+.cardFull {
+  grid-column: 1 / -1;
+}
+
+.cardTitle {
+  font-family: var(--font-serif);
+  font-size: 13px;
+  color: var(--color-primary);
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 6px;
+  margin-bottom: 12px;
+  letter-spacing: 0.06em;
+}
+
+/* 今日やることカード */
+.todayCard {
+  border-left: 3px solid var(--color-primary);
+}
+
+.todayRow {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.todayTask {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.taskBadge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+.taskBadgePractice { background: var(--color-primary); color: #fff; }
+.taskBadgeMatch    { background: #c00020; color: #fff; }
+.taskBadgeOff      { background: #666; color: #fff; }
+.taskBadgeScout    { background: var(--color-accent); color: #fff; }
+
+.todayDetail {
+  font-size: 12px;
+  color: var(--color-text-sub);
+  flex: 1;
+}
+
+/* アクションボタン */
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.menuRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.menuLabel {
+  font-size: 12px;
+  color: var(--color-text-sub);
+  white-space: nowrap;
+}
+
+.menuSelect {
+  flex: 1;
+  padding: 7px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  background: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--color-text);
+  max-width: 240px;
+}
+
+.menuSelect:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.btnRow {
+  display: flex;
+  gap: 10px;
+}
+
+.btn {
+  border: none;
+  border-radius: 3px;
+  padding: 10px 20px;
+  font-size: 13px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  flex: 1;
+}
+
+.btn:hover { opacity: 0.85; }
+
+.btnPrimary {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.btnSecondary {
+  background: var(--color-accent);
+  color: #fff;
+}
+
+.btnDisabled {
+  background: #ccc;
+  color: #888;
+  cursor: not-allowed;
+}
+
+/* カードタイトル行（タイトル + リンク） */
+.cardTitleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 6px;
+  margin-bottom: 12px;
+}
+
+.cardTitleRow .cardTitle {
+  border-bottom: none;
+  padding-bottom: 0;
+  margin-bottom: 0;
+}
+
+/* チーム概要 */
+.teamGrid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  font-size: 13px;
+}
+
+.teamLabel {
+  color: var(--color-text-sub);
+  font-size: 12px;
+}
+
+.teamValue {
+  font-weight: bold;
+}
+
+.teamOverall {
+  font-size: 22px;
+  font-weight: bold;
+  color: var(--color-primary);
+  font-family: var(--font-serif);
+}
+
+/* スタメン選手一覧（チーム概要内） */
+.startersList {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.starterItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  background: var(--color-bg);
+  border-radius: 3px;
+  font-size: 12px;
+  text-decoration: none;
+  color: var(--color-text);
+  transition: background 0.12s;
+}
+
+.starterItem:hover {
+  background: rgba(139,0,0,0.06);
+}
+
+.starterRank {
+  font-size: 10px;
+  font-weight: bold;
+  width: 16px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.starterName {
+  flex: 1;
+  font-weight: bold;
+}
+
+.starterOverall {
+  font-size: 11px;
+  color: var(--color-primary);
+  font-family: var(--font-serif);
+}
+
+/* 注目選手 */
+.featuredList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.featuredItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: var(--color-bg);
+  border-radius: 3px;
+  font-size: 12px;
+  text-decoration: none;
+  color: var(--color-text);
+  transition: background 0.12s;
+}
+
+.featuredItem:hover {
+  background: rgba(139,0,0,0.06);
+}
+
+.featuredRank {
+  font-size: 11px;
+  font-weight: bold;
+  width: 18px;
+  text-align: center;
+}
+
+.rankS { color: var(--color-rank-s); }
+.rankA { color: var(--color-rank-a); }
+.rankB { color: var(--color-rank-b); }
+.rankC { color: var(--color-rank-c); }
+
+.featuredName { flex: 1; font-weight: bold; }
+.featuredOverall { font-family: var(--font-serif); color: var(--color-primary); font-weight: bold; }
+.featuredReason { font-size: 10px; color: var(--color-text-sub); }
+
+/* ニュース */
+.newsList {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.newsItem {
+  padding: 7px 12px;
+  background: var(--color-bg);
+  border-radius: 3px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.newsHigh   { border-left: 3px solid var(--color-primary); }
+.newsMedium { border-left: 3px solid var(--color-accent); }
+.newsLow    { border-left: 3px solid var(--color-border); }
+
+.newsIcon { font-size: 14px; flex-shrink: 0; }
+.newsHeadline { color: var(--color-text); }
+.newsEmpty { color: var(--color-text-sub); font-size: 12px; }
+
+/* スケジュール */
+.scheduleList {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.scheduleItem {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  padding: 5px 0;
+  border-bottom: 1px dashed var(--color-border);
+}
+
+.scheduleDate {
+  color: var(--color-text-sub);
+}
+
+/* スカウト予算 */
+.budgetHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.budgetMain {
+  font-size: 13px;
+}
+
+.budgetNum {
+  color: var(--color-primary);
+  font-size: 16px;
+}
+
+.budgetAlert {
+  font-size: 11px;
+  color: var(--color-accent);
+}
+
+.budgetBar {
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.budgetDot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid var(--color-border);
+}
+
+.budgetDotUsed {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.budgetDotFree {
+  background: transparent;
+}
+
+/* フェーズバッジ */
+.phaseBadge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--color-accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: bold;
+}
+
+/* 初期画面 */
+.setupScreen {
+  max-width: 420px;
+  margin: 80px auto;
+  padding: 32px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  text-align: center;
+}
+
+.setupTitle {
+  font-family: var(--font-serif);
+  font-size: 26px;
+  color: var(--color-primary);
+  margin-bottom: 4px;
+  letter-spacing: 0.1em;
+}
+
+.setupSubtitle {
+  color: var(--color-text-sub);
+  font-size: 13px;
+  margin-bottom: 28px;
+}
+
+.setupForm {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-align: left;
+}
+
+.formLabel {
+  font-size: 12px;
+  color: var(--color-text-sub);
+  margin-bottom: 3px;
+  display: block;
+}
+
+.formInput {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  font-family: inherit;
+  font-size: 14px;
+  background: #fff;
+  color: var(--color-text);
+}
+
+.formInput:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.setupBtn {
+  margin-top: 8px;
+  background: var(--color-primary);
+  color: #fff;
+  border: none;
+  border-radius: 3px;
+  padding: 12px;
+  font-size: 15px;
+  font-weight: bold;
+  cursor: pointer;
+  width: 100%;
+  font-family: var(--font-serif);
+}
+
+.setupBtn:hover { opacity: 0.88; }
+
+/* 進行中ステータス */
+.advancing {
+  color: var(--color-text-sub);
+  font-size: 12px;
+  text-align: center;
+  padding: 4px 0;
+}
+
+/* ============================================================
+   ウェルカムバナー（初回プレイ）
+   ============================================================ */
+
+.welcomeBanner {
+  background: linear-gradient(135deg, #fff8e1, #fff3cd);
+  border: 1px solid #ffe082;
+  border-left: 4px solid #f5a623;
+  padding: 16px 20px;
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.welcomeTitle {
+  font-family: var(--font-serif);
+  font-size: 16px;
+  font-weight: bold;
+  color: #8b5e00;
+  margin-bottom: 6px;
+  letter-spacing: 0.05em;
+}
+
+.welcomeText {
+  font-size: 13px;
+  color: var(--color-text);
+  margin-bottom: 10px;
+}
+
+.welcomeSteps {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0;
+  margin: 0;
+}
+
+.welcomeSteps li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.stepNum {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #f5a623;
+  color: #fff;
+  font-size: 11px;
+  font-weight: bold;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.stepText {
+  font-size: 13px;
+  color: var(--color-text);
+  line-height: 1.5;
+}
+
+.stepLink {
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+
+/* ============================================================
+   進行状況インジケーター
+   ============================================================ */
+
+.progressBar {
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0;
+  padding: 8px 16px;
+}
+
+.progressItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px 20px;
+  text-align: center;
+}
+
+.progressLabel {
+  font-size: 10px;
+  color: var(--color-text-sub);
+  letter-spacing: 0.05em;
+  margin-bottom: 2px;
+}
+
+.progressValue {
+  font-size: 13px;
+  font-weight: bold;
+  color: var(--color-text);
+  font-family: var(--font-serif);
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.progressSub {
+  font-size: 10px;
+  color: var(--color-text-sub);
+  font-weight: normal;
+  font-family: inherit;
+}
+
+.progressOverall {
+  font-size: 18px;
+  color: var(--color-primary);
+}
+
+.progressDivider {
+  width: 1px;
+  height: 28px;
+  background: var(--color-border);
+  flex-shrink: 0;
+}
+
+/* ============================================================
+   モバイル対応 (max-width: 768px)
+   ============================================================ */
+
+@media (max-width: 768px) {
+  /* ヘッダー */
+  .headerInner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .headerTitle {
+    font-size: 16px;
+  }
+
+  .headerMeta {
+    text-align: left;
+    font-size: 11px;
+  }
+
+  /* ナビゲーション：横スクロール */
+  .navInner {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap;
+    padding-bottom: 2px;
+  }
+
+  .navLink {
+    padding: 10px 14px;
+    font-size: 13px;
+    white-space: nowrap;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+  }
+
+  /* メインコンテンツ：1カラム */
+  .main {
+    grid-template-columns: 1fr;
+    padding: 12px 12px;
+    gap: 12px;
+  }
+
+  .cardFull {
+    grid-column: 1;
+  }
+
+  /* 今日やること */
+  .menuRow {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .menuSelect {
+    max-width: 100%;
+    width: 100%;
+    font-size: 14px;
+    padding: 10px 12px;
+    min-height: 44px;
+  }
+
+  .btnRow {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .btn {
+    min-height: 48px;
+    font-size: 14px;
+    flex: unset;
+  }
+
+  /* チームグリッド */
+  .teamGrid {
+    font-size: 14px;
+  }
+
+  /* ウェルカムバナー */
+  .welcomeBanner {
+    margin: 0;
+    border-radius: 0;
+    border-left: none;
+    border-top: 4px solid #f5a623;
+  }
+
+  /* 進行状況インジケーター */
+  .progressBar {
+    gap: 4px;
+    padding: 8px 8px;
+    justify-content: flex-start;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap;
+  }
+
+  .progressItem {
+    padding: 4px 12px;
+    flex-shrink: 0;
+  }
+
+  .progressDivider {
+    flex-shrink: 0;
+  }
+
+  /* セットアップ画面 */
+  .setupScreen {
+    margin: 20px auto;
+    padding: 20px 16px;
+    max-width: 100%;
+  }
+
+  .setupTitle {
+    font-size: 22px;
+  }
+}

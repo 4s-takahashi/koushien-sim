@@ -1,0 +1,279 @@
+/* ============================================================
+   試合結果画面
+   ============================================================ */
+
+.page { min-height: 100vh; background: var(--color-bg); }
+.header { background: var(--color-primary); color: #fff; padding: 10px 16px; }
+.headerInner { max-width: 960px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
+.headerTitle { font-family: var(--font-serif); font-size: 16px; font-weight: bold; }
+.nav { background: var(--color-accent); }
+.navInner { max-width: 960px; margin: 0 auto; display: flex; }
+.navLink { color: rgba(255,255,255,0.85); padding: 9px 18px; font-size: 13px; display: inline-block; text-decoration: none; }
+.navLink:hover { background: rgba(255,255,255,0.12); color: #fff; }
+.navLinkActive { background: rgba(255,255,255,0.18); color: #fff; font-weight: bold; }
+
+.main { max-width: 960px; margin: 0 auto; padding: 20px 16px; display: flex; flex-direction: column; gap: 16px; }
+
+.section {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 16px;
+}
+
+.sectionTitle {
+  font-family: var(--font-serif);
+  font-size: 13px;
+  color: var(--color-primary);
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 6px;
+  margin-bottom: 12px;
+}
+
+.subTitle {
+  font-size: 11px;
+  font-weight: bold;
+  color: var(--color-text-sub);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 10px 0 6px;
+}
+
+/* 通算成績 */
+.recordRow {
+  font-size: 24px;
+  font-weight: bold;
+  font-family: var(--font-serif);
+  padding: 8px 0;
+}
+
+.win  { color: var(--color-primary); }
+.lose { color: var(--color-accent); }
+.sep  { color: var(--color-border); }
+
+/* プレースホルダー */
+.placeholder {
+  padding: 24px;
+  background: var(--color-bg);
+  border: 2px dashed var(--color-border);
+  border-radius: 4px;
+  text-align: center;
+  color: var(--color-text-sub);
+  font-size: 13px;
+}
+
+/* 試合カード */
+.matchCard {
+  padding: 14px 16px;
+  border-radius: 4px;
+  border-left: 4px solid var(--color-border);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-left: 4px solid var(--color-border);
+}
+
+.matchWin  { border-left-color: var(--color-primary) !important; }
+.matchLose { border-left-color: var(--color-accent) !important; }
+.matchDraw { border-left-color: #999 !important; }
+
+.matchHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.matchDate { font-size: 11px; color: var(--color-text-sub); }
+
+.matchScore {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.matchTeam { font-weight: bold; }
+.matchTeamWin { color: var(--color-primary); }
+.matchNum { font-size: 22px; font-family: var(--font-serif); font-weight: bold; }
+.matchVs { color: var(--color-text-sub); }
+
+.matchResult {
+  font-size: 12px;
+  font-weight: bold;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.resultWin  { background: rgba(139,0,0,0.1); color: var(--color-primary); }
+.resultLose { background: rgba(45,74,62,0.1); color: var(--color-accent); }
+.resultDraw { background: rgba(0,0,0,0.05); color: var(--color-text-sub); }
+
+/* スコアボード */
+.scoreboard {
+  margin-top: 12px;
+  overflow-x: auto;
+}
+
+.scoreTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  min-width: 300px;
+}
+
+.scoreTable th, .scoreTable td {
+  text-align: center;
+  padding: 4px 6px;
+  border: 1px solid var(--color-border);
+}
+
+.scoreTable thead th {
+  background: var(--color-bg);
+  font-size: 11px;
+  color: var(--color-text-sub);
+}
+
+.scoreTeamCol { text-align: left !important; min-width: 100px; }
+.scoreTeamName { text-align: left !important; font-weight: bold; font-size: 12px; }
+.scoreInningCol { min-width: 28px; }
+.scoreTotalCol { font-weight: bold; min-width: 32px; background: rgba(139,0,0,0.04); }
+.scoreTotalCell { font-weight: bold; background: rgba(139,0,0,0.04); font-family: var(--font-serif); font-size: 14px; }
+.scoreCell { color: var(--color-text); }
+
+/* 先発投手 */
+.pitcherBox {
+  margin-top: 10px;
+  padding: 8px 10px;
+  background: var(--color-bg);
+  border-radius: 3px;
+}
+
+.pitcherRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+
+.pitcherName { font-weight: bold; }
+.pitcherStat { color: var(--color-text-sub); }
+
+/* ハイライト */
+.highlightSection { margin-top: 10px; }
+
+.highlightList {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.highlightItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 3px;
+  font-size: 12px;
+  background: var(--color-bg);
+}
+
+.hlHomerun { border-left: 3px solid var(--color-primary); }
+.hlStrikeout { border-left: 3px solid var(--color-accent); }
+.hlDefault { border-left: 3px solid var(--color-border); }
+
+.hlIcon { font-size: 14px; flex-shrink: 0; }
+
+/* 打席フロー */
+.atBatSection { margin-top: 10px; }
+
+.atBatTable {
+  width: 100%;
+  font-size: 11px;
+  border-collapse: collapse;
+}
+
+.atBatTable th {
+  background: var(--color-bg);
+  font-size: 10px;
+  color: var(--color-text-sub);
+  padding: 3px 6px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.atBatTable td {
+  padding: 3px 6px;
+  border-bottom: 1px dashed var(--color-border);
+}
+
+.atBatInning { color: var(--color-text-sub); font-size: 10px; white-space: nowrap; }
+.atBatResult { font-weight: bold; }
+.abHomerun { color: var(--color-primary); }
+.abStrikeout { color: var(--color-accent); }
+.abExtra { color: #0055bb; }
+.atBatScore { font-family: var(--font-serif); font-size: 12px; text-align: center; }
+
+/* ============================================================
+   モバイル対応 (max-width: 768px)
+   ============================================================ */
+
+@media (max-width: 768px) {
+  .headerInner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .navInner {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap;
+  }
+
+  .navLink {
+    padding: 10px 14px;
+    white-space: nowrap;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+  }
+
+  .main {
+    padding: 12px 12px;
+  }
+
+  .recordRow {
+    font-size: 20px;
+  }
+
+  /* スコアボード：横スクロール（既存の scoreboard overflow-x を補強） */
+  .scoreTable {
+    font-size: 11px;
+  }
+
+  /* 試合カード */
+  .matchHeader {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .matchScore {
+    font-size: 13px;
+  }
+
+  .matchNum {
+    font-size: 18px;
+  }
+
+  /* 打席フロー：横スクロール */
+  .atBatSection {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .atBatTable {
+    min-width: 360px;
+  }
+}

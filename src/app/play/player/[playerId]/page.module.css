@@ -1,0 +1,173 @@
+/* ============================================================
+   選手概要画面（他校選手）
+   ============================================================ */
+
+.page { min-height: 100vh; background: var(--color-bg); }
+.header { background: var(--color-primary); color: #fff; padding: 10px 16px; }
+.headerInner { max-width: 960px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
+.headerTitle { font-family: var(--font-serif); font-size: 15px; font-weight: bold; letter-spacing: 0.05em; }
+.nav { background: var(--color-accent); }
+.navInner { max-width: 960px; margin: 0 auto; display: flex; overflow-x: auto; }
+.navLink { color: rgba(255,255,255,0.85); padding: 9px 18px; font-size: 13px; display: inline-block; text-decoration: none; white-space: nowrap; }
+.navLink:hover { background: rgba(255,255,255,0.12); color: #fff; }
+.navLinkActive { background: rgba(255,255,255,0.22); color: #fff; font-weight: bold; }
+
+.main {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 20px 16px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.section {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 16px;
+}
+
+.sectionFull {
+  grid-column: 1 / -1;
+}
+
+.sectionTitle {
+  font-family: var(--font-serif);
+  font-size: 12px;
+  color: var(--color-primary);
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 6px;
+  margin-bottom: 12px;
+  letter-spacing: 0.05em;
+}
+
+/* プロフィールグリッド */
+.profileGrid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 14px;
+  font-size: 13px;
+}
+
+.pLabel { color: var(--color-text-sub); font-size: 12px; }
+.pValue { font-weight: bold; }
+
+.schoolLink {
+  color: var(--color-accent);
+  text-decoration: none;
+  font-weight: bold;
+}
+.schoolLink:hover { text-decoration: underline; }
+
+/* 総合評価 */
+.rankDisplay {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 0;
+}
+
+.rankBig {
+  font-size: 56px;
+  font-weight: bold;
+  font-family: var(--font-serif);
+  line-height: 1;
+}
+
+.rankDetail {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rankLabel {
+  font-size: 11px;
+  color: var(--color-text-sub);
+}
+
+.styleLabel {
+  font-size: 14px;
+  color: var(--color-accent);
+  font-weight: bold;
+}
+
+.scoutNote {
+  font-size: 10px;
+  color: var(--color-text-sub);
+  margin-top: 8px;
+}
+
+.pitcherInfo {
+  margin-top: 8px;
+}
+
+.pitcherBadge {
+  font-size: 11px;
+  background: rgba(45,74,62,0.1);
+  border: 1px solid rgba(45,74,62,0.2);
+  color: var(--color-accent);
+  padding: 3px 10px;
+  border-radius: 10px;
+}
+
+/* ランクカラー */
+.rankS { color: #c00020; }
+.rankA { color: #8b0000; }
+.rankB { color: var(--color-accent); }
+.rankC { color: var(--color-text-sub); }
+
+/* スカウトレポート */
+.scoutReport {
+  font-size: 13px;
+  color: var(--color-text);
+  line-height: 1.6;
+  padding: 8px;
+  background: var(--color-bg);
+  border-radius: 3px;
+  border-left: 3px solid var(--color-accent);
+}
+
+/* アクション */
+.actionLinks {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.actionBtn {
+  display: inline-block;
+  padding: 8px 16px;
+  background: var(--color-primary);
+  color: #fff;
+  border-radius: 4px;
+  text-decoration: none;
+  font-size: 13px;
+  transition: opacity 0.12s;
+}
+
+.actionBtn:hover { opacity: 0.85; }
+
+.actionBtnSecondary {
+  display: inline-block;
+  padding: 8px 16px;
+  background: var(--color-accent);
+  color: #fff;
+  border-radius: 4px;
+  text-decoration: none;
+  font-size: 13px;
+  transition: opacity 0.12s;
+}
+
+.actionBtnSecondary:hover { opacity: 0.85; }
+
+/* モバイル対応 */
+@media (max-width: 768px) {
+  .main {
+    grid-template-columns: 1fr;
+    padding: 12px;
+    gap: 12px;
+  }
+  .sectionFull { grid-column: 1; }
+  .rankBig { font-size: 42px; }
+}
