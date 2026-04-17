@@ -543,6 +543,12 @@ export function advanceWorldDay(
   const oldPhase = world.seasonState.phase;
   let newPhase = computeSeasonPhase(newDate);
 
+  // 大会が終了したのに calendar phase が tournament 表示になるのを防ぐ
+  // （例: 夏大会が7/28に終わっても computeSeasonPhase({7,29}) は 'summer_tournament' を返す）
+  if (!activeTournament && (newPhase === 'summer_tournament' || newPhase === 'autumn_tournament')) {
+    newPhase = newPhase === 'summer_tournament' ? 'post_summer' : 'off_season';
+  }
+
   // 大会が進行中なら大会フェーズを維持
   if (activeTournament && !activeTournament.isCompleted) {
     newPhase = activeTournament.type === 'summer' ? 'summer_tournament' : 'autumn_tournament';
