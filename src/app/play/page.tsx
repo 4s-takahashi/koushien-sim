@@ -100,7 +100,7 @@ function WelcomeBanner({ schoolName, managerName }: { schoolName: string; manage
           <span className={styles.stepNum}>1</span>
           <span className={styles.stepText}>
             <strong>チームを確認する</strong> —{' '}
-            <a href="/play/team" className={styles.stepLink}>チーム画面</a>で選手一覧とラインナップを確認しましょう
+            <Link href="/play/team" className={styles.stepLink}>チーム画面</Link>で選手一覧とラインナップを確認しましょう
           </span>
         </li>
         <li>

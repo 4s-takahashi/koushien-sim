@@ -6,6 +6,7 @@
  */
 
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import type { PracticeMenuId } from '../engine/types/calendar';
 import type { WorldState } from '../engine/world/world-state';
 import type { WorldDayResult } from '../engine/world/world-ticker';
@@ -35,6 +36,10 @@ import {
   WORLD_SAVE_SLOTS,
 } from '../engine/save/world-save-manager';
 import type { WorldSaveSlotId, WorldSaveSlotMeta, WorldSaveResult, WorldLoadResult } from '../engine/save/world-save-manager';
+import {
+  serializeWorldState as serializeWS,
+  deserializeWorldState as deserializeWS,
+} from '../engine/save/world-serializer';
 import {
   createTournamentBracket,
   simulateFullTournament,
@@ -160,7 +165,9 @@ function isTournamentMatchDay(
 // Zustand ストア
 // ============================================================
 
-export const useWorldStore = create<WorldStore>((set, get) => ({
+export const useWorldStore = create<WorldStore>()(
+  persist(
+    (set, get) => ({
   worldState: null,
   isLoading: false,
   lastDayResult: null,
@@ -472,4 +479,49 @@ export const useWorldStore = create<WorldStore>((set, get) => ({
       },
     });
   },
-}));
+}),
+    {
+      name: 'koushien-active-game',
+      // worldState のみ永続化（関数やUI一時状態は不要）
+      partialize: (state) => ({
+        worldState: state.worldState,
+      }),
+      storage: {
+        getItem: (name) => {
+          if (typeof window === 'undefined') return null;
+          const raw = localStorage.getItem(name);
+          if (!raw) return null;
+          try {
+            const parsed = JSON.parse(raw);
+            // deserialize: Map フィールドを復元
+            if (parsed.state?.worldState) {
+              const ws = parsed.state.worldState;
+              parsed.state.worldState = deserializeWS(JSON.stringify(ws));
+            }
+            return parsed;
+          } catch {
+            return null;
+          }
+        },
+        setItem: (name, value) => {
+          if (typeof window === 'undefined') return;
+          try {
+            // serialize: Map → plain object 変換
+            const toStore = { ...value };
+            if (toStore.state?.worldState) {
+              const serialized = JSON.parse(serializeWS(toStore.state.worldState));
+              toStore.state = { ...toStore.state, worldState: serialized };
+            }
+            localStorage.setItem(name, JSON.stringify(toStore));
+          } catch {
+            // ストレージ容量超過等はサイレント
+          }
+        },
+        removeItem: (name) => {
+          if (typeof window === 'undefined') return;
+          localStorage.removeItem(name);
+        },
+      },
+    },
+  ),
+);
