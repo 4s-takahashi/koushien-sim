@@ -1,0 +1,286 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                     KOUSHIEN-SIM CODE EXPLORATION COMPLETE                  ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+📊 STATISTICS
+═════════════════════════════════════════════════════════════════════════════
+  Total Files Read:           13 files (completely or near-completely)
+  Lines of Code Analyzed:     3,500+ lines
+  TypeScript:                 Fully typed throughout
+  React Components:           3 major components analyzed
+  State Management Store:     Zustand (world-store.ts)
+  Architecture:               Clean separation (Engine → Store → UI)
+
+📂 CORE FILES ANALYZED
+═════════════════════════════════════════════════════════════════════════════
+  
+  UI LAYER (React/Next.js)
+  ├── src/app/page.tsx                    (557 lines) ✅ HOME PAGE
+  ├── src/app/tournament/page.tsx         (317 lines) ✅ TOURNAMENT UI
+  └── src/app/layout.tsx                  (25  lines) ✅ ROOT LAYOUT
+  
+  STATE MANAGEMENT (Zustand)
+  ├── src/stores/world-store.ts           (405 lines) ✅ MAIN STORE
+  └── src/stores/game-store.ts            (200 lines) ✅ LEGACY STORE
+  
+  UI PROJECTORS (Pure Functions)
+  ├── src/ui/projectors/homeProjector.ts           (282 lines) ✅
+  ├── src/ui/projectors/tournamentProjector.ts     (160 lines) ✅
+  └── src/ui/projectors/view-state-types.ts        (439 lines) ✅
+  
+  GAME ENGINE
+  ├── src/engine/world/world-state.ts     (238 lines) ✅ TYPES
+  ├── src/engine/world/world-ticker.ts    (300 lines) ✅ DAY LOGIC
+  ├── src/engine/world/tournament-bracket.ts (300 lines) ✅ TOURNAMENTS
+  └── src/engine/calendar/game-calendar.ts (127 lines) ✅ DATES
+  
+  UI COMPONENTS (Modal/Dialog)
+  └── src/app/save/SaveLoadPanel.tsx      (370 lines) ✅ MODAL
+
+🎯 KEY INSIGHTS
+═════════════════════════════════════════════════════════════════════════════
+
+ARCHITECTURE PATTERN
+  User Input → Zustand Store → Game Engine → ViewState Projectors → React UI
+  
+  This creates clear separation:
+  • Engine: Pure logic, no React dependencies
+  • Store: State mutations and action dispatch
+  • Projectors: Pure functions (WorldState → ViewState)
+  • UI: React components using hooks
+
+SEASON PHASES (6 per year)
+  ├── 4/1–7/9    : spring_practice   (春季練習)
+  ├── 7/10–7/30  : summer_tournament (夏の大会)
+  ├── 7/31–9/14  : post_summer       (夏以降練習)
+  ├── 9/15–10/14 : autumn_tournament (秋の大会)
+  ├── 10/15–1/31 : off_season        (オフシーズン)
+  └── 2/1–3/31   : pre_season        (始動期間)
+
+TOURNAMENT SYSTEM
+  • 48 schools total
+  • 6 rounds (Round 1: 16 matches → Final: 1 match)
+  • Seeding: Top 16 schools get bye to Round 2
+  • Win probability: Reputation-based with RNG
+  • Upsets: Detected when loser has 15+ higher reputation
+
+DAY PROGRESSION TIERS
+  ├── Tier 1 (Full):     Player school - detailed simulation
+  ├── Tier 2 (Standard):  Other schools - batch growth
+  └── Tier 3 (Minimal):   Distant schools - weekly bulk growth
+
+MODAL IMPLEMENTATION
+  Pattern: Overlay + Click-outside-to-close
+  • SaveLoadPanel uses React state (local)
+  • Confirmation dialogs render conditionally
+  • Full-screen semi-transparent overlay
+  • Nested panels with event propagation control
+
+🔧 STATE MANAGEMENT HIGHLIGHTS
+═════════════════════════════════════════════════════════════════════════════
+
+WORLD-STORE.ts (Main Store)
+  State:
+  ├── worldState: WorldState | null
+  ├── recentResults: WorldDayResult[] (max 30)
+  ├── recentNews: WorldNewsItem[] (max 20)
+  └── lastDayResult: WorldDayResult | null
+  
+  Action Groups:
+  ├── Game Init:      newWorldGame(config)
+  ├── Progression:    advanceDay(menu), advanceWeek(menu)
+  ├── Projectors:     getHomeView(), getTournamentView(), etc. (7 total)
+  ├── Scout:         scoutVisit(), recruitPlayerAction()
+  ├── Save/Load:     saveGame(), loadGame(), deleteSave()
+  └── Tournament:    startTournament(), simulateTournament()
+
+WORLD-STATE.ts (Type Definitions)
+  Primary Types:
+  ├── WorldState         - Main game state (seed, date, schools, etc.)
+  ├── HighSchool         - Both player school and NPC schools
+  ├── MiddleSchoolPlayer - Junior high students for recruitment
+  ├── SeasonState        - Current phase and year results
+  └── ScoutState        - Scout budget and recruitment tracking
+
+📋 NAVIGATION & MODALS
+═════════════════════════════════════════════════════════════════════════════
+
+PERSISTENT HEADER
+  [School Name] ← left                right → [Date] [Phase] [💾 Save] [📂 Load]
+
+PERSISTENT NAVIGATION BAR
+  [ホーム] [チーム] [ニュース] [スカウト] [大会] [試合結果] [OB]
+
+SAVE/LOAD MODAL (SaveLoadPanel)
+  ┌─────────────────────────────────────┐
+  │ セーブ / ロード        ╳             │
+  ├─────────────────────────────────────┤
+  │ [💾 セーブ] [📂 ロード]            │
+  ├─────────────────────────────────────┤
+  │ Slot 1 (empty)     [セーブ]        │
+  │ Slot 2 (Year 5...)  [削除]         │
+  │ Slot 3 (empty)     [セーブ]        │
+  ├─────────────────────────────────────┤
+  │ 自動セーブ（読み取り専用）          │
+  │ Year End (Year 3...) [ロード]      │
+  │ Monthly (Year 2...)  [ロード]      │
+  ├─────────────────────────────────────┤
+  │ ストレージ [████░░] 256KB / 4MB    │
+  └─────────────────────────────────────┘
+
+💾 SAVE SYSTEM
+  Manual Slots:   3 (SLOT_1, SLOT_2, SLOT_3)
+  Auto Slots:     3 (YEAR_END, MONTHLY, PRE_TOURNAMENT)
+  Storage:        IndexedDB, 4MB limit per game
+  Metadata:       School name, manager, date, phase, win rate
+  Validation:     Checksum verification on load
+
+🏆 TOURNAMENT PAGE FEATURES
+═════════════════════════════════════════════════════════════════════════════
+
+BRACKET DISPLAY
+  ├── Round filter tabs (全ラウンド, Round 1, 2, ... 決勝)
+  ├── Horizontal scrollable grid (6 columns)
+  ├── Match cells showing:
+  │   ├── Team names (home/away)
+  │   ├── Scores (if completed)
+  │   ├── Red border if player school involved
+  │   ├── 🔥 upset indicator
+  │   └── 不戦勝 (bye) indication
+  ├── Legend: ◎=自校 (player school), 🔥=番狂わせ (upset)
+  └── "Simulate all matches" button
+
+YEAR RESULTS TABLE
+  ├── Summer best round (0 = didn't play)
+  ├── Autumn best round
+  ├── Koshien appearance (Y/N)
+  └── Koshien best round
+
+HISTORY
+  └── Past 5 tournaments (reversed chronological)
+
+📱 HOME PAGE FEATURES
+═════════════════════════════════════════════════════════════════════════════
+
+PROGRESS INDICATOR
+  Current Date | Season Phase | Next Tournament | Team Overall Power
+
+TODAY'S TASK
+  ├── If tournament: "試合に備えよう" (prepare for match)
+  ├── If off-season:  "休養日" (rest day)
+  ├── If scout budget: "スカウト活動を行おう" (scout)
+  └── Else:          "練習メニューを選ぼう" (choose practice menu)
+
+PRACTICE MENU (7 options)
+  ├── 基礎打撃練習  (basic batting)
+  ├── 実戦打撃練習  (live batting)
+  ├── 投球基礎練習  (pitching basics)
+  ├── 投手ブルペン強化 (bullpen)
+  ├── 守備練習      (fielding)
+  ├── 走塁・体力練習 (running/stamina)
+  └── 休養（疲労回復）(rest/recovery)
+
+ACTION BUTTONS
+  ├── ▶ 練習して1日進む (advance 1 day)
+  └── ▶▶ 1週間まとめて進む (advance 7 days)
+
+TEAM OVERVIEW
+  ├── Total strength (0–100)
+  ├── Ace pitcher (top pitcher)
+  ├── Anchor batter (4th in lineup)
+  ├── Player count
+  └── Starters list (with overall and rank)
+
+FEATURED PLAYERS (Top 3)
+  Scored by: overall + (50 - fatigue) * 0.3
+  Reason: 絶好調 (fatigue<20), 好調 (fatigue<35), 総合力上位
+
+UPCOMING SCHEDULE (Next 3 events)
+  Example: 入学式 (4/1), 夏の大会 (7/10), 甲子園 (8/6)
+
+SCOUT BUDGET
+  Budget dots: [●●●●○○○○] (4/8 used)
+  Alert if remaining > 0: "💡 視察できます"
+
+RECENT NEWS (Top 5)
+  Sorted by importance (high → medium → low)
+  Icons: 🔥 upset, 📋 draft, 📊 record, ⚾ tournament, 🏥 injury, etc.
+
+🔄 DATA FLOW EXAMPLES
+═════════════════════════════════════════════════════════════════════════════
+
+SINGLE DAY PROGRESSION
+  1. User selects menu from dropdown
+  2. User clicks "▶ 練習して1日進む"
+  3. advanceDay(menuId) is called
+     ├─ Gets current worldState
+     ├─ Creates RNG: seed + date string
+     ├─ Calls advanceWorldDay(worldState, menuId, rng)
+     │  ├─ Processes player school (Tier 1)
+     │  ├─ Processes other schools (Tier 2/3)
+     │  ├─ Processes middle school pool
+     │  ├─ Generates news
+     │  └─ Returns WorldDayResult
+     ├─ Accumulates in recentResults (max 30)
+     ├─ Accumulates in recentNews (max 20)
+     └─ set({ worldState: nextWorld })
+  4. React re-renders via hook subscription
+  5. getHomeView() projects new ViewState
+  6. UI displays updated date, team power, news, etc.
+
+TOURNAMENT CREATION
+  1. User clicks "夏大会を開始" button
+  2. startTournament('summer') is called
+     ├─ Gets current worldState
+     ├─ Creates bracket ID: "tournament-summer-Y-M"
+     ├─ Creates RNG: seed + tournament ID
+     └─ Calls createTournamentBracket(id, 'summer', year, schools, rng)
+        ├─ Sorts schools by reputation
+        ├─ Selects top 16 as seeds (2-round bye)
+        ├─ Creates match slots for 6 rounds
+        └─ Returns empty TournamentBracket
+  3. set({ worldState: {..., activeTournament: bracket} })
+  4. UI displays bracket with "Simulate" button
+
+TOURNAMENT SIMULATION
+  1. User clicks "▶ 大会を全試合シミュレート"
+  2. simulateTournament() is called
+     ├─ For each round 1-6:
+     │  └─ simulateTournamentRound(bracket, roundNumber, schools, rng)
+     │     ├─ For each match in round:
+     │     │  ├─ Calculate home win probability
+     │     │  ├─ Generate winner via RNG
+     │     │  ├─ Generate scores
+     │     │  └─ Detect upset
+     │     └─ Return updated round
+     │  └─ propagateWinners() to next round
+     ├─ After round 6, determine champion
+     └─ Return completed TournamentBracket
+  3. set({ worldState: {..., activeTournament: completed, tournamentHistory: [...]} })
+  4. UI displays completed bracket with champion
+
+🎨 STYLING APPROACH
+═════════════════════════════════════════════════════════════════════════════
+  Framework:  CSS Modules (*.module.css)
+  Design:     Card-based layout with consistent spacing
+  Colors:     Primary (blue), Accent (orange), Surface (light gray)
+  Typography: Serif for titles, sans-serif for body
+  Responsive: Grid layout (1fr 1fr on desktop, adapts mobile)
+
+✅ SUMMARY
+═════════════════════════════════════════════════════════════════════════════
+  ✓ Complete understanding of state flow (WorldState → ViewState → UI)
+  ✓ Tournament system fully mapped (bracket creation & simulation)
+  ✓ Navigation and modal patterns documented
+  ✓ Day progression mechanics understood
+  ✓ All 6 season phases and rules captured
+  ✓ Save/Load system architecture explained
+  ✓ UI projectors (pure functions) fully analyzed
+
+📚 DOCUMENTS CREATED
+═════════════════════════════════════════════════════════════════════════════
+  1. COMPREHENSIVE_CODE_EXPLORATION.md   - Full technical breakdown
+  2. CODE_EXPLORATION_INDEX.md           - File-by-file index
+  3. This file                           - Visual summary
+
+═════════════════════════════════════════════════════════════════════════════

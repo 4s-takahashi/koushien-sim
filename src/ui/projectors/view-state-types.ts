@@ -92,6 +92,30 @@ export interface HomeScheduleItem {
   opponentReputation?: number;
 }
 
+/** 大会開催中の情報 */
+export interface HomeTournamentInfo {
+  isActive: boolean;
+  typeName: string;        // '夏の大会' | '秋の大会'
+  currentRound: string;    // '1回戦' | '2回戦' 等
+  isMatchDay: boolean;     // 今日試合があるか
+  nextMatchDate?: string;  // 次の試合日の表示文字列（例: '7月13日'）
+  nextMatchDaysAway?: number; // 次の試合まで何日
+  nextOpponent?: string;   // 次の対戦相手名（未確定の場合は undefined）
+  playerEliminated: boolean; // 自校が敗退済みか
+  playerMatchResult?: {    // 今日の試合結果（試合があった場合）
+    won: boolean;
+    opponentName: string;
+    score: string;         // '5-3' 等
+  };
+}
+
+/** 大会開始前の情報 */
+export interface HomeTournamentStartInfo {
+  name: string;     // '夏の大会'
+  date: string;     // '7月10日'
+  daysAway: number; // あと何日
+}
+
 export interface HomeViewState {
   date: DateView;
   team: HomeTeamSummary;
@@ -109,6 +133,10 @@ export interface HomeViewState {
   isTournamentDay: boolean;
   /** 大会期間中フラグ */
   isInTournamentSeason: boolean;
+  /** 大会開催中の詳細情報（大会期間中のみ設定） */
+  tournament?: HomeTournamentInfo;
+  /** 大会開始前の情報（大会期間前のみ設定） */
+  tournamentStart?: HomeTournamentStartInfo;
 }
 
 // ============================================================

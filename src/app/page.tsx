@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useWorldStore } from '../stores/world-store';
 import type { HomeViewState } from '../ui/projectors/view-state-types';
+import type { WorldDayResult } from '../engine/world/world-ticker';
 import type { PracticeMenuId } from '../engine/types/calendar';
 import { SaveLoadPanel } from './save/SaveLoadPanel';
 import styles from './page.module.css';
@@ -123,28 +124,28 @@ function WelcomeBanner({ schoolName, managerName }: { schoolName: string; manage
 // ============================================================
 
 function ProgressIndicator({ view }: { view: HomeViewState }) {
-  // 次の大会までの月を計算
-  const { month } = view.date;
+  // 次の大会情報
   let nextTournament = '';
   let daysLabel = '';
 
-  if (month < 7) {
-    const remaining = 7 - month;
-    nextTournament = '夏季大会';
-    daysLabel = `あと約${remaining}ヶ月`;
-  } else if (month < 9) {
-    const remaining = 9 - month;
-    nextTournament = '秋季大会';
-    daysLabel = `あと約${remaining}ヶ月`;
-  } else {
-    nextTournament = '翌年夏季大会';
-    daysLabel = `来年7月`;
-  }
-
-  // 大会期間中
-  if (view.isInTournamentSeason) {
-    nextTournament = view.seasonPhaseLabel;
+  if (view.isInTournamentSeason && view.tournament) {
+    nextTournament = view.tournament.typeName;
     daysLabel = '開催中！';
+  } else if (view.tournamentStart) {
+    nextTournament = view.tournamentStart.name;
+    daysLabel = `あと${view.tournamentStart.daysAway}日`;
+  } else {
+    const { month } = view.date;
+    if (month < 7) {
+      nextTournament = '夏季大会';
+      daysLabel = `あと約${7 - month}ヶ月`;
+    } else if (month < 9) {
+      nextTournament = '秋季大会';
+      daysLabel = `あと約${9 - month}ヶ月`;
+    } else {
+      nextTournament = '翌年夏季大会';
+      daysLabel = '来年7月';
+    }
   }
 
   return (
@@ -178,34 +179,158 @@ function ProgressIndicator({ view }: { view: HomeViewState }) {
 }
 
 // ============================================================
+// 試合結果モーダル
+// ============================================================
+
+interface MatchResultModalProps {
+  result: WorldDayResult;
+  onClose: () => void;
+}
+
+function MatchResultModal({ result, onClose }: MatchResultModalProps) {
+  const matchResult = result.playerMatchResult;
+  if (!matchResult) return null;
+
+  const isHome = result.playerMatchSide === 'home';
+  const playerScore = isHome ? matchResult.finalScore.home : matchResult.finalScore.away;
+  const opponentScore = isHome ? matchResult.finalScore.away : matchResult.finalScore.home;
+  const won = matchResult.winner === result.playerMatchSide;
+  const opponentName = result.playerMatchOpponent ?? '対戦校';
+
+  return (
+    <div className={styles.modalOverlay} onClick={onClose}>
+      <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+        <div className={`${styles.modalHeader} ${won ? styles.modalHeaderWin : styles.modalHeaderLose}`}>
+          {won ? '⚾ 勝利！' : '⚾ 試合終了'}
+        </div>
+        <div className={styles.modalBody}>
+          <div className={styles.matchResultScore}>
+            <span className={styles.matchResultSelf}>{playerScore}</span>
+            <span className={styles.matchResultVs}>対</span>
+            <span className={styles.matchResultOpponent}>{opponentScore}</span>
+          </div>
+          <div className={styles.matchResultVsName}>vs {opponentName}</div>
+          {won ? (
+            <p className={styles.matchResultMessage}>
+              🎉 おめでとうございます！次の試合も頑張りましょう！
+            </p>
+          ) : (
+            <p className={styles.matchResultMessage}>
+              残念...。大会は終了です。来年こそ甲子園へ！
+            </p>
+          )}
+        </div>
+        <div className={styles.modalFooter}>
+          <button className={styles.modalBtn} onClick={onClose}>
+            閉じる
+          </button>
+          <Link href="/results" className={styles.modalBtnSecondary} onClick={onClose}>
+            試合結果を見る →
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// 大会開始通知バナー
+// ============================================================
+
+interface TournamentStartBannerProps {
+  result: WorldDayResult;
+  view: HomeViewState;
+  onClose: () => void;
+}
+
+function TournamentStartBanner({ result, view, onClose }: TournamentStartBannerProps) {
+  if (!result.seasonTransition) return null;
+  if (result.seasonTransition !== 'summer_tournament' && result.seasonTransition !== 'autumn_tournament') return null;
+
+  const typeName = result.seasonTransition === 'summer_tournament' ? '夏の大会' : '秋の大会';
+
+  return (
+    <div className={styles.tournamentStartBanner}>
+      <div className={styles.tournamentStartIcon}>🏟️</div>
+      <div className={styles.tournamentStartContent}>
+        <div className={styles.tournamentStartTitle}>{typeName}が始まりました！</div>
+        {view.tournament && !view.tournament.playerEliminated && (
+          <div className={styles.tournamentStartDetail}>
+            1回戦の日程が組まれました。試合の準備をしましょう！
+          </div>
+        )}
+      </div>
+      <button className={styles.tournamentStartClose} onClick={onClose}>✕</button>
+    </div>
+  );
+}
+
+// ============================================================
 // ホーム画面本体
 // ============================================================
 
 function HomeContent({ view }: { view: HomeViewState }) {
   const advanceDay = useWorldStore((s) => s.advanceDay);
   const advanceWeek = useWorldStore((s) => s.advanceWeek);
+  const getHomeView = useWorldStore((s) => s.getHomeView);
   const [isAdvancing, setIsAdvancing] = useState(false);
   const [selectedMenu, setSelectedMenu] = useState<PracticeMenuId>('batting_basic');
   const [showSavePanel, setShowSavePanel] = useState(false);
   const [saveTab, setSaveTab] = useState<'save' | 'load'>('save');
+  const [matchResult, setMatchResult] = useState<WorldDayResult | null>(null);
+  const [tournamentStartResult, setTournamentStartResult] = useState<WorldDayResult | null>(null);
+  const [currentView, setCurrentView] = useState<HomeViewState>(view);
 
   const handleAdvanceDay = useCallback(() => {
     setIsAdvancing(true);
     try {
-      advanceDay(selectedMenu);
+      const result = advanceDay(selectedMenu);
+      if (result) {
+        // 最新のビューを取得して更新
+        const newView = getHomeView();
+        if (newView) setCurrentView(newView);
+
+        // 大会開始通知
+        if (result.seasonTransition === 'summer_tournament' || result.seasonTransition === 'autumn_tournament') {
+          setTournamentStartResult(result);
+        }
+        // 試合結果モーダル
+        if (result.playerMatchResult) {
+          setMatchResult(result);
+        }
+      }
     } finally {
       setIsAdvancing(false);
     }
-  }, [advanceDay, selectedMenu]);
+  }, [advanceDay, selectedMenu, getHomeView]);
 
   const handleAdvanceWeek = useCallback(() => {
     setIsAdvancing(true);
     try {
-      advanceWeek(selectedMenu);
+      const results = advanceWeek(selectedMenu);
+      if (results.length > 0) {
+        // 最新のビューを取得して更新
+        const newView = getHomeView();
+        if (newView) setCurrentView(newView);
+
+        // 大会開始通知（最初の遷移）
+        const transitionResult = results.find(
+          (r) => r.seasonTransition === 'summer_tournament' || r.seasonTransition === 'autumn_tournament'
+        );
+        if (transitionResult) setTournamentStartResult(transitionResult);
+
+        // 最後の試合結果を表示
+        const lastMatchResult = [...results].reverse().find((r) => r.playerMatchResult);
+        if (lastMatchResult) setMatchResult(lastMatchResult);
+      }
     } finally {
       setIsAdvancing(false);
     }
-  }, [advanceWeek, selectedMenu]);
+  }, [advanceWeek, selectedMenu, getHomeView]);
+
+  // view が外から更新された場合もcurrentViewに反映
+  // （ただし advanceDay/Week 実行後は既に最新を反映済み）
+  const displayView = currentView;
 
   return (
     <div className={styles.page}>
@@ -217,14 +342,22 @@ function HomeContent({ view }: { view: HomeViewState }) {
         />
       )}
 
+      {/* 試合結果モーダル */}
+      {matchResult && (
+        <MatchResultModal
+          result={matchResult}
+          onClose={() => setMatchResult(null)}
+        />
+      )}
+
       {/* ヘッダー */}
       <header className={styles.header}>
         <div className={styles.headerInner}>
-          <span className={styles.headerTitle}>{view.team.schoolName}</span>
+          <span className={styles.headerTitle}>{displayView.team.schoolName}</span>
           <div className={styles.headerMeta}>
-            <div>{view.date.japaneseDisplay}</div>
+            <div>{displayView.date.japaneseDisplay}</div>
             <div>
-              <span className={styles.phaseBadge}>{view.seasonPhaseLabel}</span>
+              <span className={styles.phaseBadge}>{displayView.seasonPhaseLabel}</span>
             </div>
             <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
               <button
@@ -259,32 +392,85 @@ function HomeContent({ view }: { view: HomeViewState }) {
           <Link href="/team" className={styles.navLink}>チーム</Link>
           <Link href="/news" className={styles.navLink}>ニュース</Link>
           <Link href="/scout" className={styles.navLink}>スカウト</Link>
-          <Link href="/tournament" className={styles.navLink}>大会</Link>
+          <Link href="/tournament" className={styles.navLink}>
+            大会{displayView.isInTournamentSeason && <span className={styles.navIndicator}>🔴</span>}
+          </Link>
           <Link href="/results" className={styles.navLink}>試合結果</Link>
           <Link href="/ob" className={styles.navLink}>OB</Link>
         </div>
       </nav>
 
-      {/* 大会シーズン中バナー */}
-      {view.isInTournamentSeason && (
-        <div className={styles.tournamentBanner}>
-          🏆 大会進行中 — {view.seasonPhaseLabel}開催中！全力で勝利を目指せ
+      {/* 大会開始通知バナー */}
+      {tournamentStartResult && (
+        <TournamentStartBanner
+          result={tournamentStartResult}
+          view={displayView}
+          onClose={() => setTournamentStartResult(null)}
+        />
+      )}
+
+      {/* 大会シーズン中バナー（大会開始通知がない場合） */}
+      {!tournamentStartResult && displayView.isInTournamentSeason && displayView.tournament && (
+        <div className={`${styles.tournamentBanner} ${displayView.tournament.isMatchDay ? styles.tournamentBannerMatchDay : ''}`}>
+          {displayView.tournament.isMatchDay ? (
+            <>⚾ 今日は試合日です！ — {displayView.tournament.typeName} {displayView.tournament.currentRound}</>
+          ) : (
+            <>🏟️ {displayView.tournament.typeName} 開催中 — {displayView.tournament.currentRound}</>
+          )}
+        </div>
+      )}
+
+      {/* 大会開始予告バナー */}
+      {!displayView.isInTournamentSeason && displayView.tournamentStart && displayView.tournamentStart.daysAway <= 14 && (
+        <div className={styles.tournamentPreBanner}>
+          🗓️ {displayView.tournamentStart.name}まで あと{displayView.tournamentStart.daysAway}日（{displayView.tournamentStart.date}開始）
         </div>
       )}
 
       {/* 初回プレイ（Year1 4月1日）ウェルカムメッセージ */}
-      {view.date.year === 1 && view.date.month === 4 && view.date.day === 1 && (
+      {displayView.date.year === 1 && displayView.date.month === 4 && displayView.date.day === 1 && (
         <WelcomeBanner
-          schoolName={view.team.schoolName}
+          schoolName={displayView.team.schoolName}
           managerName="新任"
         />
       )}
 
       {/* 進行状況インジケーター */}
-      <ProgressIndicator view={view} />
+      <ProgressIndicator view={displayView} />
 
       {/* メインコンテンツ */}
       <main className={styles.main}>
+
+        {/* 試合日バナー（大会期間中かつ試合がある日） */}
+        {displayView.tournament?.isMatchDay && !displayView.tournament.playerEliminated && (
+          <div className={`${styles.card} ${styles.cardFull} ${styles.matchDayCard}`}>
+            <div className={styles.matchDayTitle}>
+              ⚾ 今日は試合日です！ — {displayView.tournament.typeName} {displayView.tournament.currentRound}
+            </div>
+            {displayView.tournament.nextOpponent && (
+              <div className={styles.matchDayOpponent}>
+                vs <strong>{displayView.tournament.nextOpponent}</strong>
+              </div>
+            )}
+            <p className={styles.matchDayHint}>
+              「練習して1日進む」で試合を行います。勝利して上位進出を目指しましょう！
+            </p>
+          </div>
+        )}
+
+        {/* 次の試合まで（大会期間中・試合がない日） */}
+        {displayView.tournament?.isActive && !displayView.tournament.isMatchDay && !displayView.tournament.playerEliminated && displayView.tournament.nextMatchDate && (
+          <div className={`${styles.card} ${styles.cardFull} ${styles.nextMatchCard}`}>
+            <span className={styles.nextMatchLabel}>次の試合：</span>
+            <span className={styles.nextMatchDate}>{displayView.tournament.nextMatchDate}</span>
+            {displayView.tournament.nextMatchDaysAway !== undefined && (
+              <span className={styles.nextMatchDays}>（あと{displayView.tournament.nextMatchDaysAway}日）</span>
+            )}
+            {displayView.tournament.nextOpponent && (
+              <span className={styles.nextMatchOpponent}>vs {displayView.tournament.nextOpponent}</span>
+            )}
+          </div>
+        )}
 
         {/* 今日やること + アクションボタン */}
         <div className={`${styles.card} ${styles.cardFull} ${styles.todayCard}`}>
@@ -292,17 +478,17 @@ function HomeContent({ view }: { view: HomeViewState }) {
           <div className={styles.todayRow}>
             <div className={styles.todayTask}>
               <span className={`${styles.taskBadge} ${
-                view.todayTask.type === 'match' ? styles.taskBadgeMatch
-                : view.todayTask.type === 'off'  ? styles.taskBadgeOff
-                : view.todayTask.type === 'scout' ? styles.taskBadgeScout
+                displayView.todayTask.type === 'match' ? styles.taskBadgeMatch
+                : displayView.todayTask.type === 'off'  ? styles.taskBadgeOff
+                : displayView.todayTask.type === 'scout' ? styles.taskBadgeScout
                 : styles.taskBadgePractice
               }`}>
-                {view.todayTask.type === 'match'    ? '⚾ 試合日'
-                 : view.todayTask.type === 'off'    ? '💤 休養日'
-                 : view.todayTask.type === 'scout'  ? '🔍 スカウト'
+                {displayView.todayTask.type === 'match'    ? '⚾ 試合日'
+                 : displayView.todayTask.type === 'off'    ? '💤 休養日'
+                 : displayView.todayTask.type === 'scout'  ? '🔍 スカウト'
                  : '🏋 練習日'}
               </span>
-              <span className={styles.todayDetail}>{view.todayTask.detail}</span>
+              <span className={styles.todayDetail}>{displayView.todayTask.detail}</span>
             </div>
 
             {/* 練習メニュー選択 + 進行ボタン */}
@@ -346,30 +532,30 @@ function HomeContent({ view }: { view: HomeViewState }) {
           <div className={styles.cardTitle}>チーム概要</div>
           <div className={styles.teamGrid}>
             <span className={styles.teamLabel}>総合力</span>
-            <span className={styles.teamOverall}>{view.team.teamOverall}</span>
+            <span className={styles.teamOverall}>{displayView.team.teamOverall}</span>
             <span className={styles.teamLabel}>選手数</span>
-            <span className={styles.teamValue}>{view.team.playerCount}名</span>
-            {view.team.acePlayerName && (
+            <span className={styles.teamValue}>{displayView.team.playerCount}名</span>
+            {displayView.team.acePlayerName && (
               <>
                 <span className={styles.teamLabel}>エース</span>
                 <span className={styles.teamValue}>
-                  {view.team.acePlayerName}（{view.team.aceOverall}）
+                  {displayView.team.acePlayerName}（{displayView.team.aceOverall}）
                 </span>
               </>
             )}
-            {view.team.anchorPlayerName && (
+            {displayView.team.anchorPlayerName && (
               <>
                 <span className={styles.teamLabel}>4番</span>
                 <span className={styles.teamValue}>
-                  {view.team.anchorPlayerName}（{view.team.anchorOverall}）
+                  {displayView.team.anchorPlayerName}（{displayView.team.anchorOverall}）
                 </span>
               </>
             )}
           </div>
           {/* スタメン選手一覧 */}
-          {view.featuredPlayers.length > 0 && (
+          {displayView.featuredPlayers.length > 0 && (
             <div className={styles.startersList}>
-              {view.featuredPlayers.map((p) => (
+              {displayView.featuredPlayers.map((p) => (
                 <Link
                   key={p.id}
                   href={`/team/${p.id}`}
@@ -397,11 +583,11 @@ function HomeContent({ view }: { view: HomeViewState }) {
         {/* 注目選手 */}
         <div className={styles.card}>
           <div className={styles.cardTitle}>注目選手</div>
-          {view.featuredPlayers.length === 0 ? (
+          {displayView.featuredPlayers.length === 0 ? (
             <p className={styles.newsEmpty}>選手がいません</p>
           ) : (
             <div className={styles.featuredList}>
-              {view.featuredPlayers.map((p) => (
+              {displayView.featuredPlayers.map((p) => (
                 <Link
                   key={p.id}
                   href={`/team/${p.id}`}
@@ -425,11 +611,11 @@ function HomeContent({ view }: { view: HomeViewState }) {
         {/* 次の予定 */}
         <div className={styles.card}>
           <div className={styles.cardTitle}>今後の主な予定</div>
-          {view.upcomingSchedule.length === 0 ? (
+          {displayView.upcomingSchedule.length === 0 ? (
             <p className={styles.newsEmpty}>予定なし</p>
           ) : (
             <ul className={styles.scheduleList}>
-              {view.upcomingSchedule.map((item, i) => (
+              {displayView.upcomingSchedule.map((item, i) => (
                 <li key={i} className={styles.scheduleItem}>
                   <span>{item.description}</span>
                   <span className={styles.scheduleDate}>{item.monthDay}</span>
@@ -444,18 +630,18 @@ function HomeContent({ view }: { view: HomeViewState }) {
           <div className={styles.cardTitle}>スカウト状況</div>
           <div className={styles.budgetHeader}>
             <span className={styles.budgetMain}>
-              今月の視察残：<strong className={styles.budgetNum}>{view.scoutBudgetRemaining}</strong>/{view.scoutBudgetTotal}回
+              今月の視察残：<strong className={styles.budgetNum}>{displayView.scoutBudgetRemaining}</strong>/{displayView.scoutBudgetTotal}回
             </span>
-            {view.scoutBudgetRemaining > 0 && (
+            {displayView.scoutBudgetRemaining > 0 && (
               <span className={styles.budgetAlert}>💡 視察できます</span>
             )}
           </div>
           <div className={styles.budgetBar}>
-            {Array.from({ length: view.scoutBudgetTotal }, (_, i) => (
+            {Array.from({ length: displayView.scoutBudgetTotal }, (_, i) => (
               <div
                 key={i}
                 className={`${styles.budgetDot} ${
-                  i < (view.scoutBudgetTotal - view.scoutBudgetRemaining)
+                  i < (displayView.scoutBudgetTotal - displayView.scoutBudgetRemaining)
                     ? styles.budgetDotUsed
                     : styles.budgetDotFree
                 }`}
@@ -477,11 +663,11 @@ function HomeContent({ view }: { view: HomeViewState }) {
               もっと見る →
             </Link>
           </div>
-          {view.recentNews.length === 0 ? (
+          {displayView.recentNews.length === 0 ? (
             <p className={styles.newsEmpty}>まだニュースはありません。日を進めると情報が集まります。</p>
           ) : (
             <ul className={styles.newsList}>
-              {view.recentNews.slice(0, 5).map((item, i) => (
+              {displayView.recentNews.slice(0, 5).map((item, i) => (
                 <li
                   key={i}
                   className={`${styles.newsItem} ${

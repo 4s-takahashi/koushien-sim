@@ -77,6 +77,264 @@
   letter-spacing: 0.05em;
 }
 
+/* 試合日バナー（より目立つ） */
+.tournamentBannerMatchDay {
+  background: linear-gradient(90deg, #c00020, #8b0000);
+  padding: 12px 16px;
+  font-size: 16px;
+}
+
+/* 大会開始予告バナー */
+.tournamentPreBanner {
+  background: #fff8e1;
+  border-bottom: 1px solid #ffe082;
+  color: #8b5e00;
+  text-align: center;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: bold;
+}
+
+/* ナビゲーションインジケーター（大会中の赤ドット） */
+.navIndicator {
+  font-size: 8px;
+  margin-left: 3px;
+  vertical-align: middle;
+}
+
+/* 大会開始通知バナー */
+.tournamentStartBanner {
+  background: linear-gradient(135deg, #fff8e1, #fff3cd);
+  border-bottom: 2px solid #ffe082;
+  border-left: 4px solid var(--color-primary);
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 100%;
+}
+
+.tournamentStartIcon {
+  font-size: 28px;
+  flex-shrink: 0;
+}
+
+.tournamentStartContent {
+  flex: 1;
+}
+
+.tournamentStartTitle {
+  font-family: var(--font-serif);
+  font-size: 16px;
+  font-weight: bold;
+  color: var(--color-primary);
+  margin-bottom: 4px;
+}
+
+.tournamentStartDetail {
+  font-size: 12px;
+  color: var(--color-text-sub);
+}
+
+.tournamentStartClose {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--color-text-sub);
+  padding: 4px;
+  flex-shrink: 0;
+}
+
+.tournamentStartClose:hover {
+  color: var(--color-text);
+}
+
+/* 試合日カード */
+.matchDayCard {
+  border-left: 4px solid #c00020;
+  background: #fff0f0;
+}
+
+.matchDayTitle {
+  font-family: var(--font-serif);
+  font-size: 16px;
+  font-weight: bold;
+  color: #c00020;
+  margin-bottom: 6px;
+}
+
+.matchDayOpponent {
+  font-size: 14px;
+  color: var(--color-text);
+  margin-bottom: 8px;
+}
+
+.matchDayHint {
+  font-size: 12px;
+  color: var(--color-text-sub);
+  margin: 0;
+}
+
+/* 次の試合カード */
+.nextMatchCard {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  border-left: 4px solid var(--color-accent);
+  padding: 10px 16px;
+}
+
+.nextMatchLabel {
+  font-size: 12px;
+  color: var(--color-text-sub);
+  white-space: nowrap;
+}
+
+.nextMatchDate {
+  font-size: 14px;
+  font-weight: bold;
+  color: var(--color-primary);
+  font-family: var(--font-serif);
+}
+
+.nextMatchDays {
+  font-size: 12px;
+  color: var(--color-text-sub);
+}
+
+.nextMatchOpponent {
+  font-size: 13px;
+  color: var(--color-text);
+  margin-left: auto;
+}
+
+/* ============================================================
+   試合結果モーダル
+   ============================================================ */
+
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.modal {
+  background: var(--color-surface);
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  max-width: 400px;
+  width: 100%;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.modalHeader {
+  padding: 16px 20px;
+  font-family: var(--font-serif);
+  font-size: 18px;
+  font-weight: bold;
+  color: #fff;
+  text-align: center;
+}
+
+.modalHeaderWin {
+  background: linear-gradient(90deg, var(--color-primary), #c00020);
+}
+
+.modalHeaderLose {
+  background: #555;
+}
+
+.modalBody {
+  padding: 20px;
+  text-align: center;
+}
+
+.matchResultScore {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.matchResultSelf {
+  font-size: 40px;
+  font-weight: bold;
+  font-family: var(--font-serif);
+  color: var(--color-primary);
+}
+
+.matchResultVs {
+  font-size: 16px;
+  color: var(--color-text-sub);
+}
+
+.matchResultOpponent {
+  font-size: 40px;
+  font-weight: bold;
+  font-family: var(--font-serif);
+  color: var(--color-text-sub);
+}
+
+.matchResultVsName {
+  font-size: 14px;
+  color: var(--color-text-sub);
+  margin-bottom: 12px;
+}
+
+.matchResultMessage {
+  font-size: 13px;
+  color: var(--color-text);
+  margin: 0;
+  line-height: 1.6;
+}
+
+.modalFooter {
+  padding: 12px 20px 20px;
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.modalBtn {
+  padding: 10px 24px;
+  background: var(--color-primary);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.modalBtn:hover {
+  opacity: 0.88;
+}
+
+.modalBtnSecondary {
+  padding: 10px 20px;
+  background: var(--color-bg);
+  color: var(--color-accent);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  font-size: 13px;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+}
+
+.modalBtnSecondary:hover {
+  background: var(--color-border);
+}
+
 /* メインコンテンツ */
 .main {
   max-width: 960px;

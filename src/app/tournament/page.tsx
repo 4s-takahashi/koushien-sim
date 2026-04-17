@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { useWorldStore } from '../../stores/world-store';
 import type { TournamentBracketView, TournamentRoundView, TournamentMatchView } from '../../ui/projectors/view-state-types';
-import type { TournamentType } from '../../engine/world/tournament-bracket';
 import styles from './page.module.css';
 
 // ============================================================
@@ -159,13 +158,108 @@ function BracketView({ bracket }: { bracket: TournamentBracketView }) {
 }
 
 // ============================================================
+// 大会ステータス表示（手動開始ボタンの代替）
+// ============================================================
+
+interface TournamentStatusDisplayProps {
+  phase: string;
+  month: number;
+  day: number;
+}
+
+function TournamentStatusDisplay({ phase, month, day }: TournamentStatusDisplayProps) {
+  // 大会前: 次の大会までの残り日数を計算
+  function getDaysUntilSummer(): number {
+    if (month === 7 && day < 10) return 10 - day;
+    const monthDays = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    let d = monthDays[month] - day;
+    for (let m = month + 1; m < 7; m++) d += monthDays[m];
+    d += 10;
+    return Math.max(0, d);
+  }
+
+  function getDaysUntilAutumn(): number {
+    if (month === 9 && day < 15) return 15 - day;
+    if (month === 8) return (31 - day) + 15;
+    if (month === 7 && day >= 31) return (31 - day) + 31 + 15;
+    return 0;
+  }
+
+  if (phase === 'spring_practice' || (month < 7) || (month === 7 && day < 10)) {
+    const daysAway = getDaysUntilSummer();
+    return (
+      <div className={styles.statusBox}>
+        <div className={styles.statusIcon}>🗓️</div>
+        <div className={styles.statusContent}>
+          <div className={styles.statusTitle}>夏の大会まで あと{daysAway}日</div>
+          <div className={styles.statusDetail}>開始日: 7月10日</div>
+          <p className={styles.statusNote}>
+            大会は日程通りに自動開始されます。ホーム画面で日を進めていきましょう。
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === 'post_summer' || (month === 7 && day >= 31) || month === 8 || (month === 9 && day < 15)) {
+    const daysAway = getDaysUntilAutumn();
+    return (
+      <div className={styles.statusBox}>
+        <div className={styles.statusIcon}>🗓️</div>
+        <div className={styles.statusContent}>
+          <div className={styles.statusTitle}>秋の大会まで あと{daysAway}日</div>
+          <div className={styles.statusDetail}>開始日: 9月15日</div>
+          <p className={styles.statusNote}>
+            大会は日程通りに自動開始されます。ホーム画面で日を進めていきましょう。
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === 'off_season') {
+    return (
+      <div className={styles.statusBox}>
+        <div className={styles.statusIcon}>⛄</div>
+        <div className={styles.statusContent}>
+          <div className={styles.statusTitle}>オフシーズン</div>
+          <p className={styles.statusNote}>
+            現在は大会期間外です。次の夏の大会（翌年7月10日）に向けて準備しましょう。
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === 'pre_season') {
+    return (
+      <div className={styles.statusBox}>
+        <div className={styles.statusIcon}>🌸</div>
+        <div className={styles.statusContent}>
+          <div className={styles.statusTitle}>プレシーズン — 春の練習期間</div>
+          <p className={styles.statusNote}>
+            夏の大会（7月10日）に向けてチームを仕上げましょう。
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // フォールバック
+  return (
+    <div className={styles.placeholder}>
+      <p>現在、進行中の大会はありません。</p>
+    </div>
+  );
+}
+
+// ============================================================
 // ページ本体
 // ============================================================
 
 export default function TournamentPage() {
   const worldState = useWorldStore((s) => s.worldState);
   const getTournamentView = useWorldStore((s) => s.getTournamentView);
-  const startTournament = useWorldStore((s) => s.startTournament);
   const simulateTournament = useWorldStore((s) => s.simulateTournament);
 
   if (!worldState) {
@@ -273,28 +367,11 @@ export default function TournamentPage() {
               )}
             </>
           ) : (
-            <div>
-              <div className={styles.placeholder}>
-                <p>{view.placeholder}</p>
-              </div>
-              <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {(['summer', 'autumn', 'koshien'] as TournamentType[]).map((type) => (
-                  <button
-                    key={type}
-                    onClick={() => startTournament(type)}
-                    style={{
-                      padding: '8px 16px', background: 'var(--color-accent)',
-                      color: '#fff', border: 'none', borderRadius: 4,
-                      cursor: 'pointer', fontSize: 12,
-                    }}
-                  >
-                    {type === 'summer' ? '夏大会を開始'
-                     : type === 'autumn' ? '秋大会を開始'
-                     : '甲子園を開始'}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <TournamentStatusDisplay
+              phase={view.seasonPhase}
+              month={worldState?.currentDate.month ?? 4}
+              day={worldState?.currentDate.day ?? 1}
+            />
           )}
         </div>
 

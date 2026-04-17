@@ -110,6 +110,53 @@ const MAX_RECENT_RESULTS = 30;
 const MAX_RECENT_NEWS = 20;
 
 // ============================================================
+// 大会ヘルパー
+// ============================================================
+
+/**
+ * 自校がまだトーナメントに残っているかどうかを確認する。
+ * 一度でも負けた試合がある場合は false を返す。
+ */
+function isPlayerSchoolInTournament(world: import('../engine/world/world-state').WorldState): boolean {
+  const bracket = world.activeTournament;
+  if (!bracket || bracket.isCompleted) return false;
+
+  for (const round of bracket.rounds) {
+    for (const match of round.matches) {
+      if (
+        (match.homeSchoolId === world.playerSchoolId || match.awaySchoolId === world.playerSchoolId) &&
+        match.winnerId !== null &&
+        match.winnerId !== world.playerSchoolId
+      ) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+/**
+ * 指定した日付が大会の試合日かどうかを確認する。
+ */
+function isTournamentMatchDay(
+  month: number,
+  day: number,
+  type: 'summer' | 'autumn',
+): boolean {
+  if (type === 'summer') {
+    if (month !== 7 || day < 10 || day >= 31) return false;
+    const SUMMER_DAYS = new Set([10, 13, 17, 21, 25, 28]); // dayIdx 0,3,7,11,15,18 → actual days
+    return SUMMER_DAYS.has(day);
+  } else {
+    // 秋大会: 9/15〜10/14 の dayIdx 0,4,9,14,20,25
+    const AUTUMN_MATCH_DAYS: Array<[number, number]> = [
+      [9, 15], [9, 19], [9, 24], [9, 29], [10, 5], [10, 10],
+    ];
+    return AUTUMN_MATCH_DAYS.some(([m, d]) => m === month && d === day);
+  }
+}
+
+// ============================================================
 // Zustand ストア
 // ============================================================
 
@@ -221,8 +268,31 @@ export const useWorldStore = create<WorldStore>((set, get) => ({
   advanceWeek: (menuId: PracticeMenuId = DEFAULT_MENU) => {
     const results: WorldDayResult[] = [];
     for (let i = 0; i < 7; i++) {
+      // 進行前に現在の状態を確認
+      const currentWorld = get().worldState;
+      if (!currentWorld) break;
+
+      // 大会が開催中で、自校がまだ残っている場合
+      if (currentWorld.activeTournament && !currentWorld.activeTournament.isCompleted) {
+        const playerStillIn = isPlayerSchoolInTournament(currentWorld);
+        if (playerStillIn && i > 0) {
+          // 初日以降で、次の日が試合日かチェック
+          const bracket = currentWorld.activeTournament;
+          const type: 'summer' | 'autumn' = bracket.type === 'summer' ? 'summer' : 'autumn';
+          const { month, day } = currentWorld.currentDate;
+          if (isTournamentMatchDay(month, day, type)) {
+            // 今日が試合日 → 停止（試合結果を表示するため）
+            break;
+          }
+        }
+      }
+
       const result = get().advanceDay(menuId);
-      if (result) results.push(result);
+      if (result) {
+        results.push(result);
+        // 試合結果がある場合は停止（結果を見せるため）
+        if (result.playerMatchResult) break;
+      }
     }
     return results;
   },

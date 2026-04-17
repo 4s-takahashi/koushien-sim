@@ -8,9 +8,11 @@ import type { WorldState } from '../../engine/world/world-state';
 import type { WorldNewsItem } from '../../engine/world/world-ticker';
 import type { Player } from '../../engine/types/player';
 import type { Lineup } from '../../engine/types/team';
+import type { TournamentBracket } from '../../engine/world/tournament-bracket';
 import type {
   HomeViewState, HomeTeamSummary, HomeNewsItem, HomeScheduleItem,
   HomeTodayTask, HomeFeaturedPlayer, DateView, AbilityRank,
+  HomeTournamentInfo, HomeTournamentStartInfo,
 } from './view-state-types';
 import { computePlayerOverall } from '../../engine/world/career/draft-system';
 
@@ -165,6 +167,254 @@ function buildFeaturedPlayers(players: Player[]): HomeFeaturedPlayer[] {
   });
 }
 
+// ============================================================
+// 大会情報ヘルパー
+// ============================================================
+
+/**
+ * 夏大会・秋大会の試合日スケジュール（dayIndex → roundNumber）
+ */
+const SUMMER_SCHEDULE: Record<number, number> = { 0: 1, 3: 2, 7: 3, 11: 4, 15: 5, 18: 6 };
+const AUTUMN_SCHEDULE: Record<number, number> = { 0: 1, 4: 2, 9: 3, 14: 4, 20: 5, 25: 6 };
+
+/**
+ * 現在の日付から今日のラウンド番号を返す（試合のない日は 0）
+ */
+function getTodayRound(month: number, day: number, type: 'summer' | 'autumn'): number {
+  if (type === 'summer') {
+    if (month !== 7 || day < 10 || day >= 31) return 0;
+    return SUMMER_SCHEDULE[day - 10] ?? 0;
+  } else {
+    let dayIdx = -1;
+    if (month === 9 && day >= 15) {
+      dayIdx = day - 15;
+    } else if (month === 10 && day <= 14) {
+      dayIdx = 16 + (day - 1);
+    }
+    if (dayIdx < 0) return 0;
+    return AUTUMN_SCHEDULE[dayIdx] ?? 0;
+  }
+}
+
+/**
+ * 次の試合日（月/日）を返す
+ * 現在の dayIndex より後の最初の試合日を探す
+ */
+function getNextMatchDate(
+  month: number,
+  day: number,
+  type: 'summer' | 'autumn',
+): { month: number; day: number; daysAway: number } | null {
+  if (type === 'summer') {
+    // 7/10〜7/30 の期間
+    const currentDayIdx = (month === 7 && day >= 10 && day <= 30) ? day - 10 : -1;
+    for (const [idx, _round] of Object.entries(SUMMER_SCHEDULE)) {
+      const idxNum = Number(idx);
+      if (idxNum > currentDayIdx) {
+        const matchDay = 10 + idxNum;
+        const daysAway = matchDay - (month === 7 ? day : 0);
+        return { month: 7, day: matchDay, daysAway: Math.max(1, daysAway) };
+      }
+    }
+    return null;
+  } else {
+    let currentDayIdx = -1;
+    if (month === 9 && day >= 15) {
+      currentDayIdx = day - 15;
+    } else if (month === 10 && day <= 14) {
+      currentDayIdx = 16 + (day - 1);
+    }
+    for (const [idx, _round] of Object.entries(AUTUMN_SCHEDULE)) {
+      const idxNum = Number(idx);
+      if (idxNum > currentDayIdx) {
+        let matchMonth: number;
+        let matchDay: number;
+        if (idxNum <= 15) {
+          matchMonth = 9;
+          matchDay = 15 + idxNum;
+        } else {
+          matchMonth = 10;
+          matchDay = idxNum - 16 + 1;
+        }
+        // 残り日数計算
+        let daysAway = 0;
+        if (month === 9 && matchMonth === 9) {
+          daysAway = matchDay - day;
+        } else if (month === 9 && matchMonth === 10) {
+          daysAway = (30 - day) + matchDay;
+        } else if (month === 10 && matchMonth === 10) {
+          daysAway = matchDay - day;
+        }
+        return { month: matchMonth, day: matchDay, daysAway: Math.max(1, daysAway) };
+      }
+    }
+    return null;
+  }
+}
+
+/**
+ * 自校がトーナメントに残っているか確認する
+ */
+function isPlayerStillInTournament(bracket: TournamentBracket, playerSchoolId: string): boolean {
+  // 決勝ラウンドまで確認し、一度でも負けていたら敗退
+  for (const round of bracket.rounds) {
+    for (const match of round.matches) {
+      if (
+        (match.homeSchoolId === playerSchoolId || match.awaySchoolId === playerSchoolId) &&
+        match.winnerId !== null &&
+        match.winnerId !== playerSchoolId
+      ) {
+        return false; // 負けた試合がある
+      }
+    }
+  }
+  return true;
+}
+
+/**
+ * 次ラウンドの対戦相手名を取得する（確定していない場合は undefined）
+ */
+function getNextOpponent(
+  bracket: TournamentBracket,
+  playerSchoolId: string,
+  nextRound: number,
+  schools: WorldState['schools'],
+): string | undefined {
+  const round = bracket.rounds.find((r) => r.roundNumber === nextRound);
+  if (!round) return undefined;
+
+  for (const match of round.matches) {
+    if (match.homeSchoolId === playerSchoolId) {
+      if (match.awaySchoolId) {
+        return schools.find((s) => s.id === match.awaySchoolId)?.name;
+      }
+    }
+    if (match.awaySchoolId === playerSchoolId) {
+      if (match.homeSchoolId) {
+        return schools.find((s) => s.id === match.homeSchoolId)?.name;
+      }
+    }
+  }
+  return undefined;
+}
+
+/**
+ * ラウンド番号から「○回戦」形式の文字列を返す
+ */
+function getRoundLabel(roundNumber: number): string {
+  const labels: Record<number, string> = {
+    1: '1回戦',
+    2: '2回戦',
+    3: '3回戦（ベスト16）',
+    4: '準々決勝（ベスト8）',
+    5: '準決勝',
+    6: '決勝',
+  };
+  return labels[roundNumber] ?? `${roundNumber}回戦`;
+}
+
+/**
+ * 大会情報を構築する
+ */
+function buildTournamentInfo(
+  worldState: WorldState,
+  month: number,
+  day: number,
+): HomeTournamentInfo | undefined {
+  const bracket = worldState.activeTournament;
+  if (!bracket || bracket.isCompleted) return undefined;
+
+  const type: 'summer' | 'autumn' = bracket.type === 'summer' ? 'summer' : 'autumn';
+  const typeName = type === 'summer' ? '夏の大会' : '秋の大会';
+
+  const todayRound = getTodayRound(month, day, type);
+  const isMatchDay = todayRound > 0;
+
+  const playerEliminated = !isPlayerStillInTournament(bracket, worldState.playerSchoolId);
+
+  // 今日の試合結果は WorldDayResult から取得するため、ここでは計算しない
+  // （projector は WorldState のみを受け取る純粋関数のため）
+
+  // 次の試合日を求める（今日が試合日なら次は次ラウンド）
+  const searchFromDay = isMatchDay ? day + 1 : day;
+  const nextMatchInfo = getNextMatchDate(month, searchFromDay > 30 ? searchFromDay : day, type);
+
+  // 現在進行中のラウンド（試合が始まっているが未完了のラウンド）を見つける
+  let currentRoundNum = 1;
+  for (const round of bracket.rounds) {
+    const hasIncomplete = round.matches.some(
+      (m) => m.homeSchoolId !== null && m.awaySchoolId !== null && m.winnerId === null
+    );
+    const hasCompleted = round.matches.some((m) => m.winnerId !== null);
+    if (hasIncomplete || (!hasCompleted && round.roundNumber === 1)) {
+      currentRoundNum = round.roundNumber;
+      break;
+    }
+    if (hasCompleted) {
+      currentRoundNum = Math.min(round.roundNumber + 1, 6);
+    }
+  }
+
+  const nextOpponent = playerEliminated
+    ? undefined
+    : getNextOpponent(bracket, worldState.playerSchoolId, isMatchDay ? todayRound : currentRoundNum, worldState.schools);
+
+  let nextMatchDateStr: string | undefined;
+  let nextMatchDaysAway: number | undefined;
+  if (nextMatchInfo && !playerEliminated) {
+    nextMatchDateStr = `${nextMatchInfo.month}月${nextMatchInfo.day}日`;
+    nextMatchDaysAway = nextMatchInfo.daysAway;
+  }
+
+  return {
+    isActive: true,
+    typeName,
+    currentRound: getRoundLabel(currentRoundNum),
+    isMatchDay,
+    nextMatchDate: nextMatchDateStr,
+    nextMatchDaysAway,
+    nextOpponent,
+    playerEliminated,
+  };
+}
+
+/**
+ * 大会開始前の情報を構築する
+ */
+function buildTournamentStartInfo(month: number, day: number): HomeTournamentStartInfo | undefined {
+  // 夏大会まで（4月〜7月9日）
+  if ((month >= 4 && month <= 6) || (month === 7 && day < 10)) {
+    // 7/10 まで何日
+    let daysAway = 0;
+    if (month === 7) {
+      daysAway = 10 - day;
+    } else {
+      // 月をまたぐ日数計算
+      const monthDays = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+      daysAway = monthDays[month] - day;
+      for (let m = month + 1; m < 7; m++) daysAway += monthDays[m];
+      daysAway += 10; // 7/10
+    }
+    return { name: '夏の大会', date: '7月10日', daysAway: Math.max(0, daysAway) };
+  }
+
+  // 秋大会まで（7月31日〜9月14日）
+  if ((month === 7 && day >= 31) || month === 8 || (month === 9 && day < 15)) {
+    let daysAway = 0;
+    if (month === 9) {
+      daysAway = 15 - day;
+    } else if (month === 8) {
+      daysAway = 31 - day + 15;
+    } else {
+      // 7/31〜
+      daysAway = 31 - day + 31 + 15;
+    }
+    return { name: '秋の大会', date: '9月15日', daysAway: Math.max(0, daysAway) };
+  }
+
+  return undefined;
+}
+
 /**
  * 今日やることを返す
  */
@@ -265,6 +515,12 @@ export function projectHome(
   // 注目選手
   const featuredPlayers = buildFeaturedPlayers(players);
 
+  // 大会情報
+  const tournament = buildTournamentInfo(worldState, currentDate.month, currentDate.day);
+  const tournamentStart = !isInTournamentSeason
+    ? buildTournamentStartInfo(currentDate.month, currentDate.day)
+    : undefined;
+
   return {
     date: makeDateView(currentDate.year, currentDate.month, currentDate.day),
     team,
@@ -278,5 +534,7 @@ export function projectHome(
     featuredPlayers,
     isTournamentDay,
     isInTournamentSeason,
+    tournament,
+    tournamentStart,
   };
 }
