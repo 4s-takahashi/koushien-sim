@@ -22,9 +22,10 @@ import {
   createTournamentBracket,
   simulateTournamentRound,
 } from './tournament-bracket';
-import type { TournamentBracket, TournamentMatch } from './tournament-bracket';
+import type { TournamentBracket, TournamentMatch, TournamentRound } from './tournament-bracket';
 import { processPracticeGameDay } from './practice-game';
 import type { PracticeGameRecord } from '../types/practice-game';
+import type { PendingInteractiveMatch } from './world-state';
 
 // ============================================================
 // WorldDayResult
@@ -54,6 +55,11 @@ export interface WorldDayResult {
   seasonTransition: import('./world-state').SeasonPhase | null;
   /** 練習試合・紅白戦の結果（実施した日のみ設定） */
   practiceGameResult?: PracticeGameRecord | null;
+  /**
+   * インタラクティブ試合待機フラグ（Phase 10-C）。
+   * true の場合、日付は進まずプレイヤーが試合を行うまで保留。
+   */
+  waitingForInteractiveMatch?: boolean;
 }
 
 export interface WorldNewsItem {
@@ -374,11 +380,22 @@ function getTodayRound(date: GameDate, tournamentType: 'summer' | 'autumn'): num
  * 7. 大会の新規作成（新日付が大会開始日なら）
  * 8. 年度替わり（3/31 → 4/1）
  */
+
+export interface AdvanceWorldDayOptions {
+  /**
+   * true にすると Phase 10-C インタラクティブ試合検出を有効にする。
+   * false（デフォルト）の場合、自校の試合も自動シミュレーションする（テスト互換性維持）。
+   */
+  interactive?: boolean;
+}
+
 export function advanceWorldDay(
   world: WorldState,
   playerMenuId: PracticeMenuId,
   rng: RNG,
+  options?: AdvanceWorldDayOptions,
 ): { nextWorld: WorldState; result: WorldDayResult } {
+  const interactiveMode = options?.interactive ?? false;
   const date = world.currentDate;
   const schedule = getAnnualSchedule();
   const dayType = getDayType(date, schedule);
@@ -437,6 +454,8 @@ export function advanceWorldDay(
   let playerMatchResult: import('../match/types').MatchResult | null | undefined = undefined;
   let playerMatchOpponent: string | null | undefined = undefined;
   let playerMatchSide: 'home' | 'away' | null | undefined = undefined;
+  let pendingInteractiveMatch: PendingInteractiveMatch | null = world.pendingInteractiveMatch ?? null;
+  let waitingForInteractiveMatch = false;
 
   // 大会が進行中なら今日のラウンドを消化する
   if (activeTournament && !activeTournament.isCompleted) {
@@ -445,71 +464,110 @@ export function advanceWorldDay(
     const todayRound = getTodayRound(date, tournamentType);
 
     if (todayRound > 0) {
-      activeTournament = simulateTournamentRound(
-        activeTournament,
-        todayRound,
-        updatedSchools,
-        rng.derive(`tournament-round-${todayRound}`),
-      );
+      // Phase 10-C: 自校の試合を探し、インタラクティブ分岐
+      // interactiveMode=false（テスト・自動進行）では通常通り全試合シミュレーション
+      const roundData = activeTournament.rounds.find((r) => r.roundNumber === todayRound);
+      const playerMatchInRound = interactiveMode
+        ? roundData?.matches.find(
+            (m) =>
+              m.winnerId === null &&
+              (m.homeSchoolId === world.playerSchoolId || m.awaySchoolId === world.playerSchoolId),
+          )
+        : undefined;
 
-      // 自校の試合を探す
-      const playerMatch = findPlayerMatchInRound(
-        activeTournament,
-        todayRound,
-        world.playerSchoolId,
-      );
+      if (playerMatchInRound) {
+        // 自校の試合が今日ある → インタラクティブ試合として登録し、日付を進めない
+        const opponentId =
+          playerMatchInRound.homeSchoolId === world.playerSchoolId
+            ? playerMatchInRound.awaySchoolId
+            : playerMatchInRound.homeSchoolId;
+        const playerSide: 'home' | 'away' =
+          playerMatchInRound.homeSchoolId === world.playerSchoolId ? 'home' : 'away';
 
-      if (playerMatch && playerMatch.side !== null) {
-        const opponentId = playerMatch.opponent;
-        const opponentSchool = opponentId
-          ? updatedSchools.find((s) => s.id === opponentId) ?? null
-          : null;
-        playerMatchOpponent = opponentSchool?.name ?? opponentId ?? null;
-        playerMatchSide = playerMatch.side;
+        // 他校の試合は先に消化する（自校の試合だけスキップ）
+        activeTournament = simulateTournamentRound(
+          activeTournament,
+          todayRound,
+          updatedSchools,
+          rng.derive(`tournament-round-${todayRound}`),
+          { skipPlayerMatch: true, playerSchoolId: world.playerSchoolId },
+        );
 
-        const homeScore = playerMatch.homeScore ?? 0;
-        const awayScore = playerMatch.awayScore ?? 0;
-        const isHome = playerMatch.side === 'home';
-        const playerScore = isHome ? homeScore : awayScore;
-        const opponentScore = isHome ? awayScore : homeScore;
-        const winner: 'home' | 'away' = playerMatch.playerWon
-          ? (isHome ? 'home' : 'away')
-          : (isHome ? 'away' : 'home');
-
-        playerMatchResult = {
-          winner,
-          finalScore: { home: homeScore, away: awayScore },
-          // Phase 5.5: quickGame の実シミュ結果から直接取得（distributeScore 廃止）
-          inningScores: playerMatch.inningScores ?? { home: [], away: [] },
-          totalInnings: playerMatch.totalInnings ?? 9,
-          mvpPlayerId: playerMatch.mvpPlayerId ?? null,
-          batterStats: [],
-          pitcherStats: [],
+        pendingInteractiveMatch = {
+          opponentSchoolId: opponentId ?? '',
+          round: todayRound,
+          tournamentId: activeTournament.id,
+          playerSide,
+          matchDate: date,
         };
+        waitingForInteractiveMatch = true;
+      } else {
+        // 自校の試合がない（敗退済み or bye）→ 通常通り全試合シミュレーション
+        activeTournament = simulateTournamentRound(
+          activeTournament,
+          todayRound,
+          updatedSchools,
+          rng.derive(`tournament-round-${todayRound}`),
+        );
 
-        const playerSchoolName = world.schools.find(s => s.id === world.playerSchoolId)?.name ?? '自校';
-        if (playerScore > opponentScore) {
-          worldNews.push({
-            type: 'tournament_result',
-            headline: `${playerSchoolName} が ${playerMatchOpponent ?? '対戦校'} に ${playerScore}対${opponentScore} で勝利！`,
-            involvedSchoolIds: [world.playerSchoolId, ...(opponentId ? [opponentId] : [])],
-            involvedPlayerIds: [],
-            importance: 'high',
-          });
-        } else {
-          worldNews.push({
-            type: 'tournament_result',
-            headline: `${playerSchoolName} が ${playerMatchOpponent ?? '対戦校'} に ${playerScore}対${opponentScore} で敗れた`,
-            involvedSchoolIds: [world.playerSchoolId, ...(opponentId ? [opponentId] : [])],
-            involvedPlayerIds: [],
-            importance: 'high',
-          });
+        // 自校の試合を探す（既にシミュレーション済み）
+        const playerMatch = findPlayerMatchInRound(
+          activeTournament,
+          todayRound,
+          world.playerSchoolId,
+        );
+
+        if (playerMatch && playerMatch.side !== null) {
+          const opponentId = playerMatch.opponent;
+          const opponentSchool = opponentId
+            ? updatedSchools.find((s) => s.id === opponentId) ?? null
+            : null;
+          playerMatchOpponent = opponentSchool?.name ?? opponentId ?? null;
+          playerMatchSide = playerMatch.side;
+
+          const homeScore = playerMatch.homeScore ?? 0;
+          const awayScore = playerMatch.awayScore ?? 0;
+          const isHome = playerMatch.side === 'home';
+          const playerScore = isHome ? homeScore : awayScore;
+          const opponentScore = isHome ? awayScore : homeScore;
+          const winner: 'home' | 'away' = playerMatch.playerWon
+            ? (isHome ? 'home' : 'away')
+            : (isHome ? 'away' : 'home');
+
+          playerMatchResult = {
+            winner,
+            finalScore: { home: homeScore, away: awayScore },
+            inningScores: playerMatch.inningScores ?? { home: [], away: [] },
+            totalInnings: playerMatch.totalInnings ?? 9,
+            mvpPlayerId: playerMatch.mvpPlayerId ?? null,
+            batterStats: [],
+            pitcherStats: [],
+          };
+
+          const playerSchoolName = world.schools.find(s => s.id === world.playerSchoolId)?.name ?? '自校';
+          if (playerScore > opponentScore) {
+            worldNews.push({
+              type: 'tournament_result',
+              headline: `${playerSchoolName} が ${playerMatchOpponent ?? '対戦校'} に ${playerScore}対${opponentScore} で勝利！`,
+              involvedSchoolIds: [world.playerSchoolId, ...(opponentId ? [opponentId] : [])],
+              involvedPlayerIds: [],
+              importance: 'high',
+            });
+          } else {
+            worldNews.push({
+              type: 'tournament_result',
+              headline: `${playerSchoolName} が ${playerMatchOpponent ?? '対戦校'} に ${playerScore}対${opponentScore} で敗れた`,
+              involvedSchoolIds: [world.playerSchoolId, ...(opponentId ? [opponentId] : [])],
+              involvedPlayerIds: [],
+              importance: 'high',
+            });
+          }
         }
       }
     }
 
-    // 大会終了チェック
-    if (activeTournament.isCompleted) {
+    // 大会終了チェック（waitingForInteractiveMatch 中は完了チェックをスキップ）
+    if (!waitingForInteractiveMatch && activeTournament.isCompleted) {
       tournamentHistory = [...tournamentHistory, activeTournament].slice(-10);
 
       // 自校の最高到達ラウンドを更新
@@ -542,6 +600,41 @@ export function advanceWorldDay(
 
       activeTournament = null;
     }
+  }
+
+  // --- Phase 10-C: インタラクティブ試合待機 ---
+  // 自校の試合日かつ未決の場合は日付を進めずに早期リターンする。
+  // UI 側で試合を行った後、completeInteractiveMatch() を呼んで続きを進める。
+  if (waitingForInteractiveMatch && pendingInteractiveMatch) {
+    const generatedNewsWaiting = generateDailyNews(world, rng.derive('news-gen'));
+    worldNews.push(...generatedNewsWaiting);
+
+    const waitingNextWorld: WorldState = {
+      ...world,
+      schools: updatedSchools,
+      middleSchoolPool: updatedMiddleSchool,
+      activeTournament,
+      tournamentHistory,
+      pendingInteractiveMatch,
+    };
+
+    const waitingResult: WorldDayResult = {
+      date,
+      playerSchoolResult: playerSchoolResult ?? {
+        date,
+        dayType,
+        practiceApplied: null,
+        playerChanges: [],
+        events: [],
+        injuries: [],
+        recovered: [],
+      },
+      worldNews,
+      seasonTransition: null,
+      waitingForInteractiveMatch: true,
+    };
+
+    return { nextWorld: waitingNextWorld, result: waitingResult };
   }
 
   // --- ニュース生成 ---
@@ -609,6 +702,7 @@ export function advanceWorldDay(
     seasonState: updatedSeasonState,
     activeTournament,
     tournamentHistory,
+    pendingInteractiveMatch: null, // 通常進行時はリセット
   };
 
   // --- 新日付が大会開始日なら大会を自動作成 ---
@@ -741,3 +835,266 @@ export function advanceWorldDay(
 }
 
 // distributeScore は Phase 5.5 で廃止。quickGame の実イニングスコアを直接使用。
+
+// ============================================================
+// Phase 10-C: インタラクティブ試合完了後の処理
+// ============================================================
+
+/**
+ * インタラクティブ試合が終了した後、ブラケットに結果を反映して日付を進める。
+ *
+ * 使用フロー:
+ * 1. advanceWorldDay → waitingForInteractiveMatch=true で停止
+ * 2. UI でインタラクティブ試合を実行
+ * 3. completeInteractiveMatch(world, matchResult) で続きを進める
+ *
+ * @param world 現在の WorldState（pendingInteractiveMatch が設定済み）
+ * @param interactiveMatchResult インタラクティブ試合の結果
+ * @param rng 乱数生成器
+ */
+export function completeInteractiveMatch(
+  world: WorldState,
+  interactiveMatchResult: import('../match/types').MatchResult,
+  rng: RNG,
+): { nextWorld: WorldState; result: WorldDayResult } {
+  const pending = world.pendingInteractiveMatch;
+  if (!pending) {
+    // pendingInteractiveMatch がない場合は通常の日付進行
+    return advanceWorldDay(world, 'batting_basic', rng);
+  }
+
+  // --- ブラケットに試合結果を反映 ---
+  let activeTournament = world.activeTournament ?? null;
+  let tournamentHistory = world.tournamentHistory ?? [];
+  const worldNews: WorldNewsItem[] = [];
+
+  if (activeTournament && !activeTournament.isCompleted) {
+    const { round, tournamentId, playerSide } = pending;
+    if (activeTournament.id === tournamentId) {
+      // 対象ラウンドの試合を更新
+      const winnerId =
+        interactiveMatchResult.winner === playerSide
+          ? world.playerSchoolId
+          : pending.opponentSchoolId;
+
+      const homeScore = interactiveMatchResult.finalScore.home;
+      const awayScore = interactiveMatchResult.finalScore.away;
+
+      const newRounds = activeTournament.rounds.map((r) => {
+        if (r.roundNumber !== round) return r;
+        const newMatches = r.matches.map((m) => {
+          const isPlayerMatch =
+            m.homeSchoolId === world.playerSchoolId ||
+            m.awaySchoolId === world.playerSchoolId;
+          if (!isPlayerMatch || m.winnerId !== null) return m;
+          return {
+            ...m,
+            winnerId,
+            homeScore,
+            awayScore,
+            inningScores: interactiveMatchResult.inningScores,
+            totalInnings: interactiveMatchResult.totalInnings,
+            mvpPlayerId: interactiveMatchResult.mvpPlayerId,
+          };
+        });
+        return { ...r, matches: newMatches };
+      });
+
+      // propagateWinners を模倣（ラウンドが完了したら次ラウンドへ伝播）
+      // simulateTournamentRound の propagateWinners を内部で使う代わりに
+      // 再度 simulateTournamentRound を呼ぶ（既に全試合完了なので何もしない）
+      const allMatchesInRoundDone = newRounds
+        .find((r) => r.roundNumber === round)
+        ?.matches.every((m) => m.winnerId !== null);
+
+      let updatedRounds = newRounds;
+      if (allMatchesInRoundDone) {
+        // 勝者を次ラウンドに伝播（propagateWinners は内部 private なのでロジックを再実装）
+        updatedRounds = propagateWinnersPublic(newRounds, round);
+      }
+
+      // 完了チェック
+      const allDecided = updatedRounds.every((r) =>
+        r.matches.every(
+          (m) =>
+            m.winnerId !== null ||
+            (m.homeSchoolId === null && m.awaySchoolId === null),
+        ),
+      );
+      const finalRound = updatedRounds.find((r) => r.roundNumber === 6);
+      const champion = finalRound?.matches[0]?.winnerId ?? null;
+
+      activeTournament = {
+        ...activeTournament,
+        rounds: updatedRounds,
+        isCompleted: allDecided && champion !== null,
+        champion,
+      };
+
+      // ニュース生成
+      const playerSchoolName =
+        world.schools.find((s) => s.id === world.playerSchoolId)?.name ?? '自校';
+      const opponentSchool = world.schools.find((s) => s.id === pending.opponentSchoolId);
+      const opponentName = opponentSchool?.name ?? '対戦校';
+      const playerWon = winnerId === world.playerSchoolId;
+      const playerScore = playerSide === 'home' ? homeScore : awayScore;
+      const opponentScore = playerSide === 'home' ? awayScore : homeScore;
+
+      worldNews.push({
+        type: 'tournament_result',
+        headline: playerWon
+          ? `${playerSchoolName} が ${opponentName} に ${playerScore}対${opponentScore} で勝利！`
+          : `${playerSchoolName} が ${opponentName} に ${playerScore}対${opponentScore} で敗れた`,
+        involvedSchoolIds: [world.playerSchoolId, pending.opponentSchoolId].filter(Boolean),
+        involvedPlayerIds: [],
+        importance: 'high',
+      });
+
+      // 大会終了チェック
+      if (activeTournament.isCompleted) {
+        tournamentHistory = [...tournamentHistory, activeTournament].slice(-10);
+        const championName = activeTournament.champion
+          ? (world.schools.find((s) => s.id === activeTournament!.champion)?.name ??
+             activeTournament.champion)
+          : null;
+        if (championName) {
+          worldNews.push({
+            type: 'tournament_result',
+            headline: `【大会結果】${activeTournament.type === 'summer' ? '夏季' : '秋季'}大会優勝: ${championName}`,
+            involvedSchoolIds: activeTournament.champion ? [activeTournament.champion] : [],
+            involvedPlayerIds: [],
+            importance: 'high',
+          });
+        }
+        activeTournament = null;
+      }
+    }
+  }
+
+  // --- 日付進行 ---
+  const date = world.currentDate;
+  const newDate = advanceDate(date);
+  const oldPhase = world.seasonState.phase;
+  let newPhase = computeSeasonPhase(newDate);
+
+  if (!activeTournament && (newPhase === 'summer_tournament' || newPhase === 'autumn_tournament')) {
+    newPhase = newPhase === 'summer_tournament' ? 'post_summer' : 'off_season';
+  }
+  if (activeTournament && !activeTournament.isCompleted) {
+    newPhase = activeTournament.type === 'summer' ? 'summer_tournament' : 'autumn_tournament';
+  }
+
+  let updatedSeasonState = {
+    ...world.seasonState,
+    phase: newPhase,
+    currentTournamentId: activeTournament?.id ?? null,
+  };
+
+  // 大会終了後に yearResults を更新
+  if (!activeTournament && world.activeTournament?.isCompleted === false) {
+    const completedTournament = tournamentHistory[tournamentHistory.length - 1];
+    if (completedTournament) {
+      let playerBestRound = 0;
+      for (const r of completedTournament.rounds) {
+        for (const m of r.matches) {
+          if (
+            (m.homeSchoolId === world.playerSchoolId || m.awaySchoolId === world.playerSchoolId) &&
+            m.winnerId === world.playerSchoolId
+          ) {
+            if (r.roundNumber > playerBestRound) playerBestRound = r.roundNumber;
+          }
+        }
+      }
+      const yearResults = { ...updatedSeasonState.yearResults };
+      if (completedTournament.type === 'summer') {
+        yearResults.summerBestRound = playerBestRound;
+      } else if (completedTournament.type === 'autumn') {
+        yearResults.autumnBestRound = playerBestRound;
+      }
+      updatedSeasonState = { ...updatedSeasonState, yearResults };
+    }
+  }
+
+  const generatedNews = generateDailyNews(world, rng.derive('news-gen'));
+  worldNews.push(...generatedNews);
+
+  const nextWorld: WorldState = {
+    ...world,
+    currentDate: newDate,
+    seasonState: updatedSeasonState,
+    activeTournament,
+    tournamentHistory,
+    pendingInteractiveMatch: null,
+  };
+
+  const finalSeasonTransition: SeasonPhase | null =
+    nextWorld.seasonState.phase !== oldPhase ? nextWorld.seasonState.phase : null;
+
+  const playerMatchSide = pending.playerSide;
+  const playerMatchResult = interactiveMatchResult;
+  const opponentSchool = world.schools.find((s) => s.id === pending.opponentSchoolId);
+  const playerMatchOpponent = opponentSchool?.name ?? pending.opponentSchoolId;
+
+  const fallbackSchoolResult: import('../types/calendar').DayResult = {
+    date,
+    dayType: 'holiday',
+    practiceApplied: null,
+    playerChanges: [],
+    events: [],
+    injuries: [],
+    recovered: [],
+  };
+
+  const result: WorldDayResult = {
+    date,
+    playerSchoolResult: fallbackSchoolResult,
+    worldNews,
+    seasonTransition: finalSeasonTransition,
+    playerMatchResult,
+    playerMatchOpponent,
+    playerMatchSide,
+  };
+
+  return { nextWorld, result };
+}
+
+/**
+ * propagateWinners の公開版（world-ticker 内部用）。
+ * tournament-bracket の private 実装を複製。
+ */
+function propagateWinnersPublic(
+  rounds: TournamentRound[],
+  justCompleted: number,
+): TournamentRound[] {
+  const currentRound = rounds.find((r) => r.roundNumber === justCompleted);
+  const nextRound = rounds.find((r) => r.roundNumber === justCompleted + 1);
+  if (!currentRound || !nextRound) return rounds;
+
+  const newNextMatches = [...nextRound.matches];
+
+  if (justCompleted === 1) {
+    currentRound.matches.forEach((match, i) => {
+      if (!match.winnerId) return;
+      if (i < newNextMatches.length) {
+        newNextMatches[i] = { ...newNextMatches[i], awaySchoolId: match.winnerId };
+      }
+    });
+  } else {
+    currentRound.matches.forEach((match, i) => {
+      if (!match.winnerId) return;
+      const nextMatchIdx = Math.floor(i / 2);
+      if (nextMatchIdx >= newNextMatches.length) return;
+      const isHome = i % 2 === 0;
+      const cur = newNextMatches[nextMatchIdx];
+      if (isHome) {
+        newNextMatches[nextMatchIdx] = { ...cur, homeSchoolId: match.winnerId };
+      } else {
+        newNextMatches[nextMatchIdx] = { ...cur, awaySchoolId: match.winnerId };
+      }
+    });
+  }
+
+  return rounds.map((r) =>
+    r.roundNumber === justCompleted + 1 ? { ...r, matches: newNextMatches } : r,
+  );
+}

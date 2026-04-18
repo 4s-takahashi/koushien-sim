@@ -274,6 +274,7 @@ function HomeContent({ view }: { view: HomeViewState }) {
   const advanceDay = useWorldStore((s) => s.advanceDay);
   const advanceWeek = useWorldStore((s) => s.advanceWeek);
   const getHomeView = useWorldStore((s) => s.getHomeView);
+  const worldState = useWorldStore((s) => s.worldState);
   const [isAdvancing, setIsAdvancing] = useState(false);
   const [selectedMenu, setSelectedMenu] = useState<PracticeMenuId>('batting_basic');
   const [showSavePanel, setShowSavePanel] = useState(false);
@@ -281,6 +282,15 @@ function HomeContent({ view }: { view: HomeViewState }) {
   const [matchResult, setMatchResult] = useState<WorldDayResult | null>(null);
   const [tournamentStartResult, setTournamentStartResult] = useState<WorldDayResult | null>(null);
   const [currentView, setCurrentView] = useState<HomeViewState>(view);
+  const router = useRouter();
+
+  // インタラクティブ試合が待機中の場合
+  const pendingInteractiveMatch = worldState?.pendingInteractiveMatch ?? null;
+
+  const handleStartInteractiveMatch = useCallback(() => {
+    if (!pendingInteractiveMatch) return;
+    router.push('/play/match/current');
+  }, [pendingInteractiveMatch, router]);
 
   const handleAdvanceDay = useCallback(() => {
     setIsAdvancing(true);
@@ -442,8 +452,50 @@ function HomeContent({ view }: { view: HomeViewState }) {
       {/* メインコンテンツ */}
       <main className={styles.main}>
 
+        {/* インタラクティブ試合待機バナー（Phase 10-C） */}
+        {pendingInteractiveMatch && (
+          <div className={`${styles.card} ${styles.cardFull} ${styles.matchDayCard}`}>
+            <div className={styles.matchDayTitle}>
+              ⚾ 試合の準備ができました！
+            </div>
+            {(() => {
+              const opponent = worldState?.schools?.find(
+                (s) => s.id === pendingInteractiveMatch.opponentSchoolId
+              );
+              return opponent ? (
+                <div className={styles.matchDayOpponent}>
+                  vs <strong>{opponent.name}</strong>
+                  <span style={{ marginLeft: 8, fontSize: 12, color: '#90a4ae' }}>
+                    {pendingInteractiveMatch.round}回戦
+                  </span>
+                </div>
+              ) : null;
+            })()}
+            <p className={styles.matchDayHint}>
+              インタラクティブ試合モードで1球ずつ采配できます。
+            </p>
+            <div style={{ marginTop: 12 }}>
+              <button
+                onClick={handleStartInteractiveMatch}
+                style={{
+                  padding: '10px 24px',
+                  background: '#1565c0',
+                  border: 'none',
+                  borderRadius: 4,
+                  color: '#fff',
+                  fontSize: 14,
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                }}
+              >
+                ▶ 試合を始める
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* 試合日バナー（大会期間中かつ試合がある日） */}
-        {displayView.tournament?.isMatchDay && !displayView.tournament.playerEliminated && (
+        {!pendingInteractiveMatch && displayView.tournament?.isMatchDay && !displayView.tournament.playerEliminated && (
           <div className={`${styles.card} ${styles.cardFull} ${styles.matchDayCard}`}>
             <div className={styles.matchDayTitle}>
               ⚾ 今日は試合日です！ — {displayView.tournament.typeName} {displayView.tournament.currentRound}

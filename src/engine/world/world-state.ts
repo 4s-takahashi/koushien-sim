@@ -193,6 +193,30 @@ export interface WorldState {
   scheduledPracticeGames?: ScheduledPracticeGame[];
   /** 練習試合・紅白戦の実施履歴（最大30件） */
   practiceGameHistory?: PracticeGameRecord[];
+
+  // --- インタラクティブ試合（Phase 10-C） ---
+  /**
+   * インタラクティブ試合が待機中の場合にセット。
+   * world-ticker が試合日を検知してここに登録し、日付進行を一時停止する。
+   * プレイヤーが試合を完了したら null にリセットして日付進行を再開する。
+   */
+  pendingInteractiveMatch?: PendingInteractiveMatch | null;
+}
+
+/**
+ * インタラクティブ試合の待機情報
+ */
+export interface PendingInteractiveMatch {
+  /** 対戦相手の学校 ID */
+  opponentSchoolId: string;
+  /** 試合ラウンド番号 */
+  round: number;
+  /** 大会 ID */
+  tournamentId: string;
+  /** 先攻/後攻（プレイヤー視点） */
+  playerSide: 'home' | 'away';
+  /** 試合日 */
+  matchDate: GameDate;
 }
 
 export interface GameSettings {

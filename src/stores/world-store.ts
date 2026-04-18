@@ -18,7 +18,7 @@ import type {
 } from '../ui/projectors/view-state-types';
 import { createRNG } from '../engine/core/rng';
 import { createWorldState } from '../engine/world/create-world';
-import { advanceWorldDay } from '../engine/world/world-ticker';
+import { advanceWorldDay, completeInteractiveMatch } from '../engine/world/world-ticker';
 import { addToWatchList, removeFromWatchList, conductScoutVisit, recruitPlayer } from '../engine/world/scout/scout-system';
 import { projectHome } from '../ui/projectors/homeProjector';
 import { projectTeam } from '../ui/projectors/teamProjector';
@@ -50,6 +50,7 @@ import {
 import {
   createTournamentBracket,
   simulateFullTournament,
+  simulateTournamentRound,
 } from '../engine/world/tournament-bracket';
 import type { TournamentType } from '../engine/world/tournament-bracket';
 
@@ -117,6 +118,10 @@ interface WorldStore {
   // --- 大会アクション ---
   startTournament: (type: TournamentType) => void;
   simulateTournament: () => void;
+
+  // --- インタラクティブ試合（Phase 10-C） ---
+  /** インタラクティブ試合完了後に呼ぶ。ブラケット更新 + 日付進行。 */
+  finishInteractiveMatch: (matchResult: import('../engine/match/types').MatchResult) => WorldDayResult | null;
 }
 
 // ============================================================
@@ -261,10 +266,38 @@ export const useWorldStore = create<WorldStore>()(
     const { worldState, recentResults, recentNews } = get();
     if (!worldState) return null;
 
-    const dateStr = `${worldState.currentDate.year}-${worldState.currentDate.month}-${worldState.currentDate.day}`;
-    const rng = createRNG(worldState.seed + ':' + dateStr);
+    let currentWorld = worldState;
 
-    const { nextWorld, result } = advanceWorldDay(worldState, menuId, rng);
+    // Phase 10-C: インタラクティブ試合が待機中の場合、自動でシミュレーションして消化する。
+    // UI からは通常 pendingInteractiveMatch を確認して /play/match に遷移するが、
+    // テストや自動進行では advanceDay を呼ぶことで自動消化できる。
+    if (currentWorld.pendingInteractiveMatch && currentWorld.activeTournament) {
+      const pending = currentWorld.pendingInteractiveMatch;
+      const dateStr = `${currentWorld.currentDate.year}-${currentWorld.currentDate.month}-${currentWorld.currentDate.day}`;
+      const autoRng = createRNG(currentWorld.seed + ':auto-sim:' + dateStr);
+
+      // 自校の試合を自動シミュレーション（他校の試合は既にシミュレーション済み）
+      const updatedTournament = simulateTournamentRound(
+        currentWorld.activeTournament,
+        pending.round,
+        currentWorld.schools,
+        autoRng,
+      );
+
+      // pending を解消した世界を作成
+      currentWorld = {
+        ...currentWorld,
+        activeTournament: updatedTournament,
+        pendingInteractiveMatch: null,
+      };
+    }
+
+    const dateStr = `${currentWorld.currentDate.year}-${currentWorld.currentDate.month}-${currentWorld.currentDate.day}`;
+    const rng = createRNG(currentWorld.seed + ':' + dateStr);
+
+    // Phase 10-C: インタラクティブモードを有効にして、
+    // 自校の試合日は pendingInteractiveMatch を設定して日付を止める
+    const { nextWorld, result } = advanceWorldDay(currentWorld, menuId, rng, { interactive: true });
 
     // ニュース蓄積（最新順）
     const allNews = [...result.worldNews, ...recentNews].slice(0, MAX_RECENT_NEWS);
@@ -310,8 +343,9 @@ export const useWorldStore = create<WorldStore>()(
       const result = get().advanceDay(menuId);
       if (result) {
         results.push(result);
-        // 試合結果がある場合は停止（結果を見せるため）
+        // 試合結果がある場合、またはインタラクティブ試合待機になった場合は停止
         if (result.playerMatchResult) break;
+        if (result.waitingForInteractiveMatch) break;
       }
     }
     return results;
@@ -547,6 +581,33 @@ export const useWorldStore = create<WorldStore>()(
         tournamentHistory: history,
       },
     });
+  },
+
+  // ----------------------------------------------------------------
+  // インタラクティブ試合完了（Phase 10-C）
+  // ----------------------------------------------------------------
+  finishInteractiveMatch: (matchResult: import('../engine/match/types').MatchResult) => {
+    const { worldState, recentResults, recentNews } = get();
+    if (!worldState) return null;
+
+    const dateStr = `${worldState.currentDate.year}-${worldState.currentDate.month}-${worldState.currentDate.day}`;
+    const rng = createRNG(worldState.seed + ':interactive-match:' + dateStr);
+
+    const { nextWorld, result } = completeInteractiveMatch(worldState, matchResult, rng);
+
+    // ニュース蓄積
+    const allNews = [...result.worldNews, ...recentNews].slice(0, MAX_RECENT_NEWS);
+    // 直近結果蓄積
+    const allResults = [result, ...recentResults].slice(0, MAX_RECENT_RESULTS);
+
+    set({
+      worldState: nextWorld,
+      lastDayResult: result,
+      recentResults: allResults,
+      recentNews: allNews,
+    });
+
+    return result;
   },
 }),
     {
