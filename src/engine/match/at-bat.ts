@@ -191,9 +191,10 @@ export function processAtBat(
       const { nextState: stateAfterHBP, scoredRuns } = applyWalkToState(currentState, batterMP);
       atBatOutcome = { type: 'hit_by_pitch' };
       rbiCount = calculateRBI(atBatOutcome, scoredRuns);
-      currentState = stateAfterHBP;
+      currentCount = stateAfterHBP.count;
+      // state 側は次打席のためにカウントをリセット
+      currentState = { ...stateAfterHBP, count: { balls: 0, strikes: 0 } };
       runnersAfter = stateAfterHBP.bases;
-      currentCount = currentState.count;
       break;
     }
 
@@ -219,6 +220,12 @@ export function processAtBat(
 
     if (isStrikeOutcome && strikesBeforePitch === 2) {
       atBatOutcome = { type: 'strikeout' };
+      // 三振はアウト +1（processPitch 内では加算されていないため、ここで加算する）
+      currentState = {
+        ...currentState,
+        outs: Math.min(currentState.outs + 1, 3),
+        count: { balls: 0, strikes: 0 },
+      };
       runnersAfter = nextState.bases;
       break;
     }
@@ -229,8 +236,10 @@ export function processAtBat(
       const { nextState: stateAfterWalk, scoredRuns } = applyWalkToState(currentState, batterMP);
       atBatOutcome = { type: 'walk' };
       rbiCount = calculateRBI(atBatOutcome, scoredRuns);
-      currentState = stateAfterWalk;
+      // result.finalCount には四球成立時のカウント（balls>=4）を残す
       currentCount = stateAfterWalk.count;
+      // state 側は次打席のためにカウントをリセット
+      currentState = { ...stateAfterWalk, count: { balls: 0, strikes: 0 } };
       runnersAfter = stateAfterWalk.bases;
       break;
     }

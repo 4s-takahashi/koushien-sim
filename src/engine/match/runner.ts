@@ -407,7 +407,7 @@ export class MatchRunner {
    *
    * @returns { pitchResult, events }
    */
-  stepOnePitch(rng: RNG): { pitchResult: PitchResult; events: MatchEvent[] } {
+  stepOnePitch(rng: RNG): { pitchResult: PitchResult; events: MatchEvent[]; atBatEnded: boolean } {
     if (this.state.isOver) {
       throw new Error('MatchRunner: 試合は既に終了しています');
     }
@@ -415,13 +415,191 @@ export class MatchRunner {
     const order = this.resolveOrderForCurrentHalf(rng);
     const prevLog = this.state.log;
 
+    // 投球前のカウントを記録（三振・四球判定に使用）
+    const strikesBefore = this.state.count.strikes;
+
     const { nextState, pitchResult } = processPitch(this.state, order, rng);
     this.state = nextState;
+
+    // ── 打席終了判定 ──
+    const isStrikeOutcome =
+      pitchResult.outcome === 'called_strike' ||
+      pitchResult.outcome === 'swinging_strike' ||
+      pitchResult.outcome === 'foul_bunt';
+    const isStrikeout = isStrikeOutcome && strikesBefore === 2;
+    const isWalk = this.state.count.balls >= 4;
+    const isInPlay = pitchResult.outcome === 'in_play';
+
+    let atBatEnded = false;
+
+    if (isStrikeout) {
+      // 三振: アウト加算、カウントリセット、打者交代
+      this.state = {
+        ...this.state,
+        outs: Math.min(this.state.outs + 1, 3),
+        count: { balls: 0, strikes: 0 },
+      };
+      this.advanceBatterIndex();
+      this.pendingPlayerOrder = null;
+      atBatEnded = true;
+    } else if (isWalk) {
+      // 四球: 押し出し走者処理、カウントリセット、打者交代
+      this.applyWalkInline();
+      this.advanceBatterIndex();
+      this.pendingPlayerOrder = null;
+      atBatEnded = true;
+    } else if (isInPlay) {
+      // インプレー: processPitch 内で outs/bases/score 更新済み
+      this.state = { ...this.state, count: { balls: 0, strikes: 0 } };
+      this.advanceBatterIndex();
+      this.pendingPlayerOrder = null;
+      atBatEnded = true;
+    }
+
+    // 3アウトで攻守交代
+    if (atBatEnded && this.state.outs >= 3) {
+      this.switchHalfInning();
+    }
 
     // ログの差分をイベントとして返す
     const newEvents = this.state.log.slice(prevLog.length);
 
-    return { pitchResult, events: newEvents };
+    return { pitchResult, events: newEvents, atBatEnded };
+  }
+
+  // ----------------------------------------------------------
+  // ヘルパー: 打者インデックスを進める
+  // ----------------------------------------------------------
+  private advanceBatterIndex(): void {
+    const newBatterIndex = (this.state.currentBatterIndex + 1) % 9;
+    this.state = { ...this.state, currentBatterIndex: newBatterIndex };
+  }
+
+  // ----------------------------------------------------------
+  // ヘルパー: 四球処理（走者進塁 + 得点）
+  // ----------------------------------------------------------
+  private applyWalkInline(): void {
+    const state = this.state;
+    const battingTeam =
+      state.currentHalf === 'top' ? state.awayTeam : state.homeTeam;
+    const batterId = battingTeam.battingOrder[state.currentBatterIndex];
+    const batterMP = battingTeam.players.find((mp) => mp.player.id === batterId);
+    if (!batterMP) return;
+
+    const batterInfo = {
+      playerId: batterId,
+      speed: batterMP.player.stats.base.speed,
+    };
+
+    let { bases, score, inningScores } = state;
+    let scoredRuns = 0;
+
+    // 押し出し判定
+    if (bases.first !== null) {
+      if (bases.second !== null) {
+        if (bases.third !== null) {
+          scoredRuns = 1;
+          bases = {
+            third: bases.second,
+            second: bases.first,
+            first: batterInfo,
+          };
+        } else {
+          bases = {
+            third: bases.second,
+            second: bases.first,
+            first: batterInfo,
+          };
+        }
+      } else {
+        bases = { ...bases, second: bases.first, first: batterInfo };
+      }
+    } else {
+      bases = { ...bases, first: batterInfo };
+    }
+
+    // 得点加算
+    if (scoredRuns > 0) {
+      const isBottom = state.currentHalf === 'bottom';
+      const idx = state.currentInning - 1;
+      const key = isBottom ? 'home' : 'away';
+      const arr = [...inningScores[key]];
+      while (arr.length <= idx) arr.push(0);
+      arr[idx] = arr[idx] + scoredRuns;
+      inningScores = { ...inningScores, [key]: arr };
+      score = { ...score, [key]: score[key] + scoredRuns };
+    }
+
+    this.state = {
+      ...state,
+      bases,
+      score,
+      inningScores,
+      count: { balls: 0, strikes: 0 },
+    };
+  }
+
+  // ----------------------------------------------------------
+  // ヘルパー: 3アウトで攻守交代
+  // ----------------------------------------------------------
+  private switchHalfInning(): void {
+    const state = this.state;
+
+    if (state.currentHalf === 'top') {
+      // 表終了 → 裏へ
+      this.state = {
+        ...state,
+        currentHalf: 'bottom',
+        outs: 0,
+        count: { balls: 0, strikes: 0 },
+        bases: EMPTY_BASES,
+      };
+    } else {
+      // 裏終了 → 次のイニング表へ
+      const nextInning = state.currentInning + 1;
+      const maxInnings = state.config.innings + state.config.maxExtras;
+
+      // 試合終了判定
+      const regulationDone = nextInning > state.config.innings;
+      const scoreDifferent = state.score.home !== state.score.away;
+
+      if (regulationDone && scoreDifferent) {
+        // 規定回終了 & 決着あり → 試合終了
+        this.finalizeGame();
+        return;
+      }
+
+      if (nextInning > maxInnings) {
+        // 延長上限突破 → 強制終了
+        this.finalizeGame();
+        return;
+      }
+
+      this.state = {
+        ...state,
+        currentInning: nextInning,
+        currentHalf: 'top',
+        outs: 0,
+        count: { balls: 0, strikes: 0 },
+        bases: EMPTY_BASES,
+      };
+    }
+  }
+
+  // ----------------------------------------------------------
+  // ヘルパー: 試合を終了して result を確定
+  // ----------------------------------------------------------
+  private finalizeGame(): void {
+    const { finalState, result } = finishGame(
+      this.state,
+      this.state.currentInning,
+      this.allAtBatResults,
+    );
+    this.state = finalState;
+    // finishGame は isOver と result を設定する想定
+    if (!this.state.result) {
+      this.state = { ...this.state, result };
+    }
   }
 
   // ----------------------------------------------------------
