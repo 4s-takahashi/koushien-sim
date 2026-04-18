@@ -1,5 +1,5 @@
-import type { RNG } from '../../core/rng';
-import type { Player, CareerRecord, PlayerStats } from '../../types/player';
+import type { RNG } from '../core/rng';
+import type { Player, CareerRecord, PlayerStats } from '../types/player';
 import type {
   MatchState,
   MatchTeam,
@@ -10,8 +10,8 @@ import type {
   AtBatResult,
   AtBatOutcome,
   InningResult,
-} from '../types';
-import { MATCH_CONSTANTS } from '../constants';
+} from './types';
+import { MATCH_CONSTANTS } from './constants';
 
 // ============================================================
 // 打者成績の集計
@@ -338,7 +338,7 @@ export function applyPostMatchGrowth(
         pitching: {
           ...stats.pitching,
           control: clamp(stats.pitching.control + pitchingGrowth.control, 1, 100),
-          stamina: clamp(stats.pitching.stamina + pitchingGrowth.stamina, 1, 100),
+          pitchStamina: clamp(stats.pitching.pitchStamina + pitchingGrowth.pitchStamina, 1, 100),
           velocity: clamp(stats.pitching.velocity + pitchingGrowth.velocity, 80, 160),
         },
       };
@@ -380,12 +380,12 @@ function calculatePitchingGrowth(
   baseExp: number,
   koshienMultiplier: number,
   rng: RNG,
-): { control: number; stamina: number; velocity: number } {
+): { control: number; pitchStamina: number; velocity: number } {
   const dominanceBonus = stat.strikeouts > 5 ? 1 : 0;
 
   return {
     control: Math.round((baseExp + dominanceBonus) * koshienMultiplier * (rng.chance(0.4) ? 1 : 0)),
-    stamina: Math.round((baseExp + (stat.inningsPitched > 6 ? 1 : 0)) * koshienMultiplier * (rng.chance(0.3) ? 1 : 0)),
+    pitchStamina: Math.round((baseExp + (stat.inningsPitched > 6 ? 1 : 0)) * koshienMultiplier * (rng.chance(0.3) ? 1 : 0)),
     velocity: Math.round(baseExp * koshienMultiplier * (rng.chance(0.15) ? 1 : 0)),
   };
 }

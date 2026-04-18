@@ -7,7 +7,7 @@
  * 重要: engine/match/ 既存ファイルは変更しない。このファイルは新規追加のみ。
  */
 
-import type { RNG } from '../../core/rng';
+import type { RNG } from '../core/rng';
 import type {
   MatchState,
   MatchResult,

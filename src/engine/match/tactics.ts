@@ -1,11 +1,11 @@
-import type { RNG } from '../../core/rng';
+import type { RNG } from '../core/rng';
 import type {
   MatchState,
   MatchTeam,
   MatchPlayer,
   TacticalOrder,
-  Position,
 } from './types';
+import type { Position } from '../types/player';
 import { MATCH_CONSTANTS } from './constants';
 
 // ============================================================
@@ -311,12 +311,12 @@ export function applyMoundVisit(state: MatchState): MatchState {
 // ============================================================
 
 export function willObeySign(
-  player: import('../types').MatchPlayer,
+  player: MatchPlayer,
   order: TacticalOrder,
   state: MatchState,
   rng: RNG,
 ): boolean {
-  let complianceRate = MATCH_CONSTANTS.SIGN_COMPLIANCE_BASE;
+  let complianceRate: number = MATCH_CONSTANTS.SIGN_COMPLIANCE_BASE;
 
   // 性格補正
   if (player.player.traits.includes('honest')) {

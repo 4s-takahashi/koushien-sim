@@ -1,4 +1,4 @@
-import type { RNG } from '../../core/rng';
+import type { RNG } from '../core/rng';
 import type {
   MatchState,
   MatchConfig,
