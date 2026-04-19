@@ -188,6 +188,7 @@ export function projectTeam(worldState: WorldState): TeamViewState {
       isResting: player.restOverride != null,
       isInLineup: lineupPlayerIds.has(player.id),
       battingOrderNumber: battingOrderMap.get(player.id) ?? null,
+      individualMenu: playerSchool.individualPracticeMenus?.[player.id] ?? null,
     };
   });
 

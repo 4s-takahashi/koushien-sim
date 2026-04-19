@@ -27,8 +27,23 @@ function getGradeClass(grade: number): string {
   return styles.grade1;
 }
 
+const MENU_OPTIONS: Array<{ id: string; label: string }> = [
+  { id: '', label: '（共通）' },
+  { id: 'batting_basic', label: '打撃・基礎' },
+  { id: 'batting_live', label: '打撃・実戦' },
+  { id: 'pitching_basic', label: '投球・基礎' },
+  { id: 'pitching_bullpen', label: '投球・ブルペン' },
+  { id: 'fielding_drill', label: '守備' },
+  { id: 'running', label: '走塁' },
+  { id: 'strength', label: '筋力' },
+  { id: 'mental', label: 'メンタル' },
+  { id: 'rest', label: '休養' },
+];
+
 function TeamPage({ view }: { view: TeamViewState }) {
   const restAllInjuredAndWarned = useWorldStore((s) => s.restAllInjuredAndWarned);
+  const setIndividualMenu = useWorldStore((s) => s.setIndividualMenu);
+  const clearAllIndividualMenus = useWorldStore((s) => s.clearAllIndividualMenus);
   const [restToast, setRestToast] = useState<string | null>(null);
 
   const handleBulkRest = () => {
@@ -40,6 +55,13 @@ function TeamPage({ view }: { view: TeamViewState }) {
     }
     setTimeout(() => setRestToast(null), 3500);
   };
+
+  const handleMenuChange = (playerId: string, menuId: string) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    setIndividualMenu(playerId, (menuId || null) as any);
+  };
+
+  const individualMenuCount = view.players.filter((p) => p.individualMenu).length;
 
   // 休養中選手数 (UI 表示用: restOverride が true の選手をカウント)
   const restingCount = view.players.filter((p) => p.isResting).length;
@@ -176,6 +198,27 @@ function TeamPage({ view }: { view: TeamViewState }) {
             )}
           </div>
 
+          {/* 個別練習一括クリア (Phase 11-A1 Issue #4) */}
+          {individualMenuCount > 0 && (
+            <div style={{ marginBottom: 8, fontSize: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
+              <span style={{ color: '#666' }}>個別練習: {individualMenuCount}名</span>
+              <button
+                onClick={() => {
+                  if (window.confirm('全選手の個別練習設定をクリアしますか？')) {
+                    clearAllIndividualMenus();
+                  }
+                }}
+                style={{
+                  padding: '2px 8px', fontSize: 11,
+                  background: 'transparent', border: '1px solid #999',
+                  borderRadius: 3, cursor: 'pointer', color: '#666',
+                }}
+              >
+                全クリア
+              </button>
+            </div>
+          )}
+
           <table className={styles.playerTable}>
             <thead>
               <tr>
@@ -186,6 +229,7 @@ function TeamPage({ view }: { view: TeamViewState }) {
                 <th>総合力</th>
                 <th>状態</th>
                 <th>打順</th>
+                <th>個別練習</th>
               </tr>
             </thead>
             <tbody>
@@ -227,6 +271,25 @@ function TeamPage({ view }: { view: TeamViewState }) {
                       ? <span className={styles.lineupOrder}>{p.battingOrderNumber}</span>
                       : <span style={{ color: 'var(--color-text-sub)', fontSize: 11 }}>-</span>
                     }
+                  </td>
+                  <td>
+                    <select
+                      value={p.individualMenu ?? ''}
+                      onChange={(e) => handleMenuChange(p.id, e.target.value)}
+                      style={{
+                        fontSize: 11,
+                        padding: '2px 4px',
+                        borderRadius: 3,
+                        border: '1px solid #cfd8dc',
+                        background: p.individualMenu ? '#e3f2fd' : '#fff',
+                        cursor: 'pointer',
+                      }}
+                      title={p.individualMenu ? '個別メニュー設定中' : 'チーム共通メニュー'}
+                    >
+                      {MENU_OPTIONS.map((m) => (
+                        <option key={m.id} value={m.id}>{m.label}</option>
+                      ))}
+                    </select>
                   </td>
                 </tr>
               ))}

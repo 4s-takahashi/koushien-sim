@@ -26,9 +26,14 @@ export function processPracticePhase(
   menuId: PracticeMenuId,
   date: { month: number; day: number },
   rng: RNG,
-  seasonMultiplier: number
+  seasonMultiplier: number,
+  /**
+   * 選手ごとの個別練習メニュー (Phase 11-A1 Issue #4 2026-04-19)。
+   * 指定された選手は menuId ではなく individual メニューで練習する。
+   */
+  individualMenus?: Record<string, PracticeMenuId>,
 ): { players: Player[]; changes: PlayerDayChange[] } {
-  const menu = getPracticeMenuById(menuId);
+  const teamMenu = getPracticeMenuById(menuId);
   const changes: PlayerDayChange[] = [];
 
   const newPlayers = players.map((player) => {
@@ -43,6 +48,10 @@ export function processPracticePhase(
       });
       return player;
     }
+
+    // 選手個別メニュー (Phase 11-A1): 指定があればそちらを使う
+    const playerMenuId = individualMenus?.[player.id];
+    const menu = playerMenuId ? getPracticeMenuById(playerMenuId) : teamMenu;
 
     const moodBefore = player.condition.mood;
     const { player: grownPlayer, statChanges } = applyDailyGrowth(
@@ -212,8 +221,15 @@ export function processEndOfDay(players: Player[], rng: RNG, dayType: DayType): 
   return { players: newPlayers, injuries, recovered };
 }
 
-/** Main function: process 1 day */
-export function processDay(state: GameState, menuId: PracticeMenuId, rng: RNG): DayProcessResult {
+/** Main function: process 1 day
+ * @param individualMenus 選手ごとの個別練習メニュー (Phase 11-A1 Issue #4)
+ */
+export function processDay(
+  state: GameState,
+  menuId: PracticeMenuId,
+  rng: RNG,
+  individualMenus?: Record<string, PracticeMenuId>,
+): DayProcessResult {
   const schedule = getAnnualSchedule();
   const date = state.currentDate;
   const dayType = getDayType(date, schedule);
@@ -229,7 +245,7 @@ export function processDay(state: GameState, menuId: PracticeMenuId, rng: RNG): 
   if (dayType === 'school_day' || dayType === 'holiday' || dayType === 'camp_day' || dayType === 'ceremony_day') {
     const effectiveMenu = menuId === 'rest' && dayType === 'ceremony_day' ? 'rest' : menuId;
     practiceApplied = effectiveMenu;
-    const result = processPracticePhase(players, effectiveMenu, date, rng, seasonMultiplier);
+    const result = processPracticePhase(players, effectiveMenu, date, rng, seasonMultiplier, individualMenus);
     players = result.players;
     practiceChanges = result.changes;
   } else if (dayType === 'tournament_day') {

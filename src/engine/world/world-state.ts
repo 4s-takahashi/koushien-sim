@@ -42,6 +42,13 @@ export interface HighSchool {
   coachStyle: CoachStyle;
   yearResults: YearResults;
 
+  /**
+   * 選手ごとの個別練習メニュー (Phase 11-A1 2026-04-19 Issue #4)。
+   * key=playerId / value=PracticeMenuId。未指定の選手はチーム共通メニューに従う。
+   * UI: Team画面のドロップダウンで選択可能。
+   */
+  individualPracticeMenus?: Record<string, import('../types/calendar').PracticeMenuId>;
+
   // --- パフォーマンス用キャッシュ ---
   _summary: TeamSummary | null;
 }

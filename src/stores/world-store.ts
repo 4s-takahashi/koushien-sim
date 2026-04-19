@@ -116,6 +116,15 @@ interface WorldStore {
   addToWatch: (playerId: string) => void;
   removeFromWatch: (playerId: string) => void;
 
+  // --- 個別練習メニュー (Phase 11-A1 Issue #4 2026-04-19) ---
+  /**
+   * 選手の個別練習メニューを設定する。
+   * null を渡すと individual 設定を解除してチーム共通メニューに戻す。
+   */
+  setIndividualMenu: (playerId: string, menuId: PracticeMenuId | null) => void;
+  /** 全選手の個別メニューをクリアする */
+  clearAllIndividualMenus: () => void;
+
   // --- 一時休養アクション (2026-04-19 Issue #5) ---
   /**
    * 指定した選手IDのリストに 1日分の休養フラグを付ける。
@@ -539,6 +548,39 @@ export const useWorldStore = create<WorldStore>()(
     const { worldState } = get();
     if (!worldState) return;
     set({ worldState: removeFromWatchList(worldState, playerId) });
+  },
+
+  // ----------------------------------------------------------------
+  // 個別練習メニュー (Phase 11-A1 Issue #4 2026-04-19)
+  // ----------------------------------------------------------------
+  setIndividualMenu: (playerId: string, menuId: PracticeMenuId | null) => {
+    const { worldState } = get();
+    if (!worldState) return;
+    const newSchools = worldState.schools.map((school) => {
+      if (school.id !== worldState.playerSchoolId) return school;
+      const menus: Record<string, PracticeMenuId> = { ...(school.individualPracticeMenus ?? {}) };
+      if (menuId === null) {
+        delete menus[playerId];
+      } else {
+        menus[playerId] = menuId;
+      }
+      return {
+        ...school,
+        individualPracticeMenus: Object.keys(menus).length > 0 ? menus : undefined,
+        _summary: null,
+      };
+    });
+    set({ worldState: { ...worldState, schools: newSchools } });
+  },
+
+  clearAllIndividualMenus: () => {
+    const { worldState } = get();
+    if (!worldState) return;
+    const newSchools = worldState.schools.map((school) => {
+      if (school.id !== worldState.playerSchoolId) return school;
+      return { ...school, individualPracticeMenus: undefined, _summary: null };
+    });
+    set({ worldState: { ...worldState, schools: newSchools } });
   },
 
   // ----------------------------------------------------------------

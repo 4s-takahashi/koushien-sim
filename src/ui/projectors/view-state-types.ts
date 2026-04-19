@@ -176,6 +176,8 @@ export interface PlayerRowView {
   isResting: boolean;
   isInLineup: boolean;
   battingOrderNumber: number | null;  // null = ベンチ
+  /** 個別練習メニュー (Phase 11-A1 Issue #4 2026-04-19) */
+  individualMenu?: string | null;  // PracticeMenuId。null = チーム共通
 }
 
 export interface LineupView {

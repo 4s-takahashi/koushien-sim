@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.17.0';
+export const VERSION = '0.18.0';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-19 16:08 UTC';
-export const GIT_SHA = '0c75488-dirty';
+export const BUILD_DATE = '2026-04-19 16:58 UTC';
+export const GIT_SHA = 'd29d5e2-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,17 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.18.0',
+    date: '2026-04-19',
+    changes: [
+      '📘 Phase 11 開幕 — プレイ体験の深化',
+      '🎯 個別練習メニュー (Issue #4): 選手ごとに異なる練習を割り当て可能',
+      'チーム画面に「個別練習」列とドロップダウン追加',
+      '個別メニュー未設定なら従来通りチーム共通メニュー',
+      'Phase 11-A1 対応',
+    ],
+  },
   {
     version: '0.17.0',
     date: '2026-04-19',

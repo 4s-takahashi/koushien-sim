@@ -114,7 +114,13 @@ function advanceSchoolFull(
     settings: worldState.settings,
   };
 
-  const { nextState, dayResult } = processDay(fakeGameState, menuId, rng);
+  // Phase 11-A1: 個別練習メニュー (Issue #4 2026-04-19)
+  const { nextState, dayResult } = processDay(
+    fakeGameState,
+    menuId,
+    rng,
+    school.individualPracticeMenus,
+  );
 
   // 休養フラグ付き選手の処理: stats は元に戻す + fatigue 回復 + restOverride 減算
   const adjustedPlayers = nextState.team.players.map((p) => {
