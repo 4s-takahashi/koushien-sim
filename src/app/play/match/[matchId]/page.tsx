@@ -609,6 +609,87 @@ function RecentLog({ pitches }: { pitches: PitchLogEntry[] }) {
 }
 
 // ============================================================
+// 自動進行バー
+// ============================================================
+
+interface AutoPlayBarProps {
+  enabled: boolean;
+  speed: 'slow' | 'normal' | 'fast';
+  onToggle: () => void;
+  onSetSpeed: (s: 'slow' | 'normal' | 'fast') => void;
+}
+
+function AutoPlayBar({ enabled, speed, onToggle, onSetSpeed }: AutoPlayBarProps) {
+  return (
+    <div className={styles.autoPlayBar}>
+      <span className={styles.autoPlayLabel}>🎮 自動進行:</span>
+      <button
+        className={`${styles.autoPlayToggle} ${enabled ? styles.autoPlayToggleOn : ''}`}
+        onClick={onToggle}
+      >
+        {enabled ? '▶ ON' : '⏸ OFF'}
+      </button>
+      <span className={styles.autoPlayLabel} style={{ marginLeft: 6 }}>速度:</span>
+      <div className={styles.autoPlaySpeedGroup}>
+        <button
+          className={`${styles.autoPlaySpeedBtn} ${speed === 'slow' ? styles.autoPlaySpeedBtnActive : ''}`}
+          onClick={() => onSetSpeed('slow')}
+        >
+          🐢 ゆっくり
+        </button>
+        <button
+          className={`${styles.autoPlaySpeedBtn} ${speed === 'normal' ? styles.autoPlaySpeedBtnActive : ''}`}
+          onClick={() => onSetSpeed('normal')}
+        >
+          ▶ 標準
+        </button>
+        <button
+          className={`${styles.autoPlaySpeedBtn} ${speed === 'fast' ? styles.autoPlaySpeedBtnActive : ''}`}
+          onClick={() => onSetSpeed('fast')}
+        >
+          ⚡ 高速
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// 実況ログパネル
+// ============================================================
+
+interface NarrationPanelProps {
+  entries: import('../../../../ui/narration/buildNarration').NarrationEntry[];
+}
+
+function NarrationPanel({ entries }: NarrationPanelProps) {
+  const reversed = [...entries].reverse();
+
+  return (
+    <div className={styles.narrationPanel}>
+      <div className={styles.narrationTitle}>📻 実況ログ</div>
+      {reversed.length === 0 ? (
+        <div className={styles.narrationEmpty}>試合開始を待っています…</div>
+      ) : (
+        reversed.map((e) => {
+          const cls =
+            e.kind === 'score' ? styles.narrationEntryScore :
+            e.kind === 'highlight' ? styles.narrationEntryHighlight :
+            e.kind === 'out' ? styles.narrationEntryOut :
+            e.kind === 'chance' ? styles.narrationEntryChance :
+            styles.narrationEntryNormal;
+          return (
+            <div key={e.id} className={`${styles.narrationEntry} ${cls}`}>
+              {e.text}
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
+}
+
+// ============================================================
 // 試合終了モーダル
 // ============================================================
 
@@ -695,6 +776,11 @@ export default function MatchPage() {
   const resumeFromPause = useMatchStore((s) => s.resumeFromPause);
   const pauseReason = useMatchStore((s) => s.pauseReason);
   const pitchLog = useMatchStore((s) => s.pitchLog);
+  const narration = useMatchStore((s) => s.narration);
+  const autoPlayEnabled = useMatchStore((s) => s.autoPlayEnabled);
+  const autoPlaySpeed = useMatchStore((s) => s.autoPlaySpeed);
+  const toggleAutoPlay = useMatchStore((s) => s.toggleAutoPlay);
+  const setAutoPlaySpeed = useMatchStore((s) => s.setAutoPlaySpeed);
 
   const [selectMode, setSelectMode] = useState<SelectMode>({ type: 'none' });
   const [initialized, setInitialized] = useState(false);
@@ -795,6 +881,38 @@ export default function MatchPage() {
     runToEnd();
   }, [runToEnd]);
 
+  // ── 自動進行タイマー ──
+  useEffect(() => {
+    if (!initialized) return;
+    if (!autoPlayEnabled) return;
+    if (pauseReason !== null) return;
+    if (matchResult !== null) return;
+    if (isProcessing) return;
+    if (selectMode.type !== 'none') return;
+
+    // 速度に応じたインターバル（ms）: 打席単位の進行
+    const intervalMs =
+      autoPlaySpeed === 'slow' ? 2000 :
+      autoPlaySpeed === 'fast' ? 300 :
+      1000;
+
+    const timer = setTimeout(() => {
+      stepOneAtBat();
+    }, intervalMs);
+
+    return () => clearTimeout(timer);
+  }, [
+    initialized,
+    autoPlayEnabled,
+    autoPlaySpeed,
+    pauseReason,
+    matchResult,
+    isProcessing,
+    selectMode.type,
+    narration.length, // narration が増えたら次の打席へ進むトリガー
+    stepOneAtBat,
+  ]);
+
   const view = getMatchView();
 
   if (!worldState) {
@@ -816,6 +934,14 @@ export default function MatchPage() {
 
       {/* イニングスコア */}
       <InningScoreTable view={view} />
+
+      {/* 自動進行バー */}
+      <AutoPlayBar
+        enabled={autoPlayEnabled}
+        speed={autoPlaySpeed}
+        onToggle={toggleAutoPlay}
+        onSetSpeed={setAutoPlaySpeed}
+      />
 
       {/* モードバー */}
       <div className={styles.modeBar}>
@@ -923,6 +1049,11 @@ export default function MatchPage() {
             )}
           </div>
         )}
+
+        {/* 実況ログ */}
+        <div className={styles.mainFull}>
+          <NarrationPanel entries={narration} />
+        </div>
 
         {/* 直近ログ */}
         <div className={styles.mainFull}>

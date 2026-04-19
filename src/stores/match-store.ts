@@ -14,6 +14,8 @@ import { MatchRunner } from '../engine/match/runner';
 import { cpuAutoTactics } from '../engine/match/tactics';
 import { projectMatch } from '../ui/projectors/matchProjector';
 import { createRNG } from '../engine/core/rng';
+import { buildNarrationForPitch, buildNarrationForAtBat } from '../ui/narration/buildNarration';
+import type { NarrationEntry } from '../ui/narration/buildNarration';
 
 // ============================================================
 // 型定義
@@ -32,6 +34,14 @@ export interface MatchStoreState {
   runnerMode: RunnerMode;
   pauseReason: PauseReason | null;
   pitchLog: PitchLogEntry[];
+
+  // --- 実況ログ（最新30件） ---
+  narration: NarrationEntry[];
+
+  // --- 自動進行 ---
+  autoPlayEnabled: boolean;
+  /** 'slow' = 2s/打席, 'normal' = 1s/打席, 'fast' = 0.3s/打席 */
+  autoPlaySpeed: 'slow' | 'normal' | 'fast';
 
   // --- 試合結果（試合終了後に格納） ---
   matchResult: MatchResult | null;
@@ -77,6 +87,13 @@ export interface MatchStoreActions {
 
   /** 停止状態を解除して進行を再開する */
   resumeFromPause: () => void;
+
+  /** 自動進行のON/OFF切り替え */
+  toggleAutoPlay: () => void;
+  /** 自動進行スピードを設定 */
+  setAutoPlaySpeed: (speed: 'slow' | 'normal' | 'fast') => void;
+  /** 実況ログをクリア */
+  clearNarration: () => void;
 }
 
 type MatchStore = MatchStoreState & MatchStoreActions;
@@ -92,9 +109,14 @@ const INITIAL_STATE: MatchStoreState = {
   runnerMode: { time: 'standard', pitch: 'off' },
   pauseReason: null,
   pitchLog: [],
+  narration: [],
+  autoPlayEnabled: true,
+  autoPlaySpeed: 'normal',
   matchResult: null,
   isProcessing: false,
 };
+
+const NARRATION_MAX = 30;
 
 // ============================================================
 // ヘルパー：PauseReason を再評価する
@@ -199,7 +221,7 @@ export const useMatchStore = create<MatchStore>((set, get) => ({
   // 1球進行
   // ----------------------------------------------------------------
   stepOnePitch: () => {
-    const { runner, runnerMode, pitchLog, gameSeed } = get();
+    const { runner, runnerMode, pitchLog, narration, gameSeed } = get();
     if (!runner || runner.isOver()) return;
 
     set({ isProcessing: true });
@@ -219,6 +241,7 @@ export const useMatchStore = create<MatchStore>((set, get) => ({
         : '不明';
 
       const { pitchResult } = runner.stepOnePitch(rng);
+      const newState = runner.getState();
 
       // 投球ログに追加
       const logEntry: PitchLogEntry = {
@@ -235,12 +258,16 @@ export const useMatchStore = create<MatchStore>((set, get) => ({
       };
       const newLog = [...pitchLog, logEntry].slice(-50);
 
-      const newState = runner.getState();
+      // 実況ログ
+      const narrationEntries = buildNarrationForPitch(stateBefore, newState, pitchResult);
+      const newNarration = [...narration, ...narrationEntries].slice(-NARRATION_MAX);
+
       const matchResult = newState.isOver ? newState.result : null;
       const pauseReason = evaluatePause(runner, runnerMode);
 
       set({
         pitchLog: newLog,
+        narration: newNarration,
         pauseReason,
         matchResult: matchResult ?? null,
         isProcessing: false,
@@ -254,7 +281,7 @@ export const useMatchStore = create<MatchStore>((set, get) => ({
   // 1打席進行
   // ----------------------------------------------------------------
   stepOneAtBat: () => {
-    const { runner, runnerMode, pitchLog, gameSeed } = get();
+    const { runner, runnerMode, pitchLog, narration, gameSeed } = get();
     if (!runner || runner.isOver()) return;
 
     set({ isProcessing: true });
@@ -274,6 +301,7 @@ export const useMatchStore = create<MatchStore>((set, get) => ({
         : '不明';
 
       const { atBatResult } = runner.stepOneAtBat(rng);
+      const newState = runner.getState();
 
       // 打席内の全投球をログに追加
       const newEntries: PitchLogEntry[] = atBatResult.pitches.map((p) => ({
@@ -287,12 +315,16 @@ export const useMatchStore = create<MatchStore>((set, get) => ({
       }));
       const newLog = [...pitchLog, ...newEntries].slice(-50);
 
-      const newState = runner.getState();
+      // 実況ログ
+      const narrationEntries = buildNarrationForAtBat(stateBefore, newState, atBatResult);
+      const newNarration = [...narration, ...narrationEntries].slice(-NARRATION_MAX);
+
       const matchResult = newState.isOver ? newState.result : null;
       const pauseReason = evaluatePause(runner, runnerMode);
 
       set({
         pitchLog: newLog,
+        narration: newNarration,
         pauseReason,
         matchResult: matchResult ?? null,
         isProcessing: false,
@@ -362,5 +394,20 @@ export const useMatchStore = create<MatchStore>((set, get) => ({
   // ----------------------------------------------------------------
   resumeFromPause: () => {
     set({ pauseReason: null });
+  },
+
+  // ----------------------------------------------------------------
+  // 自動進行
+  // ----------------------------------------------------------------
+  toggleAutoPlay: () => {
+    set((state) => ({ autoPlayEnabled: !state.autoPlayEnabled }));
+  },
+
+  setAutoPlaySpeed: (speed) => {
+    set({ autoPlaySpeed: speed });
+  },
+
+  clearNarration: () => {
+    set({ narration: [] });
   },
 }));
