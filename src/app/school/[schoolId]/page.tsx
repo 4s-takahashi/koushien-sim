@@ -128,7 +128,7 @@ function SchoolDetail({ school, isPlayerSchool, currentYear }: { school: HighSch
       <header className={styles.header}>
         <div className={styles.headerInner}>
           <span className={styles.headerTitle}>{school.name}</span>
-          <Link href="/" style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12 }}>
+          <Link href="/play" style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12 }}>
             ← ホームに戻る
           </Link>
         </div>
@@ -137,7 +137,7 @@ function SchoolDetail({ school, isPlayerSchool, currentYear }: { school: HighSch
       {/* ナビゲーション */}
       <nav className={styles.nav}>
         <div className={styles.navInner}>
-          <Link href="/" className={styles.navLink}>ホーム</Link>
+          <Link href="/play" className={styles.navLink}>ホーム</Link>
           <Link href="/team" className={styles.navLink}>チーム</Link>
           <Link href="/news" className={styles.navLink}>ニュース</Link>
           <Link href="/scout" className={styles.navLink}>スカウト</Link>
@@ -296,7 +296,7 @@ export default function SchoolPage() {
     return (
       <div style={{ padding: 40, textAlign: 'center' }}>
         <p>ゲームが開始されていません。</p>
-        <Link href="/" style={{ color: 'var(--color-primary)' }}>ホームへ戻る</Link>
+        <Link href="/play" style={{ color: 'var(--color-primary)' }}>ホームへ戻る</Link>
       </div>
     );
   }
@@ -306,7 +306,7 @@ export default function SchoolPage() {
     return (
       <div style={{ padding: 40, textAlign: 'center' }}>
         <p>高校が見つかりません（ID: {schoolId}）</p>
-        <Link href="/" style={{ color: 'var(--color-primary)' }}>ホームへ戻る</Link>
+        <Link href="/play" style={{ color: 'var(--color-primary)' }}>ホームへ戻る</Link>
       </div>
     );
   }

@@ -127,7 +127,7 @@ export default function NewsPage() {
     return (
       <div style={{ padding: 40, textAlign: 'center' }}>
         <p>ゲームが開始されていません。</p>
-        <Link href="/" style={{ color: 'var(--color-primary)' }}>ホームへ戻る</Link>
+        <Link href="/play" style={{ color: 'var(--color-primary)' }}>ホームへ戻る</Link>
       </div>
     );
   }
@@ -152,7 +152,7 @@ export default function NewsPage() {
       <header className={styles.header}>
         <div className={styles.headerInner}>
           <span className={styles.headerTitle}>ニュース一覧</span>
-          <Link href="/" style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12 }}>
+          <Link href="/play" style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12 }}>
             ← ホームに戻る
           </Link>
         </div>
@@ -161,7 +161,7 @@ export default function NewsPage() {
       {/* ナビゲーション */}
       <nav className={styles.nav}>
         <div className={styles.navInner}>
-          <Link href="/" className={styles.navLink}>ホーム</Link>
+          <Link href="/play" className={styles.navLink}>ホーム</Link>
           <Link href="/team" className={styles.navLink}>チーム</Link>
           <Link href="/news" className={`${styles.navLink} ${styles.navLinkActive}`}>ニュース</Link>
           <Link href="/scout" className={styles.navLink}>スカウト</Link>

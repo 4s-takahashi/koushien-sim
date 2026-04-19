@@ -39,7 +39,7 @@ function TeamPage({ view }: { view: TeamViewState }) {
       </header>
       <nav className={styles.nav}>
         <div className={styles.navInner}>
-          <Link href="/" className={styles.navLink}>ホーム</Link>
+          <Link href="/play" className={styles.navLink}>ホーム</Link>
           <Link href="/team" className={`${styles.navLink} ${styles.navLinkActive}`}>チーム</Link>
           <Link href="/news" className={styles.navLink}>ニュース</Link>
           <Link href="/scout" className={styles.navLink}>スカウト</Link>
@@ -173,7 +173,7 @@ export default function TeamPageRoute() {
     return (
       <div style={{ padding: 40, textAlign: 'center' }}>
         <p>ゲームが開始されていません。</p>
-        <Link href="/" style={{ color: 'var(--color-primary)' }}>ホームへ戻る</Link>
+        <Link href="/play" style={{ color: 'var(--color-primary)' }}>ホームへ戻る</Link>
       </div>
     );
   }
