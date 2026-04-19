@@ -1,5 +1,10 @@
 /**
- * src/lib/cloud-save.ts — クラウドセーブ操作（サーバーサイド）
+ * src/lib/cloud-save.ts — クラウドセーブ操作（サーバーサイド専用）
+ *
+ * ⚠️ このファイルは db (Redis/KV) を読むためサーバー専用。
+ * Client Component から import すると ioredis がクライアントバンドルに
+ * 混入してビルドエラーになる。型と定数が欲しいだけなら
+ * `./cloud-save-types` を import すること。
  *
  * KV キー設計:
  *   save:{userId}:cloud_1  → CloudSaveEntry
@@ -8,34 +13,30 @@
  *   save_meta:{userId}     → CloudSaveSlotMeta[] (一覧キャッシュ)
  */
 
+import 'server-only';
 import { db } from './kv';
 
 // ============================================================
-// 型定義
+// 型定義（再エクスポート: 既存コードとの互換維持）
 // ============================================================
 
-export const CLOUD_SAVE_SLOTS = ['cloud_1', 'cloud_2', 'cloud_3'] as const;
-export type CloudSlotId = typeof CLOUD_SAVE_SLOTS[number];
+export {
+  CLOUD_SAVE_SLOTS,
+} from './cloud-save-types';
 
-export interface CloudSaveSlotMeta {
-  slotId: CloudSlotId;
-  displayName: string;
-  schoolName: string;
-  managerName: string;
-  currentDate: { year: number; month: number; day: number };
-  seasonPhase: string;
-  savedAt: string;     // ISO 8601
-  version: string;
-}
+export type {
+  CloudSlotId,
+  CloudSaveSlotMeta,
+  CloudSaveEntry,
+} from './cloud-save-types';
 
-export interface CloudSaveEntry {
-  slotId: CloudSlotId;
-  meta: CloudSaveSlotMeta;
-  stateJson: string;
-  checksum: string;
-  savedAt: string;
-  version: string;
-}
+// ローカル参照用（import type なしで使える）
+import type {
+  CloudSlotId,
+  CloudSaveSlotMeta,
+  CloudSaveEntry,
+} from './cloud-save-types';
+import { CLOUD_SAVE_SLOTS } from './cloud-save-types';
 
 // ============================================================
 // KV キー

@@ -1,6 +1,6 @@
 {
   "name": "koushien-sim",
-  "version": "0.11.1",
+  "version": "0.12.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -19,10 +19,12 @@
     "bcryptjs": "^3.0.3",
     "dexie": "^4.4.2",
     "happy-dom": "^20.8.9",
+    "ioredis": "^5.10.1",
     "next": "16.2.3",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "seedrandom": "^3.0.5",
+    "server-only": "^0.0.1",
     "uuid": "^13.0.0",
     "vitest": "^4.1.4",
     "zustand": "^5.0.12"

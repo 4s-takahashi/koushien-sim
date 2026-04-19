@@ -12,9 +12,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useWorldStore } from '../../../stores/world-store';
 import { WORLD_SAVE_SLOTS } from '../../../engine/save/world-save-manager';
 import type { WorldSaveSlotId, WorldSaveSlotMeta } from '../../../engine/save/world-save-manager';
-import type { CloudSaveSlotMeta } from '../../../lib/cloud-save';
-import { CLOUD_SAVE_SLOTS } from '../../../lib/cloud-save';
-import type { CloudSlotId } from '../../../lib/cloud-save';
+import type { CloudSaveSlotMeta, CloudSlotId } from '../../../lib/cloud-save-types';
+import { CLOUD_SAVE_SLOTS } from '../../../lib/cloud-save-types';
 import styles from './SaveLoadPanel.module.css';
 
 // ============================================================

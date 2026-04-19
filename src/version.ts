@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.11.1';
+export const VERSION = '0.12.0';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-19 10:45 UTC';
-export const GIT_SHA = 'b71775f-dirty';
+export const BUILD_DATE = '2026-04-19 10:57 UTC';
+export const GIT_SHA = '9bce343-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,17 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.12.0',
+    date: '2026-04-19',
+    changes: [
+      '🔴 データ永続化: Redis 連携を追加（MemoryKV 問題を根本解決）',
+      'pm2 restart でもユーザーアカウント・セーブデータが消えなくなった',
+      'ecosystem.config.js + .env でプロセス管理を整備',
+      'deploy.sh が .env を source して pm2 に環境変数を注入',
+      '※ 過去に登録していたアカウントは消失のため、再登録が必要です',
+    ],
+  },
   {
     version: '0.11.1',
     date: '2026-04-19',

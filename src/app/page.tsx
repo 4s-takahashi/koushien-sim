@@ -14,7 +14,7 @@ import { useRouter } from 'next/navigation';
 import { useWorldStore } from '../stores/world-store';
 import { listWorldSaves } from '../engine/save/world-save-manager';
 import type { WorldSaveSlotMeta } from '../engine/save/world-save-manager';
-import type { CloudSaveSlotMeta } from '../lib/cloud-save';
+import type { CloudSaveSlotMeta } from '../lib/cloud-save-types';
 import styles from './page.module.css';
 
 // ============================================================

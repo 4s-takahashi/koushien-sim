@@ -4,9 +4,9 @@
 #
 # 流れ:
 # 1. ローカルの git SHA を取得
-# 2. rsync で /opt/koushien-sim に同期 (.git 除外)
+# 2. rsync で /opt/koushien-sim に同期 (.git/.env 除外)
 # 3. VPS 側で npm ci && DEPLOY_GIT_SHA=$SHA npm run build (bump が正しい SHA を記録)
-# 4. pm2 restart
+# 4. pm2 を ecosystem.config.js で起動 (.env を source して環境変数注入)
 # 5. HTTP 応答を確認
 
 set -euo pipefail
@@ -27,7 +27,7 @@ if [ -n "$LOCAL_DIRTY" ]; then
 fi
 echo "[deploy] local SHA: $LOCAL_SHA"
 
-# 2. rsync
+# 2. rsync (.env は VPS 側で管理、上書きしない)
 echo "[deploy] rsync → $VPS_HOST:$VPS_DIR ..."
 rsync -avz --delete \
   -e "ssh -i $SSH_KEY -o StrictHostKeyChecking=no" \
@@ -35,18 +35,41 @@ rsync -avz --delete \
   --exclude .git \
   --exclude .next \
   --exclude '*.log' \
+  --exclude .env \
   --exclude .env.local \
   ./ "$VPS_HOST:$VPS_DIR/"
 
 # 3. build (DEPLOY_GIT_SHA で bump に正しい SHA を渡す)
 echo "[deploy] remote build (DEPLOY_GIT_SHA=$LOCAL_SHA) ..."
 ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "$VPS_HOST" \
-  "cd $VPS_DIR && npm ci && DEPLOY_GIT_SHA='$LOCAL_SHA' npm run build"
+  "cd $VPS_DIR && mkdir -p logs && npm ci && DEPLOY_GIT_SHA='$LOCAL_SHA' npm run build"
 
-# 4. pm2 restart
-echo "[deploy] pm2 restart ..."
-ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "$VPS_HOST" \
-  "pm2 restart koushien-sim"
+# 4. pm2 restart (ecosystem.config.js + .env から環境変数注入)
+echo "[deploy] pm2 restart with .env ..."
+ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "$VPS_HOST" bash <<REMOTE_SCRIPT
+set -euo pipefail
+cd $VPS_DIR
+
+# .env を source して pm2 に環境変数を継承させる
+if [ -f .env ]; then
+  set -a
+  # shellcheck disable=SC1091
+  source .env
+  set +a
+  echo "[deploy-remote] loaded .env (REDIS_URL=\${REDIS_URL:-<unset>})"
+else
+  echo "[deploy-remote] ⚠️  .env が見つかりません"
+fi
+
+# 既存プロセスがあれば reload、なければ start
+if pm2 describe koushien-sim >/dev/null 2>&1; then
+  pm2 restart koushien-sim --update-env
+else
+  pm2 start ecosystem.config.js
+fi
+
+pm2 save
+REMOTE_SCRIPT
 
 # 5. HTTP check
 sleep 3
