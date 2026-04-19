@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import VersionBadge from "@/components/VersionBadge";
 
 export const metadata: Metadata = {
   title: "甲子園への道 — 高校野球シミュレーション",
@@ -19,7 +20,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ja">
-      <body>{children}</body>
+      <body>
+        {children}
+        <VersionBadge />
+      </body>
     </html>
   );
 }

@@ -1,11 +1,15 @@
 {
   "name": "koushien-sim",
-  "version": "0.1.0",
+  "version": "0.11.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
-    "start": "next start"
+    "build": "npm run bump && next build",
+    "start": "next start",
+    "bump": "node scripts/bump-version.mjs meta",
+    "bump:patch": "node scripts/bump-version.mjs patch",
+    "bump:minor": "node scripts/bump-version.mjs minor",
+    "bump:major": "node scripts/bump-version.mjs major"
   },
   "dependencies": {
     "@types/bcryptjs": "^2.4.6",
