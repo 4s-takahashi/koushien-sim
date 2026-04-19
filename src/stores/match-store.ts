@@ -133,7 +133,7 @@ const INITIAL_STATE: MatchStoreState = {
   runner: null,
   playerSchoolId: '',
   gameSeed: '',
-  runnerMode: { time: 'standard', pitch: 'off' },
+  runnerMode: { time: 'standard', pitch: 'on' },
   pauseReason: null,
   pitchLog: [],
   narration: [],

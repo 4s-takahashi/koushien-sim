@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.18.4';
+export const VERSION = '0.18.5';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-19 21:38 UTC';
-export const GIT_SHA = '6a705d4-dirty';
+export const BUILD_DATE = '2026-04-19 22:58 UTC';
+export const GIT_SHA = 'b576e34-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,18 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.18.5',
+    date: '2026-04-19',
+    changes: [
+      '🔧 Phase 7-A: 基盤整備（1球モードデフォルト化 WIP）',
+      '【デフォルト変更】runnerMode デフォルトを pitch: off → on に',
+      '  新規試合は1球ごと停止がデフォルト（プレイヤーが任意に切り替え可能）',
+      '【MatchState 拡張】runnerMode? フィールド追加',
+      '  既存セーブデータとの互換性維持（undefined は on にフォールバック）',
+      '【次のステップ】実況ログ詳細化 + アコーディオン化',
+    ],
+  },
   {
     version: '0.18.4',
     date: '2026-04-19',

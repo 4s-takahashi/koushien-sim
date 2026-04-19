@@ -273,6 +273,8 @@ export interface MatchState {
   log: MatchEvent[];
   isOver: boolean;
   result: MatchResult | null;
+  /** Phase 7-A: 試合進行モード（1球ごと停止 on/off） */
+  runnerMode?: { time: 'standard' | 'short'; pitch: 'on' | 'off' };
 }
 
 /** 試合結果 */
