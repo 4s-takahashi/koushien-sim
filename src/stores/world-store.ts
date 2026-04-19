@@ -8,7 +8,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { PracticeMenuId, GameDate } from '../engine/types/calendar';
-import type { ManagerStyle } from '../engine/types/team';
 import type { WorldState } from '../engine/world/world-state';
 import type { WorldDayResult } from '../engine/world/world-ticker';
 import type { ScoutSearchFilter } from '../engine/world/world-state';
@@ -125,14 +124,6 @@ interface WorldStore {
   setIndividualMenu: (playerId: string, menuId: PracticeMenuId | null) => void;
   /** 全選手の個別メニューをクリアする */
   clearAllIndividualMenus: () => void;
-
-  // --- 監督戦術スタイル (Phase 11-A2 2026-04-19) ---
-  /**
-   * 監督の戦術スタイルを設定する。
-   * aggressive / balanced / defensive / small_ball から選択。
-   * undefined を渡すと style フィールドを削除して balanced と同等になる。
-   */
-  setManagerStyle: (style: ManagerStyle | undefined) => void;
 
   // --- 一時休養アクション (2026-04-19 Issue #5) ---
   /**
@@ -590,22 +581,6 @@ export const useWorldStore = create<WorldStore>()(
       return { ...school, individualPracticeMenus: undefined, _summary: null };
     });
     set({ worldState: { ...worldState, schools: newSchools } });
-  },
-
-  // ----------------------------------------------------------------
-  // 監督戦術スタイル (Phase 11-A2 2026-04-19)
-  // ----------------------------------------------------------------
-  setManagerStyle: (style: ManagerStyle | undefined) => {
-    const { worldState } = get();
-    if (!worldState) return;
-    const newManager = style !== undefined
-      ? { ...worldState.manager, style }
-      : (() => {
-          const m = { ...worldState.manager };
-          delete m.style;
-          return m;
-        })();
-    set({ worldState: { ...worldState, manager: newManager } });
   },
 
   // ----------------------------------------------------------------

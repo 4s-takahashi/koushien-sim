@@ -5,15 +5,12 @@ import { MATCH_CONSTANTS } from '../constants';
 /**
  * スイングが当たった際の打球を生成する
  * 打球種類・方向・速度・飛距離を算出する（守備結果はここでは確定しない）
- *
- * @param longHitMultiplier 長打飛距離乗数 (Phase 11-A2)。1.0 = 補正なし、1.05 = aggressive +5%
  */
 export function generateBatContact(
   batter: BatterParams,
   pitch: PitchSelection,
   location: PitchLocation,
   rng: RNG,
-  longHitMultiplier: number = 1.0,
 ): Omit<BatContactResult, 'fieldResult'> {
   const powerFactor = batter.power / 100;
   const contactFactor = batter.contact / 100;
@@ -101,11 +98,6 @@ export function generateBatContact(
     default:
       distance = 10 + rng.next() * 30; // 10-40m
       break;
-  }
-
-  // Phase 11-A2: aggressive スタイルは長打係数 +5%（フライ・ライナーに適用）
-  if (longHitMultiplier !== 1.0 && (contactType === 'fly_ball' || contactType === 'line_drive')) {
-    distance = distance * longHitMultiplier;
   }
 
   return { contactType, direction, speed, distance };

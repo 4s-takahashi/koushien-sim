@@ -28,15 +28,6 @@ export interface FacilityLevel {
   gym: number;
 }
 
-/**
- * 監督の戦術スタイル (Phase 11-A2 2026-04-19)
- * - aggressive:  強振志向。長打係数+5%、CPU 盗塁/バント確率-10%
- * - balanced:    補正なし（デフォルト）
- * - defensive:   守備固め。エラー率-10%、CPU 送りバント+10%
- * - small_ball:  小技野球。CPU 送りバント+25%、盗塁成功率+5%
- */
-export type ManagerStyle = 'aggressive' | 'balanced' | 'defensive' | 'small_ball';
-
 export interface Manager {
   name: string;
   yearsActive: number;
@@ -45,8 +36,6 @@ export interface Manager {
   totalLosses: number;
   koshienAppearances: number;
   koshienWins: number;
-  /** 戦術スタイル (Phase 11-A2)。未設定なら balanced と同等 */
-  style?: ManagerStyle;
 }
 
 export interface ValidationResult {

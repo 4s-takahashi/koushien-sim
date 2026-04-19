@@ -6,9 +6,7 @@ import type {
   TacticalOrder,
 } from './types';
 import type { Position } from '../types/player';
-import type { ManagerStyle } from '../types/team';
 import { MATCH_CONSTANTS } from './constants';
-import { getStyleEffects } from './manager-style-effects';
 
 // ============================================================
 // 采配の妥当性チェック
@@ -377,7 +375,6 @@ export function attemptSteal(
 export function cpuAutoTactics(
   state: MatchState,
   rng: RNG,
-  managerStyle?: ManagerStyle,
 ): TacticalOrder {
   const fieldingTeam = state.currentHalf === 'top' ? state.homeTeam : state.awayTeam;
   const currentPitcher = fieldingTeam.players.find((p) => p.player.id === fieldingTeam.currentPitcherId);
@@ -393,40 +390,13 @@ export function cpuAutoTactics(
     }
   }
 
-  // スタイル別効果を取得
-  const effects = getStyleEffects(managerStyle);
-
-  // バント判定（スタイル補正あり）
-  // 基本確率: 1塁走者あり・2塁空き・0アウト・1点差以内・7回以降で true
+  // バント判定
   if (
     state.bases.first &&
     !state.bases.second &&
     state.outs === 0 &&
     Math.abs(state.score.home - state.score.away) <= 1 &&
     state.currentInning >= 7
-  ) {
-    // バント確率: 基本 100% ± スタイル補正
-    // cpuBuntBias が正なら確率増加、負なら減少
-    const baseBuntChance = 1.0 + effects.cpuBuntBias;
-    if (baseBuntChance <= 0 || (baseBuntChance < 1.0 && !rng.chance(baseBuntChance))) {
-      // aggressive で確率が下がって不発 → バントしない
-    } else {
-      const batter = state.currentHalf === 'top'
-        ? state.awayTeam.battingOrder[state.currentBatterIndex]
-        : state.homeTeam.battingOrder[state.currentBatterIndex];
-      return { type: 'bunt', playerId: batter };
-    }
-  }
-
-  // small_ball: 追加バント機会（早めのイニングでも送りバント）
-  if (
-    effects.cpuBuntBias >= 0.25 &&
-    state.bases.first &&
-    !state.bases.second &&
-    state.outs === 0 &&
-    Math.abs(state.score.home - state.score.away) <= 2 &&
-    state.currentInning >= 5 &&
-    rng.chance(0.35)
   ) {
     const batter = state.currentHalf === 'top'
       ? state.awayTeam.battingOrder[state.currentBatterIndex]

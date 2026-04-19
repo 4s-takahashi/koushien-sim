@@ -1,9 +1,7 @@
 import type { RNG } from '../../core/rng';
 import type { BatContactResult, BatterParams, Count, PitchLocation, PitchSelection } from '../types';
-import type { ManagerStyle } from '../../types/team';
 import { MATCH_CONSTANTS } from '../constants';
 import { generateBatContact } from './bat-contact';
-import { getStyleEffects } from '../manager-style-effects';
 
 export interface SwingResultDetail {
   outcome: 'swinging_strike' | 'foul' | 'in_play';
@@ -15,8 +13,6 @@ export interface SwingResultDetail {
  * 1. 接触判定 → 空振り or 接触
  * 2. フェア/ファウル判定
  * 3. インプレー → 打球生成
- *
- * @param managerStyle 監督の戦術スタイル (Phase 11-A2)。未指定なら balanced 相当
  */
 export function calculateSwingResult(
   batter: BatterParams,
@@ -24,7 +20,6 @@ export function calculateSwingResult(
   location: PitchLocation,
   count: Count,
   rng: RNG,
-  managerStyle?: ManagerStyle,
 ): SwingResultDetail {
   // ── (1) 接触判定 ──
   // contact=100→85%, contact=50→64%, contact=10→47%
@@ -73,8 +68,6 @@ export function calculateSwingResult(
   }
 
   // ── (3) フェア打球 → 打球生成 ──
-  // aggressive スタイルは長打係数 +5%（longHitMultiplier を bat-contact に伝達）
-  const styleEffects = getStyleEffects(managerStyle);
-  const contact = generateBatContact(batter, pitch, location, rng, styleEffects.longHitMultiplier);
+  const contact = generateBatContact(batter, pitch, location, rng);
   return { outcome: 'in_play', contact };
 }
