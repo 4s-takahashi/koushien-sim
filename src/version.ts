@@ -16,7 +16,7 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.12.5';
+export const VERSION = '0.12.6';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
 export const BUILD_DATE = '2026-04-19 11:40 UTC';
@@ -33,6 +33,16 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.12.6',
+    date: '2026-04-19',
+    changes: [
+      '実況ログから内部用語「インプレー」を除去',
+      'ホームラン/ヒット/二塁打/三塁打/アウト等を球種と同じ行で直接表示',
+      '例: 「石川 → 吉川: チェンジアップ … 🔥 ホームラン！！」',
+      '得点発生時は「⚾ N点追加！」を続けて表示',
+    ],
+  },
   {
     version: '0.12.5',
     date: '2026-04-19',

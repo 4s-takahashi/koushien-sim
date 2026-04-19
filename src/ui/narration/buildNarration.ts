@@ -45,7 +45,9 @@ function outcomeJP(outcome: string): string {
     case 'ball': return 'ボール';
     case 'foul': return 'ファウル';
     case 'foul_bunt': return 'ファウルバント（ストライク）';
-    case 'in_play': return 'インプレー';
+    // in_play はここには来ない想定（buildNarrationForPitch 側で
+    // 打球結果に展開して表示する）。念のためのフォールバック。
+    case 'in_play': return '打球';
     default: return outcome;
   }
 }
@@ -119,7 +121,6 @@ export function buildNarrationForPitch(
   const batter = getBatterName(stateBefore);
   const pitcher = getPitcherName(stateBefore);
   const pitchType = pitchTypeJP(pitch.pitchSelection.type);
-  const outcomeText = outcomeJP(pitch.outcome);
 
   // 打席開始時（count 0-0）は「N番 打者 登場」を前に出す
   const isAtBatStart =
@@ -136,24 +137,20 @@ export function buildNarrationForPitch(
     });
   }
 
-  entries.push({
-    id: `${baseId}-p`,
-    text: `⚾ ${pitcher} → ${batter}: ${pitchType} … ${outcomeText}`,
-    kind: pitch.outcome === 'in_play' ? 'highlight' : 'normal',
-    inning: stateBefore.currentInning,
-    half: stateBefore.currentHalf,
-    at: Date.now(),
-  });
+  // ── 投球結果のテキスト生成 ──
+  // in_play の場合は「インプレー」という内部用語を出さず、打球結果を直接表示する
+  let resultText: string;
+  let resultKind: NarrationEntry['kind'] = 'normal';
+  let scoreLine: { text: string; kind: NarrationEntry['kind'] } | null = null;
 
-  // インプレーの場合、打球結果を人間が読める形で表示
   if (pitch.outcome === 'in_play' && pitch.batContact) {
     const fr = pitch.batContact.fieldResult;
     const isTop = stateBefore.currentHalf === 'top';
     const scoredRuns = isTop
       ? stateAfter.score.away - stateBefore.score.away
       : stateAfter.score.home - stateBefore.score.home;
-    const scoreText = scoredRuns > 0 ? ` ${scoredRuns}点追加！` : '';
 
+    // 打球結果マップ（人間が読める日本語）
     const resultMap: Record<string, { text: string; kind: NarrationEntry['kind'] }> = {
       single: { text: 'ヒット！', kind: 'highlight' },
       double: { text: '二塁打！', kind: 'highlight' },
@@ -161,15 +158,42 @@ export function buildNarrationForPitch(
       home_run: { text: '🔥 ホームラン！！', kind: 'score' },
       error: { text: 'エラー出塁', kind: 'normal' },
       out: { text: 'アウト', kind: 'out' },
-      double_play: { text: 'ダブルプレー', kind: 'out' },
+      double_play: { text: 'ダブルプレー！', kind: 'out' },
       sacrifice: { text: '犠打', kind: 'normal' },
       sacrifice_fly: { text: '犠牲フライ', kind: 'normal' },
     };
     const r = resultMap[fr.type] ?? { text: fr.type, kind: 'normal' as const };
+    resultText = r.text;
+    resultKind = r.kind;
+
+    // 得点があれば別行で出す（目立たせる）
+    if (scoredRuns > 0) {
+      scoreLine = {
+        text: `   ⚾ ${scoredRuns}点追加！`,
+        kind: 'score',
+      };
+    }
+  } else {
+    resultText = outcomeJP(pitch.outcome);
+    resultKind = 'normal';
+  }
+
+  // 1行で: 投手 → 打者: 球種 … 結果
+  entries.push({
+    id: `${baseId}-p`,
+    text: `⚾ ${pitcher} → ${batter}: ${pitchType} … ${resultText}`,
+    kind: resultKind,
+    inning: stateBefore.currentInning,
+    half: stateBefore.currentHalf,
+    at: Date.now(),
+  });
+
+  // 得点があれば続けて
+  if (scoreLine) {
     entries.push({
-      id: `${baseId}-hit`,
-      text: `   → ${r.text}${scoreText}`,
-      kind: scoredRuns > 0 ? 'score' : r.kind,
+      id: `${baseId}-score`,
+      text: scoreLine.text,
+      kind: scoreLine.kind,
       inning: stateBefore.currentInning,
       half: stateBefore.currentHalf,
       at: Date.now(),
