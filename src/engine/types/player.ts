@@ -98,6 +98,26 @@ export interface CareerRecord {
   losses: number;
   strikeouts: number;
   earnedRuns: number;
+  /**
+   * シーズン別成績。key は学年 (1/2/3)。
+   * 例: bySeason[1] = 1年生時の集計 (2026-04-19 Issue #6)
+   */
+  bySeason?: Record<1 | 2 | 3, SeasonRecord>;
+}
+
+/** 1シーズン分の成績 (Issue #6) */
+export interface SeasonRecord {
+  gamesPlayed: number;
+  atBats: number;
+  hits: number;
+  homeRuns: number;
+  rbis: number;
+  stolenBases: number;
+  inningsPitched: number;
+  wins: number;
+  losses: number;
+  strikeouts: number;
+  earnedRuns: number;
 }
 
 export interface Player {

@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.14.0';
+export const VERSION = '0.15.0';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-19 15:26 UTC';
-export const GIT_SHA = 'f108bc6-dirty';
+export const BUILD_DATE = '2026-04-19 15:37 UTC';
+export const GIT_SHA = '3bb4e24-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,16 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.15.0',
+    date: '2026-04-19',
+    changes: [
+      '📊 通算成績が記録されるように (Issue #6)',
+      '試合終了後に自動で選手の careerStats に加算',
+      'シーズン別成績 (1年/2年/3年) を選手詳細画面に表示',
+      'Issue #6 (PR #4) 対応',
+    ],
+  },
   {
     version: '0.14.0',
     date: '2026-04-19',

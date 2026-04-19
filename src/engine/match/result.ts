@@ -258,13 +258,30 @@ export function applyPitcherStatToCareer(
   };
 }
 
+/** シーズン集計用の空レコード */
+function emptySeasonRecord(): import('../types/player').SeasonRecord {
+  return {
+    gamesPlayed: 0, atBats: 0, hits: 0, homeRuns: 0, rbis: 0, stolenBases: 0,
+    inningsPitched: 0, wins: 0, losses: 0, strikeouts: 0, earnedRuns: 0,
+  };
+}
+
+/** 学年を算出 (1/2/3 / 範囲外は null) */
+function computeGrade(enrollmentYear: number, currentYear: number): 1 | 2 | 3 | null {
+  const grade = currentYear - enrollmentYear + 1;
+  if (grade === 1 || grade === 2 || grade === 3) return grade;
+  return null;
+}
+
 /**
  * 試合結果を全選手の CareerRecord に反映する。
+ * currentYear を渡すと bySeason にも加算される (Issue #6 2026-04-19)。
  */
 export function applyMatchToPlayers(
   players: Player[],
   batterStats: MatchBatterStat[],
   pitcherStats: MatchPitcherStat[],
+  currentYear?: number,
 ): Player[] {
   const batterMap = new Map(batterStats.map((s) => [s.playerId, s]));
   const pitcherMap = new Map(pitcherStats.map((s) => [s.playerId, s]));
@@ -285,6 +302,39 @@ export function applyMatchToPlayers(
     // 重複カウント防止: 投手が打者としても出場した場合、gamesPlayedを-1
     if (bs && ps) {
       career = { ...career, gamesPlayed: career.gamesPlayed - 1 };
+    }
+
+    // シーズン別集計 (2026-04-19 Issue #6)
+    if (currentYear !== undefined && (bs || ps)) {
+      const grade = computeGrade(player.enrollmentYear, currentYear);
+      if (grade !== null) {
+        const bySeason = {
+          1: career.bySeason?.[1] ?? emptySeasonRecord(),
+          2: career.bySeason?.[2] ?? emptySeasonRecord(),
+          3: career.bySeason?.[3] ?? emptySeasonRecord(),
+        };
+        const season = { ...bySeason[grade] };
+        let gameCounted = false;
+        if (bs) {
+          season.gamesPlayed += 1;
+          season.atBats += bs.atBats;
+          season.hits += bs.hits;
+          season.homeRuns += bs.homeRuns;
+          season.rbis += bs.rbis;
+          season.stolenBases += bs.stolenBases;
+          gameCounted = true;
+        }
+        if (ps) {
+          if (!gameCounted) season.gamesPlayed += 1;
+          season.inningsPitched += ps.inningsPitched;
+          season.wins += ps.isWinner ? 1 : 0;
+          season.losses += ps.isLoser ? 1 : 0;
+          season.strikeouts += ps.strikeouts;
+          season.earnedRuns += ps.earnedRuns;
+        }
+        bySeason[grade] = season;
+        career = { ...career, bySeason };
+      }
     }
 
     return { ...player, careerStats: career };

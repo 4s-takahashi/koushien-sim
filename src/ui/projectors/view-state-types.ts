@@ -249,6 +249,28 @@ export interface PlayerDetailViewState {
     strikeouts: number;
     era: string;  // "X.XX" 形式
   } | null;
+
+  /** シーズン別成績 (Issue #6 2026-04-19)。未プレイのシーズンは null */
+  seasonRecords?: {
+    grade1: SeasonRecordView | null;
+    grade2: SeasonRecordView | null;
+    grade3: SeasonRecordView | null;
+  };
+}
+
+/** シーズン別成績表示用 (Issue #6) */
+export interface SeasonRecordView {
+  gamesPlayed: number;
+  atBats: number;
+  hits: number;
+  homeRuns: number;
+  rbis: number;
+  battingAverage: string;  // ".XXX"
+  inningsPitched: number;
+  wins: number;
+  losses: number;
+  strikeouts: number;
+  era: string;  // "X.XX"
 }
 
 // ============================================================

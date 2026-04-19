@@ -204,6 +204,71 @@ function PlayerDetail({ view }: { view: PlayerDetailViewState }) {
             </table>
           </div>
         )}
+
+        {/* シーズン別成績 (Issue #6 2026-04-19) */}
+        {view.seasonRecords && (
+          <div className={styles.section}>
+            <div className={styles.sectionTitle}>シーズン別成績</div>
+            <table className={styles.recordTable}>
+              <thead>
+                <tr>
+                  <th>学年</th>
+                  <th>試合</th>
+                  <th>打数</th>
+                  <th>安打</th>
+                  <th>本塁打</th>
+                  <th>打点</th>
+                  <th>打率</th>
+                  {view.pitchingRecord && (
+                    <>
+                      <th>投球回</th>
+                      <th>勝</th>
+                      <th>敗</th>
+                      <th>奪三振</th>
+                      <th>防御率</th>
+                    </>
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {([1, 2, 3] as const).map((g) => {
+                  const key = `grade${g}` as 'grade1' | 'grade2' | 'grade3';
+                  const rec = view.seasonRecords?.[key];
+                  if (!rec) {
+                    return (
+                      <tr key={g}>
+                        <td>{g}年</td>
+                        <td colSpan={view.pitchingRecord ? 11 : 6} style={{ color: '#999', fontSize: 12, textAlign: 'center' }}>
+                          試合出場なし
+                        </td>
+                      </tr>
+                    );
+                  }
+                  return (
+                    <tr key={g}>
+                      <td><strong>{g}年</strong></td>
+                      <td>{rec.gamesPlayed}</td>
+                      <td>{rec.atBats}</td>
+                      <td>{rec.hits}</td>
+                      <td>{rec.homeRuns}</td>
+                      <td>{rec.rbis}</td>
+                      <td><strong>{rec.battingAverage}</strong></td>
+                      {view.pitchingRecord && (
+                        <>
+                          <td>{rec.inningsPitched.toFixed(1)}</td>
+                          <td>{rec.wins}</td>
+                          <td>{rec.losses}</td>
+                          <td>{rec.strikeouts}</td>
+                          <td><strong>{rec.era}</strong></td>
+                        </>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </main>
     </div>
   );

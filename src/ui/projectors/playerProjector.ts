@@ -179,6 +179,33 @@ export function projectPlayer(
     right: '右投げ',
   };
 
+  // シーズン別成績 (Issue #6 2026-04-19)
+  const bySeason = cs.bySeason;
+  const buildSeasonView = (g: 1 | 2 | 3): import('./view-state-types').SeasonRecordView | null => {
+    const s = bySeason?.[g];
+    if (!s || s.gamesPlayed === 0) return null;
+    return {
+      gamesPlayed: s.gamesPlayed,
+      atBats: s.atBats,
+      hits: s.hits,
+      homeRuns: s.homeRuns,
+      rbis: s.rbis,
+      battingAverage: battingAverage(s.hits, s.atBats),
+      inningsPitched: s.inningsPitched,
+      wins: s.wins,
+      losses: s.losses,
+      strikeouts: s.strikeouts,
+      era: era(s.earnedRuns, s.inningsPitched),
+    };
+  };
+  const seasonRecords = bySeason
+    ? {
+        grade1: buildSeasonView(1),
+        grade2: buildSeasonView(2),
+        grade3: buildSeasonView(3),
+      }
+    : undefined;
+
   return {
     id: player.id,
     lastName: player.lastName,
@@ -202,6 +229,7 @@ export function projectPlayer(
     condition,
     battingRecord,
     pitchingRecord,
+    seasonRecords,
   };
 }
 

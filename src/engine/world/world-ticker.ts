@@ -15,6 +15,7 @@ import { getAnnualSchedule, isInCamp } from '../calendar/schedule';
 import { processDay } from '../calendar/day-processor';
 import type { GameState } from '../types/game-state';
 import type { Player } from '../types/player';
+import { applyMatchToPlayers as applyMatchToPlayersImport } from '../match/result';
 import { applyBatchGrowth } from '../growth/batch-growth';
 import { applyBulkGrowth } from '../growth/bulk-growth';
 import { processYearTransition } from './year-transition';
@@ -1071,6 +1072,21 @@ export function completeInteractiveMatch(
   const generatedNews = generateDailyNews(world, rng.derive('news-gen'));
   worldNews.push(...generatedNews);
 
+  // --- 自校選手の careerStats を更新 (Issue #6 2026-04-19) ---
+  // interactiveMatchResult の batterStats/pitcherStats を自校選手の通算成績に加算する
+  const playerSchool = world.schools.find((s) => s.id === world.playerSchoolId);
+  const updatedSchoolsWithCareer = world.schools.map((s) => {
+    if (s.id !== world.playerSchoolId) return s;
+    const updatedPlayers = applyMatchToPlayersImport(
+      s.players,
+      interactiveMatchResult.batterStats ?? [],
+      interactiveMatchResult.pitcherStats ?? [],
+      world.currentDate.year,
+    );
+    return { ...s, players: updatedPlayers, _summary: null };
+  });
+  void playerSchool;
+
   const nextWorld: WorldState = {
     ...world,
     currentDate: newDate,
@@ -1078,6 +1094,7 @@ export function completeInteractiveMatch(
     activeTournament,
     tournamentHistory,
     pendingInteractiveMatch: null,
+    schools: updatedSchoolsWithCareer,
   };
 
   const finalSeasonTransition: SeasonPhase | null =
