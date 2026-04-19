@@ -130,6 +130,58 @@ export function buildNarrationForPitch(
     at: Date.now(),
   });
 
+  // アウトが増えた場合（三振・インプレーアウト等）
+  if (stateAfter.outs > stateBefore.outs) {
+    const addOuts = stateAfter.outs - stateBefore.outs;
+    // 3アウトに到達した時は switchHalfInning で outs が 0 にリセットされるので
+    // stateAfter.outs < stateBefore.outs になるケースも次でハンドル
+    entries.push({
+      id: `${baseId}-out`,
+      text: `   ${addOuts === 2 ? 'ダブルプレー！' : ''} → ${stateAfter.outs}アウト`,
+      kind: 'out',
+      inning: stateBefore.currentInning,
+      half: stateBefore.currentHalf,
+      at: Date.now(),
+    });
+  }
+
+  // 攻守交代判定（3アウトでチェンジした場合、outs は 0 にリセットされている）
+  const halfChanged = stateBefore.currentHalf !== stateAfter.currentHalf;
+  const inningChanged = stateBefore.currentInning !== stateAfter.currentInning;
+
+  if (halfChanged || inningChanged) {
+    entries.push({
+      id: `${baseId}-change`,
+      text: `━━━ 🔁 3アウト・チェンジ ━━━`,
+      kind: 'highlight',
+      inning: stateBefore.currentInning,
+      half: stateBefore.currentHalf,
+      at: Date.now(),
+    });
+
+    if (stateAfter.isOver) {
+      entries.push({
+        id: `${baseId}-gameover`,
+        text: `🏆 ゲームセット！ ${stateAfter.score.away} - ${stateAfter.score.home}`,
+        kind: 'score',
+        inning: stateAfter.currentInning,
+        half: stateAfter.currentHalf,
+        at: Date.now(),
+      });
+    } else {
+      const inn = stateAfter.currentInning;
+      const hl = halfLabel(stateAfter.currentHalf);
+      entries.push({
+        id: `${baseId}-half`,
+        text: `⚾ ${inn}回${hl}の攻撃 開始`,
+        kind: 'highlight',
+        inning: stateAfter.currentInning,
+        half: stateAfter.currentHalf,
+        at: Date.now(),
+      });
+    }
+  }
+
   return entries;
 }
 
@@ -191,19 +243,44 @@ export function buildNarrationForAtBat(
     at: Date.now(),
   });
 
-  // 攻守交代
-  if (stateBefore.currentHalf !== stateAfter.currentHalf ||
-      stateBefore.currentInning !== stateAfter.currentInning) {
-    const inn = stateAfter.currentInning;
-    const hl = halfLabel(stateAfter.currentHalf);
+  // 攻守交代（3アウト・イニング交代）
+  const halfChanged = stateBefore.currentHalf !== stateAfter.currentHalf;
+  const inningChanged = stateBefore.currentInning !== stateAfter.currentInning;
+
+  if (halfChanged || inningChanged) {
+    // 3アウト・チェンジ（目立たせる：highlight）
     entries.push({
-      id: `${baseId}-half`,
-      text: `🔔 ${inn}回${hl}へ`,
-      kind: 'normal',
-      inning: stateAfter.currentInning,
-      half: stateAfter.currentHalf,
+      id: `${baseId}-change`,
+      text: `━━━ 🔁 3アウト・チェンジ ━━━`,
+      kind: 'highlight',
+      inning: stateBefore.currentInning,
+      half: stateBefore.currentHalf,
       at: Date.now(),
     });
+
+    // 試合終了チェック
+    if (stateAfter.isOver) {
+      entries.push({
+        id: `${baseId}-gameover`,
+        text: `🏆 ゲームセット！ ${stateAfter.score.away} - ${stateAfter.score.home}`,
+        kind: 'score',
+        inning: stateAfter.currentInning,
+        half: stateAfter.currentHalf,
+        at: Date.now(),
+      });
+    } else {
+      // 次のイニングへ
+      const inn = stateAfter.currentInning;
+      const hl = halfLabel(stateAfter.currentHalf);
+      entries.push({
+        id: `${baseId}-half`,
+        text: `⚾ ${inn}回${hl}の攻撃 開始`,
+        kind: 'highlight',
+        inning: stateAfter.currentInning,
+        half: stateAfter.currentHalf,
+        at: Date.now(),
+      });
+    }
   }
 
   return entries;

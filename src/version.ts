@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.11.0';
+export const VERSION = '0.11.1';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-19 10:32 UTC';
-export const GIT_SHA = '3fd667b-dirty';
+export const BUILD_DATE = '2026-04-19 10:45 UTC';
+export const GIT_SHA = 'b71775f-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,17 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.11.1',
+    date: '2026-04-19',
+    changes: [
+      '試合が途中で止まるバグを修正（3アウト時に攻守交代が走らないケース）',
+      '打席進行時の打順二重進行バグを修正（processAtBat と runner の両方で +1 していた）',
+      '3アウト・チェンジを実況ログで大きく表示',
+      'アウト加算時にナレーション出力を追加',
+      '試合終了時に「ゲームセット！」と明示',
+    ],
+  },
   {
     version: '0.11.0',
     date: '2026-04-19',

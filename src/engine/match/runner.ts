@@ -620,15 +620,22 @@ export class MatchRunner {
     const prevLog = this.state.log;
 
     const { nextState, result } = processAtBat(this.state, order, rng);
-    // 打順を進める（0-8 ループ）
-    const newBatterIndex = (nextState.currentBatterIndex + 1) % 9;
-    this.state = { ...nextState, currentBatterIndex: newBatterIndex };
+    // ⚠️ processAtBat が内部で currentBatterIndex を +1 済み
+    // → ここで追加の +1 は絶対にしない（二重進行バグ 2026-04-19 修正）
+    this.state = nextState;
 
     // 使用した采配をクリア
     this.pendingPlayerOrder = null;
 
     // 打席結果を蓄積
     this.allAtBatResults.push(result);
+
+    // ── 3アウト到達 → 攻守交代（試合終了判定含む）──
+    // processAtBat 内で 3アウトに達したが、switchHalfInning が呼ばれない構造なので
+    // runner 側で必ずチェックしてイニングを切り替える（試合が止まるバグ 2026-04-19 修正）
+    if (!this.state.isOver && this.state.outs >= 3) {
+      this.switchHalfInning();
+    }
 
     const newEvents = this.state.log.slice(prevLog.length);
 
