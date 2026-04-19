@@ -67,13 +67,46 @@ export function buildMatchTeam(school: HighSchool): MatchTeam {
     }
   }
 
-  // 投手を探す（ポジションが'pitcher'またはpitchingStatsを持つ最初の選手）
+  // 投手を探す（pitching stats を持つ選手を優先。school 全体から探す）
+  // matchPlayers だけでなく school.players 全体も見て、stats.pitching !== null の
+  // 選手がいればそれを投手にする。見つからなければ school.players[0] に
+  // 仮の pitching stats を付与して投げさせる（試合が止まらないようにするため）。
+  // (2026-04-19 バグ修正: stats.pitching=null の選手が投手になるとNPE)
   const pitcherPlayer =
     players.find((p) => p.position === 'pitcher' && p.stats.pitching !== null) ??
     players.find((p) => p.stats.pitching !== null) ??
-    players[0];
+    school.players.find((p) => p.stats.pitching !== null);
 
-  const currentPitcherId = pitcherPlayer?.id ?? players[0]?.id ?? '';
+  if (!pitcherPlayer) {
+    // どうしても投手がいない場合: school.players[0] に緊急用 pitching stats を付与
+    const emergency = school.players[0];
+    if (emergency && emergency.stats.pitching === null) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (emergency as any).stats = {
+        ...emergency.stats,
+        pitching: {
+          velocity: 110,
+          control: 40,
+          pitchStamina: 40,
+          pitches: { fastball: 3, curve: 2 },
+        },
+      };
+    }
+  }
+
+  const finalPitcher = pitcherPlayer ?? school.players[0];
+  const currentPitcherId = finalPitcher?.id ?? '';
+
+  // 選んだ投手が matchPlayers に含まれていなければ追加する
+  if (finalPitcher && !matchPlayers.some((mp) => mp.player.id === finalPitcher.id)) {
+    matchPlayers.push({
+      player: finalPitcher,
+      pitchCountInGame: 0,
+      stamina: 100,
+      confidence: finalPitcher.stats.base.mental,
+      isWarmedUp: false,
+    });
+  }
 
   const fieldPositions = new Map<string, import('../types/player').Position>();
   const defaultPositions: import('../types/player').Position[] = [

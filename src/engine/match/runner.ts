@@ -545,10 +545,20 @@ export class MatchRunner {
   private switchHalfInning(): void {
     const state = this.state;
 
+    // 終了したハーフイニングのスコア配列に 0 を補完する
+    // (無得点イニングでも配列に 0 を入れておくことで、スコアボード表示時に
+    //  '-' ではなく '0' が出るようにする。2026-04-19 高橋さん指摘)
+    const inningScores = this.ensureInningScoreFilled(
+      state.inningScores,
+      state.currentInning,
+      state.currentHalf === 'top' ? 'away' : 'home',
+    );
+
     if (state.currentHalf === 'top') {
       // 表終了 → 裏へ
       this.state = {
         ...state,
+        inningScores,
         currentHalf: 'bottom',
         outs: 0,
         count: { balls: 0, strikes: 0 },
@@ -565,18 +575,21 @@ export class MatchRunner {
 
       if (regulationDone && scoreDifferent) {
         // 規定回終了 & 決着あり → 試合終了
+        this.state = { ...state, inningScores };
         this.finalizeGame();
         return;
       }
 
       if (nextInning > maxInnings) {
         // 延長上限突破 → 強制終了
+        this.state = { ...state, inningScores };
         this.finalizeGame();
         return;
       }
 
       this.state = {
         ...state,
+        inningScores,
         currentInning: nextInning,
         currentHalf: 'top',
         outs: 0,
@@ -584,6 +597,22 @@ export class MatchRunner {
         bases: EMPTY_BASES,
       };
     }
+  }
+
+  /**
+   * 指定したチームの inningScores 配列に、指定イニングまで 0 を埋める
+   * (既に値が入っていれば触らない)。
+   */
+  private ensureInningScoreFilled(
+    inningScores: MatchState['inningScores'],
+    inningNumber: number,
+    side: 'home' | 'away',
+  ): MatchState['inningScores'] {
+    const arr = [...inningScores[side]];
+    while (arr.length < inningNumber) {
+      arr.push(0);
+    }
+    return { ...inningScores, [side]: arr };
   }
 
   // ----------------------------------------------------------

@@ -16,7 +16,7 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.12.4';
+export const VERSION = '0.12.5';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
 export const BUILD_DATE = '2026-04-19 11:40 UTC';
@@ -33,6 +33,16 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.12.5',
+    date: '2026-04-19',
+    changes: [
+      'スコアボード: 無得点イニングでも 0 が表示されるように修正',
+      '投手が stats.pitching=null の選手に設定されて試合が止まるバグを修正',
+      '投手が見つからない場合は緊急用の pitching stats で試合を継続',
+      'テスト追加: 全イニング完走後に inningScores が全て数値で埋まること',
+    ],
+  },
   {
     version: '0.12.4',
     date: '2026-04-19',
