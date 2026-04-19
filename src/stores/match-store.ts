@@ -9,7 +9,7 @@
 import { create } from 'zustand';
 import type { MatchState, MatchResult, TacticalOrder } from '../engine/match/types';
 import type { RunnerMode, PauseReason } from '../engine/match/runner-types';
-import type { PitchLogEntry, MatchViewState } from '../ui/projectors/view-state-types';
+import type { PitchLogEntry, MatchViewState, PitchLocationLabel, EnrichedPitchType } from '../ui/projectors/view-state-types';
 import { MatchRunner } from '../engine/match/runner';
 import { cpuAutoTactics } from '../engine/match/tactics';
 import { projectMatch } from '../ui/projectors/matchProjector';
@@ -154,6 +154,52 @@ function evaluatePause(
   mode: RunnerMode,
 ): PauseReason | null {
   return runner.shouldPause(mode);
+}
+
+// ============================================================
+// ヘルパー：投球情報の変換（Phase 7-A-2）
+// ============================================================
+
+/**
+ * PitchLocation の row/col（0-4 の5段階グリッド）を
+ * 9ゾーンの PitchLocationLabel に変換する。
+ * ボールゾーン（row=0,4 / col=0,4）は最近傍のゾーン内にクランプ。
+ */
+function toPitchLocationLabel(row: number, col: number): PitchLocationLabel {
+  // 1-3 の範囲にクランプ（ゾーン内: 1=端, 2=中, 3=反対端）
+  const r = Math.max(1, Math.min(3, row));
+  const c = Math.max(1, Math.min(3, col));
+  const vertical: string = r === 1 ? 'high' : r === 3 ? 'low' : 'middle';
+  const horizontal: string = c === 1 ? 'inside' : c === 3 ? 'outside' : 'middle';
+  return `${horizontal}_${vertical}` as PitchLocationLabel;
+}
+
+/**
+ * runner 内部の球種文字列を EnrichedPitchType に変換する。
+ * 未知の球種は 'fastball' にフォールバック。
+ */
+function toEnrichedPitchType(type: string): EnrichedPitchType {
+  const map: Record<string, EnrichedPitchType> = {
+    fastball:  'fastball',
+    slider:    'slider',
+    curve:     'curveball',
+    curveball: 'curveball',
+    changeup:  'changeup',
+    fork:      'splitter',
+    splitter:  'splitter',
+    cutter:    'slider',
+    sinker:    'fastball',
+  };
+  return map[type] ?? 'fastball';
+}
+
+/**
+ * pitchSelection.velocity (能力値) を km/h として返す。
+ * select-pitch.ts で変化球時は velocity * 0.9 が渡されるため、
+ * ここでは受け取った値をそのまま四捨五入する。
+ */
+function toPitchSpeedKmh(velocity: number): number {
+  return Math.round(velocity);
 }
 
 // ============================================================
@@ -329,6 +375,13 @@ export const useMatchStore = create<MatchStore>((set, get) => ({
         },
         batterId,
         batterName,
+        // Phase 7-A-2: 球速・コース・球種ラベル
+        pitchSpeed: toPitchSpeedKmh(pitchResult.pitchSelection.velocity),
+        pitchLocation: toPitchLocationLabel(
+          pitchResult.actualLocation.row,
+          pitchResult.actualLocation.col,
+        ),
+        pitchTypeLabel: toEnrichedPitchType(pitchResult.pitchSelection.type),
       };
       const newLog = [...pitchLog, logEntry].slice(-50);
 
@@ -386,6 +439,10 @@ export const useMatchStore = create<MatchStore>((set, get) => ({
         location: { row: p.actualLocation.row, col: p.actualLocation.col },
         batterId,
         batterName,
+        // Phase 7-A-2: 球速・コース・球種ラベル
+        pitchSpeed: toPitchSpeedKmh(p.pitchSelection.velocity),
+        pitchLocation: toPitchLocationLabel(p.actualLocation.row, p.actualLocation.col),
+        pitchTypeLabel: toEnrichedPitchType(p.pitchSelection.type),
       }));
       const newLog = [...pitchLog, ...newEntries].slice(-50);
 

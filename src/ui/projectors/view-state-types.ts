@@ -542,6 +542,22 @@ export interface OBViewState {
 // 試合画面 ViewState（Phase 10-A）
 // ============================================================
 
+/**
+ * 投球コース（9ゾーン）— Phase 7-A-2 追加
+ * 水平 inside/middle/outside × 垂直 high/middle/low
+ */
+export type PitchLocationLabel =
+  | 'inside_high'   | 'inside_middle'   | 'inside_low'
+  | 'middle_high'   | 'middle_middle'   | 'middle_low'
+  | 'outside_high'  | 'outside_middle'  | 'outside_low';
+
+/**
+ * 球種ラベル（EnrichedPitchType）— Phase 7-A-2 追加
+ * runner.ts 内部の文字列から変換した統一値
+ */
+export type EnrichedPitchType =
+  | 'fastball' | 'curveball' | 'slider' | 'changeup' | 'splitter';
+
 /** 投球ログの1エントリ */
 export interface PitchLogEntry {
   inning: number;
@@ -551,6 +567,12 @@ export interface PitchLogEntry {
   location: { row: number; col: number };
   batterId: string;
   batterName: string;
+  /** 球速 km/h — Phase 7-A-2 追加（optional: 旧セーブデータ互換） */
+  pitchSpeed?: number;
+  /** 投球コース — Phase 7-A-2 追加（optional: 旧セーブデータ互換） */
+  pitchLocation?: PitchLocationLabel;
+  /** 球種ラベル — Phase 7-A-2 追加（optional: 旧セーブデータ互換） */
+  pitchTypeLabel?: EnrichedPitchType;
 }
 
 /** ランナー情報（UI用） */

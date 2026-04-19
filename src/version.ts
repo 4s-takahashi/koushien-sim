@@ -16,7 +16,7 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.18.5';
+export const VERSION = '0.19.0';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
 export const BUILD_DATE = '2026-04-19 22:58 UTC';
@@ -33,6 +33,23 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.19.0',
+    date: '2026-04-19',
+    changes: [
+      '⚾ Phase 7-A: 1球モード基盤実装',
+      '【7-A-1】デフォルト1球モード: 新ゲーム開始時に pitch: on がデフォルト',
+      '  既存セーブデータとの互換性維持（旧データは pitch: on にフォールバック）',
+      '  PitchLogEntry に pitchSpeed / pitchLocation / pitchTypeLabel を追加（optional）',
+      '【7-A-2】実況ログ詳細化: 球速(km/h)・コース・球種を実況文に組み込み',
+      '  例: 「⚾ 鈴木 → 田中: 内角低めのスライダー 138km/h … 空振り」',
+      '  投手の velocity 能力値から km/h を自動計算',
+      '【7-A-3】実況ログ アコーディオンUI',
+      '  通常: 1行表示（最大48文字 + ▼ アイコン）',
+      '  クリック/タップで全文展開（▲ で折りたたみ）',
+      '  最新10件表示、11件目以降は「もっと見る（N件）」ボタンで展開',
+    ],
+  },
   {
     version: '0.18.5',
     date: '2026-04-19',

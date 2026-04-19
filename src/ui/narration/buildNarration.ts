@@ -27,15 +27,48 @@ export interface NarrationEntry {
 // ============================================================
 
 const PITCH_TYPE_JP: Record<string, string> = {
-  fastball: 'ストレート',
-  slider: 'スライダー',
-  curve: 'カーブ',
-  changeup: 'チェンジアップ',
-  fork: 'フォーク',
+  fastball:  'ストレート',
+  slider:    'スライダー',
+  curve:     'カーブ',
+  curveball: 'カーブ',
+  changeup:  'チェンジアップ',
+  fork:      'フォーク',
+  splitter:  'スプリット',
+  cutter:    'カット',
+  sinker:    'シンカー',
 };
 
 function pitchTypeJP(type: string): string {
   return PITCH_TYPE_JP[type] ?? type;
+}
+
+// ============================================================
+// Phase 7-A-2: 投球コース → 日本語
+// ============================================================
+
+const PITCH_LOCATION_JP: Record<string, string> = {
+  inside_high:    '内角高め',
+  inside_middle:  '内角',
+  inside_low:     '内角低め',
+  middle_high:    '高め',
+  middle_middle:  '真ん中',
+  middle_low:     '低め',
+  outside_high:   '外角高め',
+  outside_middle: '外角',
+  outside_low:    '外角低め',
+};
+
+/**
+ * PitchLocation の row/col（0-4 の5段階グリッド）からコース日本語を返す。
+ * row: 1=高め, 2=中段, 3=低め（ゾーン内）; col: 1=内角, 2=真中, 3=外角
+ */
+function pitchLocationJP(row: number, col: number): string {
+  const r = Math.max(1, Math.min(3, row));
+  const c = Math.max(1, Math.min(3, col));
+  const vertical = r === 1 ? 'high' : r === 3 ? 'low' : 'middle';
+  const horizontal = c === 1 ? 'inside' : c === 3 ? 'outside' : 'middle';
+  const key = `${horizontal}_${vertical}`;
+  return PITCH_LOCATION_JP[key] ?? '';
 }
 
 function outcomeJP(outcome: string): string {
@@ -178,10 +211,20 @@ export function buildNarrationForPitch(
     resultKind = 'normal';
   }
 
-  // 1行で: 投手 → 打者: 球種 … 結果
+  // 1行で: 投手 → 打者: コース + 球種 + 球速 … 結果
+  // 例: ⚾ 鈴木 → 田中: 内角低めのスライダー 138km/h … 空振り
+  const speedKmh = Math.round(pitch.pitchSelection.velocity);
+  const locationText = pitchLocationJP(
+    pitch.actualLocation.row,
+    pitch.actualLocation.col,
+  );
+  const pitchDetail = locationText
+    ? `${locationText}の${pitchType} ${speedKmh}km/h`
+    : `${pitchType} ${speedKmh}km/h`;
+
   entries.push({
     id: `${baseId}-p`,
-    text: `⚾ ${pitcher} → ${batter}: ${pitchType} … ${resultText}`,
+    text: `⚾ ${pitcher} → ${batter}: ${pitchDetail} … ${resultText}`,
     kind: resultKind,
     inning: stateBefore.currentInning,
     half: stateBefore.currentHalf,

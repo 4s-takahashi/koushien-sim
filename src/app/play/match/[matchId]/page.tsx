@@ -747,15 +747,63 @@ function AutoPlayBar({
 }
 
 // ============================================================
-// 実況ログパネル
+// 実況ログパネル（Phase 7-A-3: アコーディオン化）
 // ============================================================
 
 interface NarrationPanelProps {
   entries: import('../../../../ui/narration/buildNarration').NarrationEntry[];
 }
 
+/** テキストを指定文字数で切り詰める */
+function truncateText(text: string, max = 48): string {
+  if (text.length <= max) return text;
+  return text.slice(0, max - 1) + '…';
+}
+
 function NarrationPanel({ entries }: NarrationPanelProps) {
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [showAll, setShowAll] = useState(false);
+
   const reversed = [...entries].reverse();
+  const recent = reversed.slice(0, 10);
+  const older = reversed.slice(10);
+  const hasOlder = older.length > 0;
+
+  const toggleExpand = (id: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const renderEntry = (e: import('../../../../ui/narration/buildNarration').NarrationEntry) => {
+    const isExpanded = expandedIds.has(e.id);
+    const cls =
+      e.kind === 'score'     ? styles.narrationEntryScore :
+      e.kind === 'highlight' ? styles.narrationEntryHighlight :
+      e.kind === 'out'       ? styles.narrationEntryOut :
+      e.kind === 'chance'    ? styles.narrationEntryChance :
+      styles.narrationEntryNormal;
+
+    return (
+      <div
+        key={e.id}
+        className={`${styles.narrationEntry} ${cls} ${styles.narrationEntryAccordion}`}
+        onClick={() => toggleExpand(e.id)}
+        role="button"
+        aria-expanded={isExpanded}
+      >
+        {isExpanded ? (
+          <span className={styles.narrationFull}>{e.text}</span>
+        ) : (
+          <span className={styles.narrationSummary}>{truncateText(e.text)}</span>
+        )}
+        <span className={styles.narrationChevron}>{isExpanded ? '▲' : '▼'}</span>
+      </div>
+    );
+  };
 
   return (
     <div className={styles.narrationPanel}>
@@ -763,19 +811,20 @@ function NarrationPanel({ entries }: NarrationPanelProps) {
       {reversed.length === 0 ? (
         <div className={styles.narrationEmpty}>試合開始を待っています…</div>
       ) : (
-        reversed.map((e) => {
-          const cls =
-            e.kind === 'score' ? styles.narrationEntryScore :
-            e.kind === 'highlight' ? styles.narrationEntryHighlight :
-            e.kind === 'out' ? styles.narrationEntryOut :
-            e.kind === 'chance' ? styles.narrationEntryChance :
-            styles.narrationEntryNormal;
-          return (
-            <div key={e.id} className={`${styles.narrationEntry} ${cls}`}>
-              {e.text}
-            </div>
-          );
-        })
+        <>
+          {recent.map((e) => renderEntry(e))}
+          {hasOlder && (
+            <>
+              {showAll && older.map((e) => renderEntry(e))}
+              <button
+                className={styles.narrationMoreBtn}
+                onClick={(ev) => { ev.stopPropagation(); setShowAll((v) => !v); }}
+              >
+                {showAll ? '▲ 折りたたむ' : `▼ もっと見る（${older.length}件）`}
+              </button>
+            </>
+          )}
+        </>
       )}
     </div>
   );

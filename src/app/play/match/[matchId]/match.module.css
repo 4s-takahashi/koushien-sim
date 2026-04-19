@@ -1214,3 +1214,69 @@
   padding: 20px;
   font-style: italic;
 }
+
+/* ============================================================ */
+/* 実況ログ アコーディオン (Phase 7-A-3) */
+/* ============================================================ */
+
+/* クリック可能なエントリ */
+.narrationEntryAccordion {
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 4px;
+  user-select: none;
+}
+
+.narrationEntryAccordion:hover {
+  opacity: 0.85;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* 折り畳み時: 1行 max 48文字（overflow で切り詰め） */
+.narrationSummary {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: calc(100% - 20px);
+  font-size: 12px;
+}
+
+/* 展開時: フルテキスト（折り返しあり） */
+.narrationFull {
+  flex: 1;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-size: 12px;
+}
+
+/* 展開/折り畳みインジケーター ▲/▼ */
+.narrationChevron {
+  font-size: 9px;
+  color: #546e7a;
+  flex-shrink: 0;
+  padding-top: 2px;
+  line-height: 1.7;
+}
+
+/* 「もっと見る」ボタン */
+.narrationMoreBtn {
+  width: 100%;
+  padding: 6px 0;
+  background: transparent;
+  border: none;
+  border-top: 1px solid #1a2d45;
+  color: #546e7a;
+  font-size: 11px;
+  cursor: pointer;
+  text-align: center;
+  transition: color 0.15s;
+  margin-top: 2px;
+}
+
+.narrationMoreBtn:hover {
+  color: #90a4ae;
+}
+
