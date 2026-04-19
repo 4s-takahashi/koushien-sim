@@ -772,6 +772,44 @@ function HomeContent({ view }: { view: HomeViewState }) {
           )
         )}
 
+        {/* OBの活躍 (Phase 11-A4 2026-04-19) */}
+        {displayView.recentGraduates && displayView.recentGraduates.length > 0 && (
+          <div className={styles.card}>
+            <div className={styles.cardTitle}>🎓 最近のOB</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {displayView.recentGraduates.map((g, i) => (
+                <div key={i} style={{
+                  padding: '6px 10px',
+                  background: g.careerPath === 'pro' ? 'linear-gradient(90deg,#fff9c4,#ffe082)' : '#f5f5f5',
+                  borderRadius: 4,
+                  fontSize: 12,
+                  borderLeft: g.careerPath === 'pro' ? '3px solid #ffc107' : '3px solid #ccc',
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <strong>{g.name}</strong>
+                    <span style={{ fontSize: 10, color: '#666' }}>
+                      {g.graduationYear}年卒 / 総合{g.finalOverall}
+                    </span>
+                  </div>
+                  <div style={{
+                    fontSize: 11,
+                    marginTop: 2,
+                    color: g.careerPath === 'pro' ? '#e65100' : '#455a64',
+                    fontWeight: g.careerPath === 'pro' ? 600 : 400,
+                  }}>
+                    {g.careerPath === 'pro' && '⭐ '}{g.careerPathLabel}
+                    {g.bestAchievement && (
+                      <span style={{ marginLeft: 6, color: '#666' }}>
+                        — {g.bestAchievement}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* 次の予定 */}
         <div className={styles.card}>
           <div className={styles.cardTitle}>今後の主な予定</div>

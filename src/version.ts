@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.18.2';
+export const VERSION = '0.18.3';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-19 17:23 UTC';
-export const GIT_SHA = 'dfa1d7e-dirty';
+export const BUILD_DATE = '2026-04-19 21:21 UTC';
+export const GIT_SHA = '8c0f288-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,16 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.18.3',
+    date: '2026-04-19',
+    changes: [
+      '🎓 Phase 11-A4: OB表示 (MVP)',
+      'ホーム画面に「最近のOB」カード追加',
+      '直近3年以内の卒業生から総合力上位3名を表示',
+      'プロ入り選手は⭐マークとゴールド背景で強調',
+    ],
+  },
   {
     version: '0.18.2',
     date: '2026-04-19',

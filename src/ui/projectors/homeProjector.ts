@@ -518,6 +518,9 @@ export function projectHome(
   // チーム状況 (Issue #3 2026-04-19)
   const teamPulse = buildTeamPulse(players);
 
+  // 最近のOB (Phase 11-A4 2026-04-19)
+  const recentGraduates = buildRecentGraduates(worldState);
+
   // 大会情報
   const tournament = buildTournamentInfo(worldState, currentDate.month, currentDate.day);
   const tournamentStart = !isInTournamentSeason
@@ -536,6 +539,7 @@ export function projectHome(
     todayTask,
     featuredPlayers,
     teamPulse,
+    recentGraduates,
     isTournamentDay,
     isInTournamentSeason,
     tournament,
@@ -577,4 +581,43 @@ function buildTeamPulse(players: import('../../engine/types/player').Player[]): 
   const restingCount = players.filter((p) => p.restOverride != null).length;
 
   return { injured, warning, hot, restingCount };
+}
+
+/** Phase 11-A4: 最近のOB (直近3年以内の卒業生から最大3名) */
+function buildRecentGraduates(
+  worldState: import('../../engine/world/world-state').WorldState,
+): import('./view-state-types').HomeRecentGraduate[] {
+  const currentYear = worldState.currentDate.year;
+  const registry = worldState.personRegistry;
+  if (!registry?.entries) return [];
+
+  const result: import('./view-state-types').HomeRecentGraduate[] = [];
+  for (const entry of registry.entries.values()) {
+    const summary = entry.graduateSummary;
+    if (!summary) continue;
+    if (summary.schoolId !== worldState.playerSchoolId) continue;
+    const yearsAgo = currentYear - summary.graduationYear;
+    if (yearsAgo < 0 || yearsAgo > 3) continue; // 直近3年以内
+
+    const careerPathType = summary.careerPath.type;
+    const careerPathLabel =
+      careerPathType === 'pro' ? 'プロ入り'
+      : careerPathType === 'university' ? '大学進学'
+      : careerPathType === 'corporate' ? '社会人'
+      : '引退';
+
+    result.push({
+      name: summary.name,
+      graduationYear: summary.graduationYear,
+      careerPath: careerPathType,
+      careerPathLabel,
+      bestAchievement: summary.achievements[0] ?? null,
+      finalOverall: summary.finalOverall,
+    });
+  }
+
+  // 総合力で上位3名
+  return result
+    .sort((a, b) => b.finalOverall - a.finalOverall)
+    .slice(0, 3);
 }
