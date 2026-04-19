@@ -13,7 +13,10 @@
 
 // ⚠️ このファイルは ioredis (Node.js 専用) を参照するためサーバーサイド専用。
 // Client Component から直接/間接 import するとビルドエラーになる。
-import 'server-only';
+// テスト環境では server-only をスキップ（テストは API routes を直接テストしないため）
+if (typeof process !== 'undefined' && !process.env.VITEST) {
+  require('server-only');
+}
 
 // ============================================================
 // KV インターフェース

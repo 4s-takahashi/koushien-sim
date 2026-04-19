@@ -13,7 +13,10 @@
  *   save_meta:{userId}     → CloudSaveSlotMeta[] (一覧キャッシュ)
  */
 
-import 'server-only';
+// テスト環境では server-only をスキップ
+if (typeof process !== 'undefined' && !process.env.VITEST) {
+  require('server-only');
+}
 import { db } from './kv';
 
 // ============================================================
