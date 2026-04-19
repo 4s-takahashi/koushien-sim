@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.12.2';
+export const VERSION = '0.12.3';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-19 11:31 UTC';
-export const GIT_SHA = 'a0800e3-dirty';
+export const BUILD_DATE = '2026-04-19 11:40 UTC';
+export const GIT_SHA = '904a99d-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,17 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.12.3',
+    date: '2026-04-19',
+    changes: [
+      '実況ログ改善: 1球モードでも「🧢 N番打者 登場」を表示（打席開始が分かるように）',
+      '実況ログ改善: インプレー時にヒット/アウトなどの結果を1球モードでも明示',
+      '実況ログ改善: 「投球 N球」を「N番打者 vs 投手（N球）」形式にまとめた',
+      'テスト追加: stepOnePitch 単独で試合完走することを検証',
+      'テスト追加: stepOneAtBat → stepOnePitch の混合進行でも打者が解決できることを検証',
+    ],
+  },
   {
     version: '0.12.2',
     date: '2026-04-19',

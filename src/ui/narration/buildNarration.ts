@@ -121,6 +121,21 @@ export function buildNarrationForPitch(
   const pitchType = pitchTypeJP(pitch.pitchSelection.type);
   const outcomeText = outcomeJP(pitch.outcome);
 
+  // 打席開始時（count 0-0）は「N番 打者 登場」を前に出す
+  const isAtBatStart =
+    stateBefore.count.balls === 0 && stateBefore.count.strikes === 0;
+  if (isAtBatStart) {
+    const order = stateBefore.currentBatterIndex + 1;
+    entries.push({
+      id: `${baseId}-atbat-start`,
+      text: `🧢 ${order}番打者 ${batter} 登場`,
+      kind: 'normal',
+      inning: stateBefore.currentInning,
+      half: stateBefore.currentHalf,
+      at: Date.now(),
+    });
+  }
+
   entries.push({
     id: `${baseId}-p`,
     text: `⚾ ${pitcher} → ${batter}: ${pitchType} … ${outcomeText}`,
@@ -129,6 +144,37 @@ export function buildNarrationForPitch(
     half: stateBefore.currentHalf,
     at: Date.now(),
   });
+
+  // インプレーの場合、打球結果を人間が読める形で表示
+  if (pitch.outcome === 'in_play' && pitch.batContact) {
+    const fr = pitch.batContact.fieldResult;
+    const isTop = stateBefore.currentHalf === 'top';
+    const scoredRuns = isTop
+      ? stateAfter.score.away - stateBefore.score.away
+      : stateAfter.score.home - stateBefore.score.home;
+    const scoreText = scoredRuns > 0 ? ` ${scoredRuns}点追加！` : '';
+
+    const resultMap: Record<string, { text: string; kind: NarrationEntry['kind'] }> = {
+      single: { text: 'ヒット！', kind: 'highlight' },
+      double: { text: '二塁打！', kind: 'highlight' },
+      triple: { text: '三塁打！！', kind: 'highlight' },
+      home_run: { text: '🔥 ホームラン！！', kind: 'score' },
+      error: { text: 'エラー出塁', kind: 'normal' },
+      out: { text: 'アウト', kind: 'out' },
+      double_play: { text: 'ダブルプレー', kind: 'out' },
+      sacrifice: { text: '犠打', kind: 'normal' },
+      sacrifice_fly: { text: '犠牲フライ', kind: 'normal' },
+    };
+    const r = resultMap[fr.type] ?? { text: fr.type, kind: 'normal' as const };
+    entries.push({
+      id: `${baseId}-hit`,
+      text: `   → ${r.text}${scoreText}`,
+      kind: scoredRuns > 0 ? 'score' : r.kind,
+      inning: stateBefore.currentInning,
+      half: stateBefore.currentHalf,
+      at: Date.now(),
+    });
+  }
 
   // アウトが増えた場合（三振・インプレーアウト等）
   if (stateAfter.outs > stateBefore.outs) {
@@ -200,29 +246,17 @@ export function buildNarrationForAtBat(
   const batter = getBatterName(stateBefore);
   const pitcher = getPitcherName(stateBefore);
   const order = stateBefore.currentBatterIndex + 1;
+  const pitchCount = atBat.pitches.length;
 
-  // 打席開始
+  // 打席開始 + 投球数（1行にまとめる。ログが縦に長くなりすぎないよう）
   entries.push({
     id: `${baseId}-start`,
-    text: `🧢 ${ordinalJP(order)}打者 ${batter} 登場`,
+    text: `🧢 ${ordinalJP(order)}打者 ${batter} vs ${pitcher}${pitchCount > 0 ? `（${pitchCount}球）` : ''}`,
     kind: 'normal',
     inning: stateBefore.currentInning,
     half: stateBefore.currentHalf,
     at: Date.now(),
   });
-
-  // 投球要約（球数のみ簡潔に）
-  const pitchCount = atBat.pitches.length;
-  if (pitchCount > 0) {
-    entries.push({
-      id: `${baseId}-pitches`,
-      text: `   ${pitcher} 投球 ${pitchCount}球`,
-      kind: 'normal',
-      inning: stateBefore.currentInning,
-      half: stateBefore.currentHalf,
-      at: Date.now(),
-    });
-  }
 
   // 結果
   const { text: resultText, kind } = batResultJP(atBat);
