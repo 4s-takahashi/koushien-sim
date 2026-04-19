@@ -779,16 +779,21 @@ function HomeContent({ view }: { view: HomeViewState }) {
 export default function PlayPage() {
   const router = useRouter();
   const worldState = useWorldStore((s) => s.worldState);
+  const hasHydrated = useWorldStore((s) => s._hasHydrated);
   const getHomeView = useWorldStore((s) => s.getHomeView);
 
-  // ゲームが開始されていない場合は新規ゲーム画面へ
+  // persist の復元が完了するまで何もしない
+  // (hydration 前に router.replace すると、リロード時に新規ゲーム画面に
+  //  飛んでしまうバグになる 2026-04-19 修正)
   useEffect(() => {
+    if (!hasHydrated) return;
     if (!worldState) {
       router.replace('/new-game');
     }
-  }, [worldState, router]);
+  }, [hasHydrated, worldState, router]);
 
-  if (!worldState) {
+  // hydration 前または worldState が null なら読み込み中表示
+  if (!hasHydrated || !worldState) {
     return <div style={{ padding: 40, textAlign: 'center' }}>読み込み中...</div>;
   }
 

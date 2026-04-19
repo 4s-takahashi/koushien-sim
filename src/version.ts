@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.12.6';
+export const VERSION = '0.12.7';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-19 11:40 UTC';
-export const GIT_SHA = '904a99d-dirty';
+export const BUILD_DATE = '2026-04-19 12:58 UTC';
+export const GIT_SHA = 'e780ed4-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,16 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.12.7',
+    date: '2026-04-19',
+    changes: [
+      '🔴 リロードで学校選択画面に戻るバグを修正',
+      'Zustand persist の hydration 完了前に /new-game へリダイレクトしていた',
+      '_hasHydrated フラグを追加、UI は復元完了を待ってから判断',
+      '試合画面 (/play/match/[matchId]) も同様に修正',
+    ],
+  },
   {
     version: '0.12.6',
     date: '2026-04-19',

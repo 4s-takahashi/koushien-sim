@@ -757,6 +757,7 @@ export default function MatchPage() {
 
   const router = useRouter();
   const worldState = useWorldStore((s) => s.worldState);
+  const hasHydrated = useWorldStore((s) => s._hasHydrated);
   const finishInteractiveMatch = useWorldStore((s) => s.finishInteractiveMatch);
   const getHomeView = useWorldStore((s) => s.getHomeView);
 
@@ -787,7 +788,16 @@ export default function MatchPage() {
 
   // ゲーム初期化
   useEffect(() => {
-    if (!worldState || initialized) return;
+    // persist の復元が完了するまで何もしない
+    // (hydration 前に router.replace すると、リロード時に /play へ飛んでしまう)
+    if (!hasHydrated) return;
+    if (initialized) return;
+
+    if (!worldState) {
+      // ゲーム未開始 → /play に戻せば PlayPage が /new-game にリダイレクトする
+      router.replace('/play');
+      return;
+    }
 
     const pending = worldState.pendingInteractiveMatch;
     if (!pending) {
@@ -836,7 +846,7 @@ export default function MatchPage() {
 
     initMatch(initialState, worldState.playerSchoolId, worldState.seed);
     setInitialized(true);
-  }, [worldState, initialized, initMatch, router]);
+  }, [hasHydrated, worldState, initialized, initMatch, router]);
 
   // 試合終了後の処理
   const handleGoHome = useCallback(() => {
@@ -918,7 +928,7 @@ export default function MatchPage() {
 
   const view = getMatchView();
 
-  if (!worldState) {
+  if (!hasHydrated || !worldState) {
     return <div className={styles.loading}>読み込み中...</div>;
   }
 

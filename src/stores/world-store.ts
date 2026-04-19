@@ -78,6 +78,15 @@ interface WorldStore {
   recentResults: WorldDayResult[];
   /** 最近のニュース（最大20件、最新順） */
   recentNews: WorldDayResult['worldNews'];
+  /**
+   * persist からの復元(hydration) が完了したかどうか。
+   * 初回マウント時は false。zustand persist の onRehydrateStorage 経由で true になる。
+   * SSR → 初回 CSR のタイミングで「worldState が null」と「本当に未開始」を区別する
+   * ために使う (リロードしたら /new-game に飛ぶバグ対応 2026-04-19)。
+   */
+  _hasHydrated: boolean;
+  /** 内部用: hydration 完了フラグを立てる */
+  _setHasHydrated: (v: boolean) => void;
 
   // --- ゲーム初期化 ---
   newWorldGame: (config: NewWorldConfig) => void;
@@ -191,6 +200,8 @@ export const useWorldStore = create<WorldStore>()(
   lastDayResult: null,
   recentResults: [],
   recentNews: [],
+  _hasHydrated: false,
+  _setHasHydrated: (v) => set({ _hasHydrated: v }),
 
   // ----------------------------------------------------------------
   // 新規ゲーム
@@ -620,6 +631,14 @@ export const useWorldStore = create<WorldStore>()(
       partialize: (state) => ({
         worldState: state.worldState,
       }),
+      // 復元完了時に _hasHydrated=true を立てる。
+      // これで UI 側が「persist hydrate 前の null」と「本当に未開始」を区別できる。
+      // (2026-04-19 リロードで /new-game に飛ぶバグ対応)
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          state._hasHydrated = true;
+        }
+      },
       storage: {
         getItem: (name) => {
           if (typeof window === 'undefined') return null;
