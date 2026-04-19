@@ -54,13 +54,21 @@ const now = new Date();
 const pad = (n) => String(n).padStart(2, '0');
 const buildDate = `${now.getUTCFullYear()}-${pad(now.getUTCMonth() + 1)}-${pad(now.getUTCDate())} ${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())} UTC`;
 
+// GIT_SHA 決定: 優先度 = 環境変数 DEPLOY_GIT_SHA > git コマンド
+// デプロイ時にローカルから `DEPLOY_GIT_SHA=$(git rev-parse --short HEAD)` を渡すことで、
+// VPS 側の .git が古くても正しいコミットが記録される
 let gitSha = 'unknown';
-try {
-  gitSha = execSync('git rev-parse --short HEAD', { cwd: ROOT }).toString().trim();
-  const dirty = execSync('git status --porcelain', { cwd: ROOT }).toString().trim();
-  if (dirty) gitSha += '-dirty';
-} catch (e) {
-  console.warn('[bump] git sha 取得失敗:', e.message);
+if (process.env.DEPLOY_GIT_SHA) {
+  gitSha = process.env.DEPLOY_GIT_SHA;
+  console.log('[bump] GIT_SHA source: DEPLOY_GIT_SHA env var');
+} else {
+  try {
+    gitSha = execSync('git rev-parse --short HEAD', { cwd: ROOT }).toString().trim();
+    const dirty = execSync('git status --porcelain', { cwd: ROOT }).toString().trim();
+    if (dirty) gitSha += '-dirty';
+  } catch (e) {
+    console.warn('[bump] git sha 取得失敗:', e.message);
+  }
 }
 
 // --- version.ts 書き換え ---
