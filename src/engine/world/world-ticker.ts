@@ -457,6 +457,18 @@ export function advanceWorldDay(
   let pendingInteractiveMatch: PendingInteractiveMatch | null = world.pendingInteractiveMatch ?? null;
   let waitingForInteractiveMatch = false;
 
+  // 【バグ修正】完了済み activeTournament が残存している場合は履歴に移動して null 化する。
+  // simulateTournament() アクションや completeInteractiveMatch の後処理漏れで
+  // isCompleted=true のまま activeTournament が残ると、秋大会生成条件
+  // (!nextWorld.activeTournament) が満たされず秋大会が作られなくなる。
+  if (activeTournament && activeTournament.isCompleted) {
+    const alreadyInHistory = tournamentHistory.some((t) => t.id === activeTournament!.id);
+    if (!alreadyInHistory) {
+      tournamentHistory = [...tournamentHistory, activeTournament].slice(-10);
+    }
+    activeTournament = null;
+  }
+
   // 大会が進行中なら今日のラウンドを消化する
   if (activeTournament && !activeTournament.isCompleted) {
     const tournamentType: 'summer' | 'autumn' =

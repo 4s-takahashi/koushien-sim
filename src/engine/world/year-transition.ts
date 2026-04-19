@@ -406,14 +406,33 @@ export function processYearTransition(world: WorldState, rng: RNG): WorldState {
   console.log(`[year-transition] 年度替わり処理開始: Year ${currentYear} → Year ${currentYear + 1}`);
 
   // ============================================================
+  // 保険: 完了済み activeTournament が残っていたら履歴に移動して null 化
+  // simulateTournament() アクションや completeInteractiveMatch の後処理漏れで
+  // isCompleted=true のまま activeTournament が残ることがある（異常セーブ救済）。
+  // ============================================================
+  let worldForTransition = world;
+  if (worldForTransition.activeTournament && worldForTransition.activeTournament.isCompleted) {
+    const stale = worldForTransition.activeTournament;
+    const existingHistory = worldForTransition.tournamentHistory ?? [];
+    const alreadyInHistory = existingHistory.some((t) => t.id === stale.id);
+    const newHistory = alreadyInHistory ? existingHistory : [...existingHistory, stale].slice(-10);
+    worldForTransition = {
+      ...worldForTransition,
+      activeTournament: null,
+      tournamentHistory: newHistory,
+    };
+    console.log(`[year-transition] 保険: 完了済み activeTournament (${stale.id}) をクリーンアップ`);
+  }
+
+  // ============================================================
   // Step 0: スナップショットセーブ（ログのみ）
   // ============================================================
-  console.log(`[year-transition] Step 0: スナップショット（${world.schools.length}校 / 選手${world.schools.reduce((n, s) => n + s.players.length, 0)}人）`);
+  console.log(`[year-transition] Step 0: スナップショット（${worldForTransition.schools.length}校 / 選手${worldForTransition.schools.reduce((n, s) => n + s.players.length, 0)}人）`);
 
   // ============================================================
   // Step 0.5: 他校AIスカウト活動（プレイヤー未勧誘の選手を確保）
   // ============================================================
-  const worldAfterAIScouting = runAISchoolScouting(world, rng.derive('ai-scouting'));
+  const worldAfterAIScouting = runAISchoolScouting(worldForTransition, rng.derive('ai-scouting'));
   console.log(`[year-transition] Step 0.5: AI 校スカウト完了`);
 
   // ============================================================
@@ -528,7 +547,7 @@ export function processYearTransition(world: WorldState, rng: RNG): WorldState {
   const newMiddleSchoolers = generateNewMiddleSchoolers(
     currentYear + 1,
     NEW_MIDDLE_SCHOOLERS_PER_GRADE,
-    world.prefecture,
+    worldForTransition.prefecture,
     rng.derive('new-ms'),
   );
 

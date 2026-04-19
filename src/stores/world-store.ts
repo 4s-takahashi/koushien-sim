@@ -569,15 +569,19 @@ export const useWorldStore = create<WorldStore>()(
       rng,
     );
 
-    const history = [
-      ...(worldState.tournamentHistory ?? []),
-      completed,
-    ].slice(-10);
+    const existingHistory = worldState.tournamentHistory ?? [];
+    const alreadyInHistory = existingHistory.some((t) => t.id === completed.id);
+    const history = alreadyInHistory
+      ? existingHistory
+      : [...existingHistory, completed].slice(-10);
 
+    // 【バグ修正】完了後は activeTournament を null にする。
+    // 旧実装では activeTournament: completed（isCompleted=true）を残していたため、
+    // 9/15 の秋大会生成条件 (!nextWorld.activeTournament) が満たされなかった。
     set({
       worldState: {
         ...worldState,
-        activeTournament: completed,
+        activeTournament: null,
         tournamentHistory: history,
       },
     });
@@ -626,7 +630,22 @@ export const useWorldStore = create<WorldStore>()(
             // deserialize: Map フィールドを復元
             if (parsed.state?.worldState) {
               const ws = parsed.state.worldState;
-              parsed.state.worldState = deserializeWS(JSON.stringify(ws));
+              const deserialized = deserializeWS(JSON.stringify(ws));
+
+              // 【セーブ移行】既存セーブ救済: isCompleted=true の activeTournament が残っていたら自動クリーンアップ
+              if (deserialized.activeTournament && deserialized.activeTournament.isCompleted) {
+                const stale = deserialized.activeTournament;
+                const existingHistory = deserialized.tournamentHistory ?? [];
+                const alreadyInHistory = existingHistory.some((t: { id: string }) => t.id === stale.id);
+                const newHistory = alreadyInHistory ? existingHistory : [...existingHistory, stale].slice(-10);
+                parsed.state.worldState = {
+                  ...deserialized,
+                  activeTournament: null,
+                  tournamentHistory: newHistory,
+                };
+              } else {
+                parsed.state.worldState = deserialized;
+              }
             }
             return parsed;
           } catch {
