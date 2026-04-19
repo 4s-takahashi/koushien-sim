@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { useWorldStore } from '../../../stores/world-store';
 import type { TeamViewState } from '../../../ui/projectors/view-state-types';
@@ -27,6 +28,22 @@ function getGradeClass(grade: number): string {
 }
 
 function TeamPage({ view }: { view: TeamViewState }) {
+  const restAllInjuredAndWarned = useWorldStore((s) => s.restAllInjuredAndWarned);
+  const [restToast, setRestToast] = useState<string | null>(null);
+
+  const handleBulkRest = () => {
+    const { count } = restAllInjuredAndWarned();
+    if (count === 0) {
+      setRestToast('休養対象の選手はいません');
+    } else {
+      setRestToast(`${count}人の選手を1日休養にしました（翌日に自動復帰）`);
+    }
+    setTimeout(() => setRestToast(null), 3500);
+  };
+
+  // 休養中選手数 (UI 表示用: restOverride が true の選手をカウント)
+  const restingCount = view.players.filter((p) => p.isResting).length;
+
   return (
     <div className={styles.page}>
       <header className={styles.header}>
@@ -113,7 +130,52 @@ function TeamPage({ view }: { view: TeamViewState }) {
 
         {/* 選手一覧 */}
         <div className={styles.section}>
-          <div className={styles.sectionTitle}>選手一覧（{view.players.length}名）</div>
+          <div className={styles.sectionTitle}>
+            選手一覧（{view.players.length}名）
+            {restingCount > 0 && (
+              <span style={{ marginLeft: 12, fontSize: 12, color: '#ff9800' }}>
+                🛌 休養中 {restingCount}名
+              </span>
+            )}
+          </div>
+
+          {/* 一括休養ボタン (Issue #5 2026-04-19) */}
+          <div style={{
+            display: 'flex',
+            gap: 8,
+            marginBottom: 10,
+            alignItems: 'center',
+            flexWrap: 'wrap',
+          }}>
+            <button
+              onClick={handleBulkRest}
+              style={{
+                padding: '6px 14px',
+                background: '#fff3e0',
+                color: '#e65100',
+                border: '1px solid #ffb74d',
+                borderRadius: 6,
+                fontSize: 12,
+                cursor: 'pointer',
+                fontWeight: 600,
+              }}
+              title="疲労50以上・負傷中の選手を1日休養に。翌日は通常練習に戻る"
+            >
+              🛌 けが人・けが注意を一括休養（1日）
+            </button>
+            {restToast && (
+              <span style={{
+                fontSize: 12,
+                color: '#2e7d32',
+                background: '#e8f5e9',
+                padding: '4px 10px',
+                borderRadius: 4,
+              }}>
+                {restToast}
+              </span>
+            )}
+          </div>
+
           <table className={styles.playerTable}>
             <thead>
               <tr>
@@ -148,7 +210,18 @@ function TeamPage({ view }: { view: TeamViewState }) {
                       {p.overallRank}
                     </span>
                   </td>
-                  <td className={getCondClass(p.conditionBrief)}>{p.conditionBrief}</td>
+                  <td className={getCondClass(p.conditionBrief)}>
+                    {p.conditionBrief}
+                    {p.isResting && (
+                      <span style={{
+                        marginLeft: 4,
+                        fontSize: 11,
+                        color: '#ff9800',
+                      }} title="翌日まで休養中">
+                        🛌
+                      </span>
+                    )}
+                  </td>
                   <td>
                     {p.battingOrderNumber !== null
                       ? <span className={styles.lineupOrder}>{p.battingOrderNumber}</span>

@@ -75,6 +75,10 @@ export interface PersonState {
   // --- 通算成績（動的） ---
   careerStats: CareerRecord;
 
+  // --- 一時休養フラグ (2026-04-19 Issue #5) ---
+  /** 残り休養日数つきオーバーライド。null = 通常練習 */
+  restOverride?: { remainingDays: number; setOn: GameDate } | null;
+
   // --- 成長トラッキング ---
   cumulativeGrowth: CumulativeGrowth;
 

@@ -185,6 +185,7 @@ export function projectTeam(worldState: WorldState): TeamViewState {
       overall,
       overallRank: overallToRank(overall),
       conditionBrief: conditionBrief(player),
+      isResting: player.restOverride != null,
       isInLineup: lineupPlayerIds.has(player.id),
       battingOrderNumber: battingOrderMap.get(player.id) ?? null,
     };

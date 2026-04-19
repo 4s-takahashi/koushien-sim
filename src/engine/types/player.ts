@@ -118,4 +118,16 @@ export interface Player {
   mentalState: MentalState;
   background: Background;
   careerStats: CareerRecord;
+  /**
+   * 一時的な休養オーバーライド。
+   * true の場合、次の日次練習ではこの選手だけ強制的に休養扱い (疲労回復) し、
+   * 処理後に自動で null に戻される (翌日は元の練習メニューに復帰)。
+   * (2026-04-19 Issue #5 一括休養機能)
+   */
+  restOverride?: {
+    /** 残り休養日数。日次処理後に -1 し、0 になったら解除 */
+    remainingDays: number;
+    /** セット日 (debug用) */
+    setOn: GameDate;
+  } | null;
 }

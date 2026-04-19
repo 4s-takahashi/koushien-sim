@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.13.2';
+export const VERSION = '0.14.0';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-19 15:17 UTC';
-export const GIT_SHA = '4641cd5-dirty';
+export const BUILD_DATE = '2026-04-19 15:26 UTC';
+export const GIT_SHA = 'f108bc6-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,17 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.14.0',
+    date: '2026-04-19',
+    changes: [
+      '🛌 けが人・けが注意を一括休養ボタン (チーム画面)',
+      '休養選手は翌日まで能力変化なし、疲労を大幅回復',
+      '翌日の日次処理で自動的に通常練習に復帰',
+      '選手一覧に休養中マーカー🛌を表示',
+      'Issue #5 (PR #3) 対応',
+    ],
+  },
   {
     version: '0.13.2',
     date: '2026-04-19',

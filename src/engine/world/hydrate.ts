@@ -60,6 +60,9 @@ export function hydratePlayer(
       middleSchool: blueprint.middleSchool,
     },
     careerStats: state.careerStats,
+    // 一時休養オーバーライドはセーブに含まれる場合もあるが、通常は未定義
+    // (2026-04-19 Issue #5 対応)
+    restOverride: state.restOverride ?? null,
   };
 }
 
@@ -74,6 +77,8 @@ export function dehydratePlayer(player: Player, existingState: PersonState): Per
     condition: player.condition,
     mentalState: player.mentalState,
     careerStats: player.careerStats,
+    // Issue #5: 一時休養状態も PersonState に戻す
+    restOverride: player.restOverride ?? null,
   };
 }
 

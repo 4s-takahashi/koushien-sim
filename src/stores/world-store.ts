@@ -116,6 +116,19 @@ interface WorldStore {
   addToWatch: (playerId: string) => void;
   removeFromWatch: (playerId: string) => void;
 
+  // --- 一時休養アクション (2026-04-19 Issue #5) ---
+  /**
+   * 指定した選手IDのリストに 1日分の休養フラグを付ける。
+   * 次の日次処理で自動的に解除される。
+   * 既にフラグが付いている選手は上書きしない (多重適用防止)。
+   */
+  setRestOverride: (playerIds: string[]) => { count: number };
+  /**
+   * けが人・けが注意の選手を自動検出して一括で休養フラグを付ける便利ヘルパー。
+   * @returns 対象選手数
+   */
+  restAllInjuredAndWarned: () => { count: number };
+
   // --- セーブ/ロードアクション ---
   saveGame: (slotId: WorldSaveSlotId, displayName: string) => Promise<WorldSaveResult>;
   loadGame: (slotId: WorldSaveSlotId) => Promise<WorldLoadResult>;
@@ -505,6 +518,47 @@ export const useWorldStore = create<WorldStore>()(
     const { worldState } = get();
     if (!worldState) return;
     set({ worldState: removeFromWatchList(worldState, playerId) });
+  },
+
+  // ----------------------------------------------------------------
+  // 一時休養 (Issue #5)
+  // ----------------------------------------------------------------
+  setRestOverride: (playerIds: string[]) => {
+    const { worldState } = get();
+    if (!worldState || playerIds.length === 0) return { count: 0 };
+
+    const targetIds = new Set(playerIds);
+    const today = worldState.currentDate;
+    let count = 0;
+
+    const newSchools = worldState.schools.map((school) => {
+      if (school.id !== worldState.playerSchoolId) return school;
+      const newPlayers = school.players.map((p) => {
+        if (!targetIds.has(p.id)) return p;
+        if (p.restOverride) return p; // 既にセット済みはスキップ
+        count++;
+        return { ...p, restOverride: { remainingDays: 1, setOn: today } };
+      });
+      return { ...school, players: newPlayers, _summary: null };
+    });
+
+    set({ worldState: { ...worldState, schools: newSchools } });
+    return { count };
+  },
+
+  restAllInjuredAndWarned: () => {
+    const { worldState } = get();
+    if (!worldState) return { count: 0 };
+
+    const playerSchool = worldState.schools.find((s) => s.id === worldState.playerSchoolId);
+    if (!playerSchool) return { count: 0 };
+
+    // けが人 = injury != null、けが注意 = fatigue >= 50
+    const targetIds = playerSchool.players
+      .filter((p) => p.condition.injury !== null || p.condition.fatigue >= 50)
+      .map((p) => p.id);
+
+    return get().setRestOverride(targetIds);
   },
 
   // ----------------------------------------------------------------

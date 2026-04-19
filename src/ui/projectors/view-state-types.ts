@@ -156,6 +156,8 @@ export interface PlayerRowView {
   overall: number;             // 0-100
   overallRank: AbilityRank;
   conditionBrief: string;      // "良好" | "注意" | "要休養" | "負傷中"
+  /** 一時休養フラグが立っているかどうか (Issue #5 2026-04-19) */
+  isResting: boolean;
   isInLineup: boolean;
   battingOrderNumber: number | null;  // null = ベンチ
 }

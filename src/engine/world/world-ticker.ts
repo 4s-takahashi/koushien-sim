@@ -14,6 +14,7 @@ import { getDayType, advanceDate } from '../calendar/game-calendar';
 import { getAnnualSchedule, isInCamp } from '../calendar/schedule';
 import { processDay } from '../calendar/day-processor';
 import type { GameState } from '../types/game-state';
+import type { Player } from '../types/player';
 import { applyBatchGrowth } from '../growth/batch-growth';
 import { applyBulkGrowth } from '../growth/bulk-growth';
 import { processYearTransition } from './year-transition';
@@ -84,6 +85,15 @@ function advanceSchoolFull(
   worldState: WorldState,
   rng: RNG,
 ): { school: HighSchool; dayResult: DayResult } {
+  // 休養フラグ付き選手のスナップショットを保存 (2026-04-19 Issue #5)
+  // これらの選手は processDay 後に能力変化を打ち消し、疲労だけ回復させる。
+  const restingSnapshots = new Map<string, Player>();
+  for (const player of school.players) {
+    if (player.restOverride) {
+      restingSnapshots.set(player.id, player);
+    }
+  }
+
   // HighSchool → GameState に変換して既存の processDay を呼ぶ
   const fakeGameState: GameState = {
     version: worldState.version,
@@ -105,9 +115,40 @@ function advanceSchoolFull(
 
   const { nextState, dayResult } = processDay(fakeGameState, menuId, rng);
 
+  // 休養フラグ付き選手の処理: stats は元に戻す + fatigue 回復 + restOverride 減算
+  const adjustedPlayers = nextState.team.players.map((p) => {
+    const snapshot = restingSnapshots.get(p.id);
+    if (!snapshot) return p;
+
+    // 残り日数を減算
+    const newRemaining = (snapshot.restOverride?.remainingDays ?? 1) - 1;
+    const newOverride = newRemaining > 0
+      ? { ...snapshot.restOverride!, remainingDays: newRemaining }
+      : null;
+
+    // stats / potential / mentalState は元に戻す (休養なので成長なし)
+    // ただし condition は「休養の効果」として fatigue を大幅回復
+    const restedFatigue = Math.max(0, snapshot.condition.fatigue - 40);
+    // injury 回復は processDay の結果を尊重 (休養で自然回復するはず)
+    const updatedInjury = p.condition.injury;
+
+    return {
+      ...snapshot,
+      condition: {
+        ...snapshot.condition,
+        fatigue: restedFatigue,
+        injury: updatedInjury,
+        mood: p.condition.mood, // mood は processDay の結果を尊重
+      },
+      restOverride: newOverride,
+      // careerStats は processDay 結果 (試合があったかもしれないので) を優先
+      careerStats: p.careerStats,
+    };
+  });
+
   const updatedSchool: HighSchool = {
     ...school,
-    players: nextState.team.players,
+    players: adjustedPlayers,
     lineup: nextState.team.lineup,
     reputation: nextState.team.reputation,
     _summary: null, // invalidate cache
