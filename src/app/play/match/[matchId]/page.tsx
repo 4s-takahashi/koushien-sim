@@ -630,14 +630,84 @@ interface AutoPlayBarProps {
   speed: 'slow' | 'normal' | 'fast';
   onToggle: () => void;
   onSetSpeed: (s: 'slow' | 'normal' | 'fast') => void;
+  // 進行ボタン (2026-04-19 Issue 進行パネル統合)
+  pitchModeEnabled?: boolean;
+  canProgress?: boolean;
+  onStepOnePitch?: () => void;
+  onStepOneAtBat?: () => void;
+  onStepOneInning?: () => void;
+  onRunToEnd?: () => void;
+  isProcessing?: boolean;
+  isMatchOver?: boolean;
 }
 
-function AutoPlayBar({ enabled, speed, onToggle, onSetSpeed }: AutoPlayBarProps) {
-  // コンパクトアイコン UI (2026-04-19 Issue #9)
-  // 以前: ラベル+大ボタン3つで1行占有
-  // 現在: アイコン3つの速度選択 + 再生/停止ボタンのみ
+function AutoPlayBar({
+  enabled, speed, onToggle, onSetSpeed,
+  pitchModeEnabled, canProgress, onStepOnePitch, onStepOneAtBat,
+  onStepOneInning, onRunToEnd, isProcessing, isMatchOver,
+}: AutoPlayBarProps) {
+  // コントロールバー (自動進行 + 進行ボタンを1行に統合)
+  // 2026-04-19 Issue #9 + Issue 進行パネル統合
+  //
+  // 左側: 進行ボタン (1球/1打席/1イニング/最後まで)
+  // 右側: 自動進行 (⏸/▶ + 速度3種)
+  // 自動進行ONのときは手動進行ボタンを disabled にする
+  const stepsDisabled = !canProgress || enabled;
+  const showSteps = !isMatchOver && onStepOnePitch && onStepOneAtBat && onStepOneInning && onRunToEnd;
+
   return (
     <div className={styles.autoPlayBar} data-compact="true">
+      {/* 進行ボタン (左寄せ) */}
+      {showSteps && (
+        <div className={styles.progressBtnGroup} role="group" aria-label="進行ボタン">
+          {pitchModeEnabled && (
+            <button
+              className={styles.progressIconBtn}
+              onClick={onStepOnePitch}
+              disabled={stepsDisabled}
+              title={enabled ? '自動進行ON中は使えません' : '1球進める'}
+              aria-label="1球進める"
+            >
+              ⚾<span className={styles.progressIconLabel}>1球</span>
+            </button>
+          )}
+          <button
+            className={`${styles.progressIconBtn} ${styles.progressIconBtnPrimary}`}
+            onClick={onStepOneAtBat}
+            disabled={stepsDisabled}
+            title={enabled ? '自動進行ON中は使えません' : '1打席進める'}
+            aria-label="1打席進める"
+          >
+            👤<span className={styles.progressIconLabel}>1打席</span>
+          </button>
+          <button
+            className={styles.progressIconBtn}
+            onClick={onStepOneInning}
+            disabled={stepsDisabled}
+            title={enabled ? '自動進行ON中は使えません' : '1イニング進める'}
+            aria-label="1イニング進める"
+          >
+            🔔<span className={styles.progressIconLabel}>1回</span>
+          </button>
+          <button
+            className={`${styles.progressIconBtn} ${styles.progressIconBtnDanger}`}
+            onClick={onRunToEnd}
+            disabled={!canProgress}
+            title="試合終了まで自動で進める"
+            aria-label="最後まで進める"
+          >
+            ⏩<span className={styles.progressIconLabel}>最後</span>
+          </button>
+        </div>
+      )}
+
+      {isProcessing && (
+        <span className={styles.progressProcessing}>処理中...</span>
+      )}
+
+      <div className={styles.autoPlaySpacer} />
+
+      {/* 自動進行 (右寄せ) */}
       <button
         className={`${styles.autoPlayToggle} ${enabled ? styles.autoPlayToggleOn : ''}`}
         onClick={onToggle}
@@ -975,12 +1045,20 @@ export default function MatchPage() {
         <NarrationPanel entries={narration} />
       </div>
 
-      {/* 自動進行バー */}
+      {/* コントロールバー (進行ボタン + 自動進行) */}
       <AutoPlayBar
         enabled={autoPlayEnabled}
         speed={autoPlaySpeed}
         onToggle={toggleAutoPlay}
         onSetSpeed={setAutoPlaySpeed}
+        pitchModeEnabled={runnerMode.pitch === 'on'}
+        canProgress={canProgress}
+        onStepOnePitch={handleStepOnePitch}
+        onStepOneAtBat={handleStepOneAtBat}
+        onStepOneInning={handleStepOneInning}
+        onRunToEnd={handleRunToEnd}
+        isProcessing={isProcessing}
+        isMatchOver={isMatchOver}
       />
 
       {/* モードバー */}
@@ -1051,55 +1129,7 @@ export default function MatchPage() {
         {/* 打者パネル */}
         <BatterPanel view={view} />
 
-        {/* 進行ボタン */}
-        {!isMatchOver && (
-          <div className={`${styles.progressCard} ${styles.mainFull}`}>
-            <div className={styles.cardTitle}>進行</div>
-            <div className={styles.progressBtns}>
-              {runnerMode.pitch === 'on' && (
-                <button
-                  className={`${styles.progressBtn} ${styles.progressBtnPrimary}`}
-                  onClick={handleStepOnePitch}
-                  disabled={!canProgress || autoPlayEnabled}
-                  title={autoPlayEnabled ? '自動進行ONのため手動操作は無効です' : ''}
-                >
-                  ⚾ 1球
-                </button>
-              )}
-              <button
-                className={`${styles.progressBtn} ${styles.progressBtnPrimary}`}
-                onClick={handleStepOneAtBat}
-                disabled={!canProgress || autoPlayEnabled}
-                title={autoPlayEnabled ? '自動進行ONのため手動操作は無効です' : ''}
-              >
-                👤 1打席
-              </button>
-              <button
-                className={styles.progressBtn}
-                onClick={handleStepOneInning}
-                disabled={!canProgress || autoPlayEnabled}
-                title={autoPlayEnabled ? '自動進行ONのため手動操作は無効です' : ''}
-              >
-                🔔 1イニング
-              </button>
-              <button
-                className={`${styles.progressBtn} ${styles.progressBtnDanger}`}
-                onClick={handleRunToEnd}
-                disabled={!canProgress}
-              >
-                ⏩ 最後まで
-              </button>
-            </div>
-            {isProcessing && (
-              <div style={{ fontSize: 12, color: '#607d8b', marginTop: 6 }}>処理中...</div>
-            )}
-            {autoPlayEnabled && !isProcessing && (
-              <div style={{ fontSize: 12, color: '#1976d2', marginTop: 6 }}>
-                💡 自動進行中です。手動操作したい場合は上の「⏸ OFF」を押してください
-              </div>
-            )}
-          </div>
-        )}
+        {/* 進行ボタンは上の AutoPlayBar に統合済み (2026-04-19) */}
 
         {/* 直近ログ (1球ごとの詳細) */}
         <div className={styles.mainFull}>

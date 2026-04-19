@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.13.1';
+export const VERSION = '0.13.2';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-19 15:11 UTC';
-export const GIT_SHA = '25d0f3c-dirty';
+export const BUILD_DATE = '2026-04-19 15:17 UTC';
+export const GIT_SHA = '4641cd5-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,15 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.13.2',
+    date: '2026-04-19',
+    changes: [
+      '進行ボタン (1球/1打席/1イニング/最後まで) を自動進行バーに統合',
+      '進行ボタン+自動進行+速度を1行にまとめて大幅省スペース化',
+      '下部にあった大きな進行カードを削除',
+    ],
+  },
   {
     version: '0.13.1',
     date: '2026-04-19',
