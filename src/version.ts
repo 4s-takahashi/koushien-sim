@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.13.0';
+export const VERSION = '0.13.1';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-19 15:03 UTC';
-export const GIT_SHA = '7c26495-dirty';
+export const BUILD_DATE = '2026-04-19 15:11 UTC';
+export const GIT_SHA = '25d0f3c-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,15 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.13.1',
+    date: '2026-04-19',
+    changes: [
+      '🎯 采配バナーとボタンを統合: 画面を上下移動せずに采配できるように',
+      '「打席開始 — 采配サインを送ってください」等のバナーを采配カード上部に表示',
+      '下のバナー + 上の采配ボタン往復ストレスを解消',
+    ],
+  },
   {
     version: '0.13.0',
     date: '2026-04-19',

@@ -324,10 +324,13 @@ interface TacticsBtnProps {
   selectMode: SelectMode;
   setSelectMode: (m: SelectMode) => void;
   disabled: boolean;
+  /** 上部にバナー (pauseBanner 情報) を統合表示する場合は true */
+  showBanner?: boolean;
 }
 
-function TacticsBar({ view, onOrder, selectMode, setSelectMode, disabled }: TacticsBtnProps) {
+function TacticsBar({ view, onOrder, selectMode, setSelectMode, disabled, showBanner }: TacticsBtnProps) {
   const isPlayerBatting = view.isPlayerBatting;
+  const bannerInfo = showBanner && view.pauseReason ? pauseKindLabel(view) : null;
 
   const handleNone = useCallback(() => {
     onOrder({ type: 'none' });
@@ -371,7 +374,17 @@ function TacticsBar({ view, onOrder, selectMode, setSelectMode, disabled }: Tact
 
   return (
     <div className={styles.tacticsCard}>
-      <div className={styles.cardTitle}>采配</div>
+      {bannerInfo ? (
+        <div className={`${styles.tacticsBanner} ${bannerInfo.cls}`}>
+          <span className={styles.tacticsBannerIcon}>{bannerInfo.icon}</span>
+          <div className={styles.tacticsBannerText}>
+            <div className={styles.tacticsBannerTitle}>{bannerInfo.title}</div>
+            {bannerInfo.detail && <div className={styles.tacticsBannerDetail}>{bannerInfo.detail}</div>}
+          </div>
+        </div>
+      ) : (
+        <div className={styles.cardTitle}>采配</div>
+      )}
       <div className={styles.tacticsGrid}>
         {/* 何もしない */}
         <button
@@ -1006,8 +1019,24 @@ export default function MatchPage() {
 
       {/* メインコンテンツ */}
       <div className={styles.main}>
-        {/* 勝負所バナー */}
-        {isPaused && !isMatchOver && (
+        {/* 采配ボタン (バナー機能を統合: 打席開始等の案内は TacticsBar 内に表示) */}
+        {/* (2026-04-19 Issue #采配位置: PauseBanner と TacticsBar を統合して
+            画面を上下移動しなくて済むように) */}
+        {!isMatchOver && view.isPlayerBatting !== undefined && (
+          <div className={styles.mainFull}>
+            <TacticsBar
+              view={view}
+              onOrder={handleOrder}
+              selectMode={selectMode}
+              setSelectMode={setSelectMode}
+              disabled={isProcessing}
+              showBanner={isPaused}
+            />
+          </div>
+        )}
+
+        {/* 采配対象外のポーズ (試合終了など) では単体バナー */}
+        {isPaused && !isMatchOver && view.isPlayerBatting === undefined && (
           <div className={styles.mainFull}>
             <PauseBanner view={view} />
           </div>
@@ -1021,19 +1050,6 @@ export default function MatchPage() {
 
         {/* 打者パネル */}
         <BatterPanel view={view} />
-
-        {/* 采配ボタン */}
-        {!isMatchOver && view.isPlayerBatting !== undefined && (
-          <div className={styles.mainFull}>
-            <TacticsBar
-              view={view}
-              onOrder={handleOrder}
-              selectMode={selectMode}
-              setSelectMode={setSelectMode}
-              disabled={isProcessing}
-            />
-          </div>
-        )}
 
         {/* 進行ボタン */}
         {!isMatchOver && (
