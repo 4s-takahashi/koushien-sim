@@ -12,7 +12,9 @@
  */
 
 import { type NextRequest, NextResponse } from 'next/server';
-import { SESSION_COOKIE_NAME } from './src/lib/auth';
+// Edge ランタイムで動作するため auth.ts (ioredis/bcrypt 依存) は import しない。
+// 定数のみの auth-constants.ts を使う。
+import { SESSION_COOKIE_NAME } from './src/lib/auth-constants';
 
 // セッション検証はEdge-compatibleに Cookie の存在のみチェックする
 // （Edgeランタイムから KV/bcrypt が使えないため、API Routes で実検証）

@@ -17,7 +17,9 @@ import { generateId } from '../engine/core/id';
 
 const BCRYPT_ROUNDS = 10;
 const SESSION_TTL_SECONDS = 30 * 24 * 60 * 60; // 30日
-export const SESSION_COOKIE_NAME = 'koushien_session';
+// Edge ランタイム互換性のため、定数は auth-constants.ts に定義済み
+export { SESSION_COOKIE_NAME } from './auth-constants';
+import { SESSION_COOKIE_NAME } from './auth-constants';
 
 // ============================================================
 // 型定義
