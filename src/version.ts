@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.12.1';
+export const VERSION = '0.12.2';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-19 11:11 UTC';
-export const GIT_SHA = '46e6d21-dirty';
+export const BUILD_DATE = '2026-04-19 11:31 UTC';
+export const GIT_SHA = 'a0800e3-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,15 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.12.2',
+    date: '2026-04-19',
+    changes: [
+      '「打者 不明」で試合が止まるバグを修正（battingOrder の整合性を保証）',
+      'buildMatchTeam に整合性チェック＋フォールバックを追加',
+      '試合完走テスト（複数シード × 150打席）を追加、全558テスト全パス',
+    ],
+  },
   {
     version: '0.12.1',
     date: '2026-04-19',
