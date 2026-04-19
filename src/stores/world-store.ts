@@ -144,6 +144,27 @@ interface WorldStore {
   // --- インタラクティブ試合（Phase 10-C） ---
   /** インタラクティブ試合完了後に呼ぶ。ブラケット更新 + 日付進行。 */
   finishInteractiveMatch: (matchResult: import('../engine/match/types').MatchResult) => WorldDayResult | null;
+
+  // --- 試合中断/再開 (Issue #8 PR #6 2026-04-19) ---
+  /**
+   * 現在プレイ中のインタラクティブ試合を中断してホームに戻せるようにする。
+   * 試合状態・narration・pitchLog を serialize して pausedInteractiveMatch に保存。
+   */
+  pauseInteractiveMatch: (snapshot: {
+    matchStateJson: string;
+    narrationJson: string;
+    pitchLogJson: string;
+  }) => void;
+  /**
+   * 中断中の試合を再開する準備。pausedInteractiveMatch を返し、呼び出し側で
+   * match-store に展開する。呼出後に pausedInteractiveMatch は null にする。
+   */
+  consumePausedMatch: () => import('../engine/world/world-state').PausedInteractiveMatch | null;
+  /**
+   * 中断中の試合を破棄 (ユーザーが放棄した場合)。試合は進行扱いにせず
+   * 通常の simulateTournament に戻せるようにする。
+   */
+  discardPausedMatch: () => void;
 }
 
 // ============================================================
@@ -677,6 +698,56 @@ export const useWorldStore = create<WorldStore>()(
     });
 
     return result;
+  },
+
+  // ----------------------------------------------------------------
+  // 試合中断/再開 (Issue #8 PR #6 2026-04-19)
+  // ----------------------------------------------------------------
+  pauseInteractiveMatch: (snapshot) => {
+    const { worldState } = get();
+    if (!worldState) return;
+    if (!worldState.pendingInteractiveMatch) return; // 対戦設定がないと中断不可
+
+    const paused: import('../engine/world/world-state').PausedInteractiveMatch = {
+      matchStateJson: snapshot.matchStateJson,
+      narrationJson: snapshot.narrationJson,
+      pitchLogJson: snapshot.pitchLogJson,
+      pending: worldState.pendingInteractiveMatch,
+      pausedAt: new Date().toISOString(),
+    };
+
+    set({
+      worldState: {
+        ...worldState,
+        pausedInteractiveMatch: paused,
+      },
+    });
+  },
+
+  consumePausedMatch: () => {
+    const { worldState } = get();
+    if (!worldState?.pausedInteractiveMatch) return null;
+    const paused = worldState.pausedInteractiveMatch;
+
+    set({
+      worldState: {
+        ...worldState,
+        pausedInteractiveMatch: null,
+      },
+    });
+
+    return paused;
+  },
+
+  discardPausedMatch: () => {
+    const { worldState } = get();
+    if (!worldState) return;
+    set({
+      worldState: {
+        ...worldState,
+        pausedInteractiveMatch: null,
+      },
+    });
   },
 }),
     {

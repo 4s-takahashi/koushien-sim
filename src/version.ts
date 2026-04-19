@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.16.0';
+export const VERSION = '0.17.0';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-19 15:41 UTC';
-export const GIT_SHA = '1ab8bb6-dirty';
+export const BUILD_DATE = '2026-04-19 16:08 UTC';
+export const GIT_SHA = '0c75488-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,18 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.17.0',
+    date: '2026-04-19',
+    changes: [
+      '⏸ 試合中断/再開機能 (Issue #8)',
+      '試合画面に「⏸ 中断してホームへ」ボタン',
+      'ホーム画面に「⚾ 試合再開」バナー',
+      '試合状態・実況ログ・投球ログを JSON で保存',
+      'MatchState Map/Set serialize + round-trip 復元',
+      'Issue #8 (PR #6) 対応',
+    ],
+  },
   {
     version: '0.16.0',
     date: '2026-04-19',

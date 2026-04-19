@@ -201,6 +201,31 @@ export interface WorldState {
    * プレイヤーが試合を完了したら null にリセットして日付進行を再開する。
    */
   pendingInteractiveMatch?: PendingInteractiveMatch | null;
+
+  /**
+   * 試合中断状態 (Issue #8 2026-04-19 PR #6)。
+   * プレイヤーが試合中にホームに戻った場合、ここに現在の試合状態を退避する。
+   * null でない場合、ホーム画面に「試合再開」バナーが出る。
+   */
+  pausedInteractiveMatch?: PausedInteractiveMatch | null;
+}
+
+/**
+ * 中断された試合のスナップショット (Issue #8)。
+ * pendingInteractiveMatch とは別フィールド: pending は「これから始まる」、
+ * paused は「途中で中断された」という意味。
+ */
+export interface PausedInteractiveMatch {
+  /** 試合状態 (serializable: Map は配列に変換済み) */
+  matchStateJson: string;
+  /** 進行ログ */
+  narrationJson: string;
+  /** 投球ログ */
+  pitchLogJson: string;
+  /** pending 情報 (元の対戦設定) */
+  pending: PendingInteractiveMatch;
+  /** 中断した日時 */
+  pausedAt: string; // ISO 8601
 }
 
 /**

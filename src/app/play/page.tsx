@@ -287,10 +287,29 @@ function HomeContent({ view }: { view: HomeViewState }) {
   // インタラクティブ試合が待機中の場合
   const pendingInteractiveMatch = worldState?.pendingInteractiveMatch ?? null;
 
+  // 中断中の試合 (Issue #8 2026-04-19)
+  const pausedInteractiveMatch = worldState?.pausedInteractiveMatch ?? null;
+  const discardPausedMatch = useWorldStore((s) => s.discardPausedMatch);
+
   const handleStartInteractiveMatch = useCallback(() => {
     if (!pendingInteractiveMatch) return;
     router.push('/play/match/current');
   }, [pendingInteractiveMatch, router]);
+
+  const handleResumePausedMatch = useCallback(() => {
+    if (!pausedInteractiveMatch) return;
+    // 中断中の試合へ遷移（実際の復元は match 画面側で consumePausedMatch を呼ぶ）
+    router.push('/play/match/current');
+  }, [pausedInteractiveMatch, router]);
+
+  const handleDiscardPausedMatch = useCallback(() => {
+    if (!pausedInteractiveMatch) return;
+    const confirmed = window.confirm(
+      '中断中の試合を放棄しますか？\n試合は不戦敗扱いにはならず、通常の進行に戻ります。',
+    );
+    if (!confirmed) return;
+    discardPausedMatch();
+  }, [pausedInteractiveMatch, discardPausedMatch]);
 
   const handleAdvanceDay = useCallback(() => {
     setIsAdvancing(true);
@@ -417,8 +436,58 @@ function HomeContent({ view }: { view: HomeViewState }) {
       {/* メインコンテンツ */}
       <main className={styles.main}>
 
+        {/* 中断中の試合 再開バナー (Issue #8 2026-04-19) */}
+        {pausedInteractiveMatch && (
+          <div className={`${styles.card} ${styles.cardFull}`} style={{
+            background: 'linear-gradient(90deg, #fff3e0, #ffe0b2)',
+            borderLeft: '4px solid #ff9800',
+          }}>
+            <div style={{ fontSize: 16, fontWeight: 'bold', color: '#e65100' }}>
+              ⏸ 中断中の試合があります
+            </div>
+            {(() => {
+              const opponent = worldState?.schools?.find(
+                (s) => s.id === pausedInteractiveMatch.pending.opponentSchoolId
+              );
+              return opponent ? (
+                <div style={{ fontSize: 13, color: '#37474f', marginTop: 6 }}>
+                  vs <strong>{opponent.name}</strong>
+                  <span style={{ marginLeft: 8, fontSize: 11, color: '#90a4ae' }}>
+                    {pausedInteractiveMatch.pending.round}回戦
+                  </span>
+                </div>
+              ) : null;
+            })()}
+            <div style={{ fontSize: 11, color: '#78909c', marginTop: 4 }}>
+              中断時刻: {new Date(pausedInteractiveMatch.pausedAt).toLocaleString('ja-JP')}
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+              <button
+                onClick={handleResumePausedMatch}
+                style={{
+                  padding: '10px 24px', background: '#e65100',
+                  border: 'none', borderRadius: 4, color: '#fff',
+                  fontSize: 14, fontWeight: 'bold', cursor: 'pointer',
+                }}
+              >
+                ▶ 試合を再開
+              </button>
+              <button
+                onClick={handleDiscardPausedMatch}
+                style={{
+                  padding: '10px 16px', background: 'transparent',
+                  border: '1px solid #e65100', borderRadius: 4, color: '#e65100',
+                  fontSize: 12, cursor: 'pointer',
+                }}
+              >
+                放棄
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* インタラクティブ試合待機バナー（Phase 10-C） */}
-        {pendingInteractiveMatch && (
+        {pendingInteractiveMatch && !pausedInteractiveMatch && (
           <div className={`${styles.card} ${styles.cardFull} ${styles.matchDayCard}`}>
             <div className={styles.matchDayTitle}>
               ⚾ 試合の準備ができました！

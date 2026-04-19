@@ -16,6 +16,7 @@ import { projectMatch } from '../ui/projectors/matchProjector';
 import { createRNG } from '../engine/core/rng';
 import { buildNarrationForPitch, buildNarrationForAtBat } from '../ui/narration/buildNarration';
 import type { NarrationEntry } from '../ui/narration/buildNarration';
+import { serializeMatchState, deserializeMatchState } from '../engine/match/serialize';
 
 // ============================================================
 // 型定義
@@ -60,6 +61,32 @@ export interface MatchStoreActions {
 
   /** 試合をリセット（ホームへ戻る前に呼ぶ） */
   resetMatch: () => void;
+
+  /**
+   * 現在の試合状態をスナップショット化する (Issue #8 2026-04-19)。
+   * ホームに戻って再開する時のための dump。
+   * @returns MatchState / narration / pitchLog を JSON 文字列化したもの
+   */
+  dumpSnapshot: () => {
+    matchStateJson: string;
+    narrationJson: string;
+    pitchLogJson: string;
+  } | null;
+
+  /**
+   * スナップショットから試合を復元する (Issue #8 2026-04-19)。
+   * 新しい MatchRunner を serialized state で初期化。RNG state は
+   * 新しく seed から作成される (決定論性は失うが体験上問題なし)。
+   */
+  restoreFromSnapshot: (
+    snapshot: {
+      matchStateJson: string;
+      narrationJson: string;
+      pitchLogJson: string;
+    },
+    playerSchoolId: string,
+    seed: string,
+  ) => void;
 
   /** 現在の ViewState を取得する */
   getMatchView: () => MatchViewState | null;
@@ -165,6 +192,53 @@ export const useMatchStore = create<MatchStore>((set, get) => ({
   // ----------------------------------------------------------------
   resetMatch: () => {
     set({ ...INITIAL_STATE });
+  },
+
+  // ----------------------------------------------------------------
+  // スナップショット (Issue #8 2026-04-19)
+  // ----------------------------------------------------------------
+  dumpSnapshot: () => {
+    const { runner, pitchLog, narration } = get();
+    if (!runner) return null;
+    const state = runner.getState();
+    return {
+      matchStateJson: serializeMatchState(state),
+      narrationJson: JSON.stringify(narration),
+      pitchLogJson: JSON.stringify(pitchLog),
+    };
+  },
+
+  restoreFromSnapshot: (snapshot, playerSchoolId, seed) => {
+    const matchState = deserializeMatchState(snapshot.matchStateJson);
+    const runner = new MatchRunner(matchState, cpuAutoTactics, playerSchoolId);
+
+    let narration: NarrationEntry[] = [];
+    try {
+      narration = JSON.parse(snapshot.narrationJson) as NarrationEntry[];
+    } catch {
+      narration = [];
+    }
+
+    let pitchLog: PitchLogEntry[] = [];
+    try {
+      pitchLog = JSON.parse(snapshot.pitchLogJson) as PitchLogEntry[];
+    } catch {
+      pitchLog = [];
+    }
+
+    const { runnerMode } = get();
+    const pauseReason = evaluatePause(runner, runnerMode);
+
+    set({
+      runner,
+      playerSchoolId,
+      gameSeed: seed,
+      pauseReason,
+      pitchLog,
+      narration,
+      matchResult: null,
+      isProcessing: false,
+    });
   },
 
   // ----------------------------------------------------------------

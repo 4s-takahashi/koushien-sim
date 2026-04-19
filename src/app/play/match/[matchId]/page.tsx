@@ -851,9 +851,11 @@ export default function MatchPage() {
   const worldState = useWorldStore((s) => s.worldState);
   const hasHydrated = useWorldStore((s) => s._hasHydrated);
   const finishInteractiveMatch = useWorldStore((s) => s.finishInteractiveMatch);
+  const consumePausedMatch = useWorldStore((s) => s.consumePausedMatch);
   const getHomeView = useWorldStore((s) => s.getHomeView);
 
   const initMatch = useMatchStore((s) => s.initMatch);
+  const restoreFromSnapshot = useMatchStore((s) => s.restoreFromSnapshot);
   const resetMatch = useMatchStore((s) => s.resetMatch);
   const getMatchView = useMatchStore((s) => s.getMatchView);
   const matchResult = useMatchStore((s) => s.matchResult);
@@ -889,6 +891,24 @@ export default function MatchPage() {
       // ゲーム未開始 → /play に戻せば PlayPage が /new-game にリダイレクトする
       router.replace('/play');
       return;
+    }
+
+    // ── 中断中の試合があれば復元 (Issue #8 2026-04-19) ──
+    if (worldState.pausedInteractiveMatch) {
+      const paused = consumePausedMatch();
+      if (paused) {
+        restoreFromSnapshot(
+          {
+            matchStateJson: paused.matchStateJson,
+            narrationJson: paused.narrationJson,
+            pitchLogJson: paused.pitchLogJson,
+          },
+          worldState.playerSchoolId,
+          worldState.seed,
+        );
+        setInitialized(true);
+        return;
+      }
     }
 
     const pending = worldState.pendingInteractiveMatch;
@@ -938,7 +958,7 @@ export default function MatchPage() {
 
     initMatch(initialState, worldState.playerSchoolId, worldState.seed);
     setInitialized(true);
-  }, [hasHydrated, worldState, initialized, initMatch, router]);
+  }, [hasHydrated, worldState, initialized, initMatch, router, consumePausedMatch, restoreFromSnapshot]);
 
   // 試合終了後の処理
   const handleGoHome = useCallback(() => {
@@ -982,6 +1002,26 @@ export default function MatchPage() {
     setSelectMode({ type: 'none' });
     runToEnd();
   }, [runToEnd]);
+
+  // 試合を中断してホームに戻る (Issue #8 2026-04-19)
+  const dumpSnapshot = useMatchStore((s) => s.dumpSnapshot);
+  const pauseInteractiveMatch = useWorldStore((s) => s.pauseInteractiveMatch);
+  const handlePauseToHome = useCallback(() => {
+    if (matchResult) {
+      // 試合終了済みならそのままホームへ
+      router.push('/play');
+      return;
+    }
+    const confirmed = window.confirm(
+      '試合を一時中断してホームに戻りますか？\n後でホーム画面から再開できます。',
+    );
+    if (!confirmed) return;
+    const snapshot = dumpSnapshot();
+    if (snapshot) {
+      pauseInteractiveMatch(snapshot);
+    }
+    router.push('/play');
+  }, [dumpSnapshot, pauseInteractiveMatch, router, matchResult]);
 
   // ── 自動進行タイマー ──
   // narration.length を deps に入れることで、1打席処理後に次の打席タイマーを起動する。
@@ -1036,6 +1076,30 @@ export default function MatchPage() {
     <div className={styles.page}>
       {/* スコアボード */}
       <Scoreboard view={view} />
+
+      {/* 中断ボタン (Issue #8 2026-04-19) */}
+      <div style={{
+        maxWidth: 900, margin: '0 auto', padding: '4px 16px',
+        width: '100%', boxSizing: 'border-box',
+        display: 'flex', justifyContent: 'flex-end',
+      }}>
+        <button
+          type="button"
+          onClick={handlePauseToHome}
+          style={{
+            padding: '4px 10px',
+            fontSize: 11,
+            background: 'rgba(255,255,255,0.1)',
+            color: '#607d8b',
+            border: '1px solid #cfd8dc',
+            borderRadius: 4,
+            cursor: 'pointer',
+          }}
+          title={matchResult ? 'ホームへ戻る' : '試合を中断してホームへ戻る（後で再開可）'}
+        >
+          {matchResult ? '🏠 ホームへ' : '⏸ 中断してホームへ'}
+        </button>
+      </div>
 
       {/* イニングスコア */}
       <InningScoreTable view={view} />
