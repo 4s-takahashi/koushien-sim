@@ -16,7 +16,7 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.12.3';
+export const VERSION = '0.12.4';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
 export const BUILD_DATE = '2026-04-19 11:40 UTC';
@@ -33,6 +33,17 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.12.4',
+    date: '2026-04-19',
+    changes: [
+      '🔴 重大: 2ストライクで三振してしまうバグを修正',
+      '原因: ホームランやヒットの後、打席終了時のカウントがリセットされず、次の打者に前の打席のストライク数が引き継がれていた',
+      'processAtBat インプレー break 時に count リセットを追加',
+      'runner.stepOneAtBat に count リセットの防衛コードを追加',
+      'テスト追加: 打席終了後の count=0-0 を検証（修正前は再現失敗）',
+    ],
+  },
   {
     version: '0.12.3',
     date: '2026-04-19',

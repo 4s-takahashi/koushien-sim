@@ -620,7 +620,11 @@ export class MatchRunner {
     const prevLog = this.state.log;
 
     const { nextState, result } = processAtBat(this.state, order, rng);
-    this.state = nextState;
+    // ⚠️ 打席終了時にカウントを必ずリセット（防衛コード）
+    // processAtBat 内でもリセットするが、全ケースでの確実性を保証するため。
+    // これを怠ると次の打席に前の打席のカウントが引き継がれ、
+    // 「2ストライクで三振した」ように見えるバグになる (2026-04-19 修正)
+    this.state = { ...nextState, count: { balls: 0, strikes: 0 } };
 
     // 使用した采配をクリア
     this.pendingPlayerOrder = null;

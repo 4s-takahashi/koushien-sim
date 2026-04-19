@@ -291,6 +291,12 @@ export function processAtBat(
       // RBI: 打席中に得点したランナー数
       const runsScored = calculateRunsScored(isBottom, nextState.score, state.score);
       rbiCount = calculateRBI(atBatOutcome, runsScored);
+
+      // ⚠️ 重要: 打席終了時にカウントをリセット
+      // これを忘れると次の打席の打者に前の打席の中間カウントが引き継がれ、
+      // 「2ストライクで三振した」ように見える誤動作になる (2026-04-19 バグ修正)
+      currentState = { ...currentState, count: { balls: 0, strikes: 0 } };
+      currentCount = { balls: 0, strikes: 0 };
       break;
     }
   }
