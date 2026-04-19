@@ -620,8 +620,6 @@ export class MatchRunner {
     const prevLog = this.state.log;
 
     const { nextState, result } = processAtBat(this.state, order, rng);
-    // ⚠️ processAtBat が内部で currentBatterIndex を +1 済み
-    // → ここで追加の +1 は絶対にしない（二重進行バグ 2026-04-19 修正）
     this.state = nextState;
 
     // 使用した采配をクリア
@@ -630,9 +628,15 @@ export class MatchRunner {
     // 打席結果を蓄積
     this.allAtBatResults.push(result);
 
-    // ── 3アウト到達 → 攻守交代（試合終了判定含む）──
+    // ── 打順を進める ──
+    // processAtBat は currentBatterIndex を +1 しない設計。
+    // stepOneAtBat は processAtBat を直接呼ぶので、ここで明示的に進める。
+    // (2026-04-19 バグ修正: ヒット後に同じ打者が再登場する問題)
+    this.advanceBatterIndex();
+
+    // ── 3アウト到達 → 攻守交代(試合終了判定含む) ──
     // processAtBat 内で 3アウトに達したが、switchHalfInning が呼ばれない構造なので
-    // runner 側で必ずチェックしてイニングを切り替える（試合が止まるバグ 2026-04-19 修正）
+    // runner 側で必ずチェックしてイニングを切り替える
     if (!this.state.isOver && this.state.outs >= 3) {
       this.switchHalfInning();
     }

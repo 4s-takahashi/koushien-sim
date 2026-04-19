@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.12.0';
+export const VERSION = '0.12.1';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-19 10:59 UTC';
-export const GIT_SHA = '0366396-dirty';
+export const BUILD_DATE = '2026-04-19 11:11 UTC';
+export const GIT_SHA = '46e6d21-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,15 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.12.1',
+    date: '2026-04-19',
+    changes: [
+      '打席後に同じ打者が再登場するバグを修正（打順 +1 が漏れていた）',
+      '自動進行ON中は手動ボタンを無効化（2打席進んでしまう問題を解消）',
+      '自動進行中に手動操作しようとすると注意メッセージを表示',
+    ],
+  },
   {
     version: '0.12.0',
     date: '2026-04-19',

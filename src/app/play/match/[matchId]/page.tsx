@@ -882,6 +882,9 @@ export default function MatchPage() {
   }, [runToEnd]);
 
   // ── 自動進行タイマー ──
+  // narration.length を deps に入れることで、1打席処理後に次の打席タイマーを起動する。
+  // 手動ボタンは autoPlayEnabled=true のとき disabled になっている (上の TacticsBar/進行ボタン参照)
+  // ので、「手動クリック → 自動進行が続けて動作」の多重進行は発生しない。
   useEffect(() => {
     if (!initialized) return;
     if (!autoPlayEnabled) return;
@@ -909,7 +912,7 @@ export default function MatchPage() {
     matchResult,
     isProcessing,
     selectMode.type,
-    narration.length, // narration が増えたら次の打席へ進むトリガー
+    narration.length,
     stepOneAtBat,
   ]);
 
@@ -1017,7 +1020,8 @@ export default function MatchPage() {
                 <button
                   className={`${styles.progressBtn} ${styles.progressBtnPrimary}`}
                   onClick={handleStepOnePitch}
-                  disabled={!canProgress}
+                  disabled={!canProgress || autoPlayEnabled}
+                  title={autoPlayEnabled ? '自動進行ONのため手動操作は無効です' : ''}
                 >
                   ⚾ 1球
                 </button>
@@ -1025,14 +1029,16 @@ export default function MatchPage() {
               <button
                 className={`${styles.progressBtn} ${styles.progressBtnPrimary}`}
                 onClick={handleStepOneAtBat}
-                disabled={!canProgress}
+                disabled={!canProgress || autoPlayEnabled}
+                title={autoPlayEnabled ? '自動進行ONのため手動操作は無効です' : ''}
               >
                 👤 1打席
               </button>
               <button
                 className={styles.progressBtn}
                 onClick={handleStepOneInning}
-                disabled={!canProgress}
+                disabled={!canProgress || autoPlayEnabled}
+                title={autoPlayEnabled ? '自動進行ONのため手動操作は無効です' : ''}
               >
                 🔔 1イニング
               </button>
@@ -1046,6 +1052,11 @@ export default function MatchPage() {
             </div>
             {isProcessing && (
               <div style={{ fontSize: 12, color: '#607d8b', marginTop: 6 }}>処理中...</div>
+            )}
+            {autoPlayEnabled && !isProcessing && (
+              <div style={{ fontSize: 12, color: '#1976d2', marginTop: 6 }}>
+                💡 自動進行中です。手動操作したい場合は上の「⏸ OFF」を押してください
+              </div>
             )}
           </div>
         )}
