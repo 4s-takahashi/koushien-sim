@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useWorldStore } from '../../../stores/world-store';
 import type { TeamViewState } from '../../../ui/projectors/view-state-types';
+import type { ManagerStyle } from '../../../engine/types/team';
 import styles from './page.module.css';
 
 function getRankClass(rank: string): string {
@@ -27,6 +28,13 @@ function getGradeClass(grade: number): string {
   return styles.grade1;
 }
 
+const STYLE_OPTIONS: Array<{ id: ManagerStyle; label: string; desc: string }> = [
+  { id: 'aggressive', label: '強攻策', desc: '長打+5%、CPU バント/盗塁確率-10%' },
+  { id: 'balanced',   label: 'バランス', desc: '補正なし（デフォルト）' },
+  { id: 'defensive',  label: '守備固め', desc: 'エラー率-10%、CPU バント+10%' },
+  { id: 'small_ball', label: '小技野球', desc: 'CPU バント+25%、盗塁成功率+5%' },
+];
+
 const MENU_OPTIONS: Array<{ id: string; label: string }> = [
   { id: '', label: '（共通）' },
   { id: 'batting_basic', label: '打撃・基礎' },
@@ -44,7 +52,9 @@ function TeamPage({ view }: { view: TeamViewState }) {
   const restAllInjuredAndWarned = useWorldStore((s) => s.restAllInjuredAndWarned);
   const setIndividualMenu = useWorldStore((s) => s.setIndividualMenu);
   const clearAllIndividualMenus = useWorldStore((s) => s.clearAllIndividualMenus);
+  const setManagerStyle = useWorldStore((s) => s.setManagerStyle);
   const [restToast, setRestToast] = useState<string | null>(null);
+  const [styleToast, setStyleToast] = useState<string | null>(null);
 
   const handleBulkRest = () => {
     const { count } = restAllInjuredAndWarned();
@@ -59,6 +69,14 @@ function TeamPage({ view }: { view: TeamViewState }) {
   const handleMenuChange = (playerId: string, menuId: string) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     setIndividualMenu(playerId, (menuId || null) as any);
+  };
+
+  const handleStyleChange = (styleId: string) => {
+    const style = styleId as ManagerStyle;
+    setManagerStyle(style || undefined);
+    const label = STYLE_OPTIONS.find((s) => s.id === style)?.label ?? styleId;
+    setStyleToast(`戦術スタイルを「${label}」に変更しました`);
+    setTimeout(() => setStyleToast(null), 3000);
   };
 
   const individualMenuCount = view.players.filter((p) => p.individualMenu).length;
@@ -109,6 +127,61 @@ function TeamPage({ view }: { view: TeamViewState }) {
             <div className={styles.statSub}>
               3年{view.grade3Count} / 2年{view.grade2Count} / 1年{view.grade1Count}名
             </div>
+          </div>
+        </div>
+
+        {/* 監督情報 (Phase 11-A2) */}
+        <div className={styles.section}>
+          <div className={styles.sectionTitle}>監督</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', fontSize: 13 }}>
+            <span style={{ fontWeight: 600 }}>{view.manager.name}</span>
+            <span style={{ color: 'var(--color-text-sub)' }}>
+              通算 {view.manager.totalWins}勝{view.manager.totalLosses}敗
+              {view.manager.koshienAppearances > 0 && (
+                <span style={{ marginLeft: 6, color: '#c62828' }}>
+                  甲子園{view.manager.koshienAppearances}回
+                </span>
+              )}
+            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <label style={{ fontSize: 12, color: 'var(--color-text-sub)', whiteSpace: 'nowrap' }}>
+                戦術スタイル:
+              </label>
+              <select
+                value={view.manager.style}
+                onChange={(e) => handleStyleChange(e.target.value)}
+                style={{
+                  fontSize: 12,
+                  padding: '3px 6px',
+                  borderRadius: 4,
+                  border: '1px solid #90a4ae',
+                  background: '#e8f5e9',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                }}
+                title={STYLE_OPTIONS.find((s) => s.id === view.manager.style)?.desc ?? ''}
+              >
+                {STYLE_OPTIONS.map((s) => (
+                  <option key={s.id} value={s.id} title={s.desc}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+              {styleToast && (
+                <span style={{
+                  fontSize: 11,
+                  color: '#2e7d32',
+                  background: '#e8f5e9',
+                  padding: '2px 8px',
+                  borderRadius: 4,
+                }}>
+                  {styleToast}
+                </span>
+              )}
+            </div>
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--color-text-sub)', marginTop: 4 }}>
+            {STYLE_OPTIONS.find((s) => s.id === view.manager.style)?.desc}
           </div>
         </div>
 
@@ -228,6 +301,7 @@ function TeamPage({ view }: { view: TeamViewState }) {
                 <th>ポジション</th>
                 <th>総合力</th>
                 <th>状態</th>
+                <th>やる気</th>
                 <th>打順</th>
                 <th>個別練習</th>
               </tr>
@@ -265,6 +339,18 @@ function TeamPage({ view }: { view: TeamViewState }) {
                         🛌
                       </span>
                     )}
+                  </td>
+                  <td title={`モチベーション: ${p.motivation}`}>
+                    <span style={{ fontSize: 13, marginRight: 2 }}>
+                      {p.motivation >= 70 ? '🔥' : p.motivation <= 30 ? '😢' : ''}
+                    </span>
+                    <span style={{
+                      fontSize: 11,
+                      color: p.motivation >= 70 ? '#e65100' : p.motivation <= 30 ? '#1565c0' : 'var(--color-text-sub)',
+                      fontWeight: (p.motivation >= 70 || p.motivation <= 30) ? 600 : 400,
+                    }}>
+                      {p.motivation}
+                    </span>
                   </td>
                   <td>
                     {p.battingOrderNumber !== null

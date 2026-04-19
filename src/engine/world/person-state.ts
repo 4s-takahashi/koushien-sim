@@ -79,6 +79,10 @@ export interface PersonState {
   /** 残り休養日数つきオーバーライド。null = 通常練習 */
   restOverride?: { remainingDays: number; setOn: GameDate } | null;
 
+  // --- モチベーション (2026-04-19 Phase 11-A3) ---
+  /** モチベーション: 0-100。未定義は 50 相当 */
+  motivation?: number;
+
   // --- 成長トラッキング ---
   cumulativeGrowth: CumulativeGrowth;
 

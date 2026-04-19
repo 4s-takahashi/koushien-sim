@@ -7,11 +7,13 @@
 import type { WorldState } from '../../engine/world/world-state';
 import type { Player, Position } from '../../engine/types/player';
 import type { Lineup } from '../../engine/types/team';
+import type { ManagerStyle } from '../../engine/types/team';
 import type {
   TeamViewState, PlayerRowView, LineupView,
-  PositionLabel, AbilityRank,
+  PositionLabel, AbilityRank, ManagerView,
 } from './view-state-types';
 import { computePlayerOverall } from '../../engine/world/career/draft-system';
+import { getMotivation } from '../../engine/growth/motivation';
 
 // ============================================================
 // 内部ヘルパー
@@ -129,6 +131,16 @@ function buildLineupView(players: Player[], lineup: Lineup | null): LineupView |
   };
 }
 
+function managerStyleToLabel(style: ManagerStyle): string {
+  const map: Record<ManagerStyle, string> = {
+    aggressive: '強攻策',
+    balanced: 'バランス',
+    defensive: '守備固め',
+    small_ball: '小技野球',
+  };
+  return map[style] ?? 'バランス';
+}
+
 // ============================================================
 // 公開 API
 // ============================================================
@@ -139,6 +151,17 @@ function buildLineupView(players: Player[], lineup: Lineup | null): LineupView |
 export function projectTeam(worldState: WorldState): TeamViewState {
   const { currentDate, playerSchoolId, schools } = worldState;
   const playerSchool = schools.find((s) => s.id === playerSchoolId);
+
+  const managerStyle = worldState.manager.style ?? 'balanced';
+  const managerView: ManagerView = {
+    name: worldState.manager.name,
+    yearsActive: worldState.manager.yearsActive,
+    totalWins: worldState.manager.totalWins,
+    totalLosses: worldState.manager.totalLosses,
+    koshienAppearances: worldState.manager.koshienAppearances,
+    style: managerStyle,
+    styleLabel: managerStyleToLabel(managerStyle),
+  };
 
   if (!playerSchool) {
     return {
@@ -155,6 +178,7 @@ export function projectTeam(worldState: WorldState): TeamViewState {
       grade3Count: 0,
       grade2Count: 0,
       grade1Count: 0,
+      manager: managerView,
     };
   }
 
@@ -189,6 +213,7 @@ export function projectTeam(worldState: WorldState): TeamViewState {
       isInLineup: lineupPlayerIds.has(player.id),
       battingOrderNumber: battingOrderMap.get(player.id) ?? null,
       individualMenu: playerSchool.individualPracticeMenus?.[player.id] ?? null,
+      motivation: getMotivation(player),
     };
   });
 
@@ -215,5 +240,6 @@ export function projectTeam(worldState: WorldState): TeamViewState {
     grade3Count,
     grade2Count,
     grade1Count,
+    manager: managerView,
   };
 }

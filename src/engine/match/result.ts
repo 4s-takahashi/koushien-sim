@@ -12,6 +12,7 @@ import type {
   InningResult,
 } from './types';
 import { MATCH_CONSTANTS } from './constants';
+import { applyMatchMotivation } from '../growth/motivation';
 
 // ============================================================
 // 打者成績の集計
@@ -286,7 +287,7 @@ export function applyMatchToPlayers(
   const batterMap = new Map(batterStats.map((s) => [s.playerId, s]));
   const pitcherMap = new Map(pitcherStats.map((s) => [s.playerId, s]));
 
-  return players.map((player) => {
+  const careerUpdated = players.map((player) => {
     let career = { ...player.careerStats };
 
     const bs = batterMap.get(player.id);
@@ -339,6 +340,9 @@ export function applyMatchToPlayers(
 
     return { ...player, careerStats: career };
   });
+
+  // 試合出場者にモチベーションボーナスを加算 (Phase 11-A3 2026-04-19)
+  return applyMatchMotivation(careerUpdated, batterStats, pitcherStats);
 }
 
 // ============================================================

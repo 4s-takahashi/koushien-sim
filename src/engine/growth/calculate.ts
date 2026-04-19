@@ -3,6 +3,7 @@ import type { PracticeMenu, StatTarget } from '../types/calendar';
 import type { RNG } from '../core/rng';
 import { GROWTH_CONSTANTS } from './constants';
 import { ceilingPenalty as sharedCeilingPenalty, getMoodMultiplier } from '../shared/stat-utils';
+import { getMotivation, getPracticeEfficiencyMultiplier } from './motivation';
 
 export interface GrowthModifiers {
   growthRate: number;
@@ -160,6 +161,9 @@ export function applyDailyGrowth(player: Player, menu: PracticeMenu, rng: RNG, s
   // For now, calculate based on the player's mentalState (which is updated elsewhere)
   // We'll pass currentYear through the seasonMultiplier context
 
+  // モチベーション補正 (Phase 11-A3 2026-04-19): ±20% on growth rate
+  const motivationMult = getPracticeEfficiencyMultiplier(getMotivation(player));
+
   const modifiers: GrowthModifiers = {
     growthRate: player.potential.growthRate,
     growthType: player.potential.growthType,
@@ -168,7 +172,7 @@ export function applyDailyGrowth(player: Player, menu: PracticeMenu, rng: RNG, s
     fatigue: player.condition.fatigue,
     motivation: player.mentalState.confidence,
     traits: player.traits,
-    seasonMultiplier,
+    seasonMultiplier: seasonMultiplier * motivationMult,
   };
 
   let newStats = { ...player.stats };

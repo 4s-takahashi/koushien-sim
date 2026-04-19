@@ -11,6 +11,7 @@ import { getPracticeMenuById, getDefaultMenu } from '../growth/practice';
 import { applyDailyGrowth } from '../growth/calculate';
 import { updateDailyCondition, applyFatigue, recoverFatigue, rollInjury, advanceInjury } from '../growth/condition';
 import { processYearTransition } from '../team/enrollment';
+import { applyDailyMotivation } from '../growth/motivation';
 
 /** Phase 1: Morning - update condition for all players */
 export function processConditionPhase(players: Player[], rng: RNG): Player[] {
@@ -263,6 +264,18 @@ export function processDay(
   // Phase 4: End of day
   const { players: finalPlayers, injuries, recovered } = processEndOfDay(players, rng, dayType);
 
+  // Phase 4.5: Daily motivation update (Phase 11-A3 2026-04-19)
+  // 試合日の出場者は applyMatchMotivation で別途加算されるため、
+  // ここでは playedIds は空セット（ベンチ/非試合日の更新のみ）
+  const isMatchDay = dayType === 'tournament_day';
+  const isRestDay = dayType === 'off_day';
+  const motivationUpdatedPlayers = applyDailyMotivation(
+    finalPlayers,
+    new Set<string>(), // 試合出場者は result.ts 側で加算
+    isMatchDay,
+    isRestDay,
+  );
+
   // Phase 5: Advance date
   let newDate = advanceDate(date);
 
@@ -270,7 +283,7 @@ export function processDay(
   let newState: GameState = {
     ...state,
     currentDate: newDate,
-    team: { ...state.team, players: finalPlayers },
+    team: { ...state.team, players: motivationUpdatedPlayers },
   };
 
   // If we just moved to April 1, process year transition

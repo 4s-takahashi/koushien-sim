@@ -63,6 +63,8 @@ export function hydratePlayer(
     // 一時休養オーバーライドはセーブに含まれる場合もあるが、通常は未定義
     // (2026-04-19 Issue #5 対応)
     restOverride: state.restOverride ?? null,
+    // モチベーション (Phase 11-A3 2026-04-19): 未定義なら 50
+    motivation: state.motivation ?? 50,
   };
 }
 
@@ -79,6 +81,8 @@ export function dehydratePlayer(player: Player, existingState: PersonState): Per
     careerStats: player.careerStats,
     // Issue #5: 一時休養状態も PersonState に戻す
     restOverride: player.restOverride ?? null,
+    // Phase 11-A3: モチベーション
+    motivation: player.motivation ?? 50,
   };
 }
 
@@ -194,5 +198,7 @@ export function convertToHighSchoolPlayer(
       middleSchool: ms.middleSchoolName,
     },
     careerStats,
+    // モチベーション初期値: 入学時は 50 (Phase 11-A3)
+    motivation: 50,
   };
 }

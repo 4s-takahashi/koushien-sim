@@ -132,6 +132,8 @@ export interface HomeViewState {
   featuredPlayers: HomeFeaturedPlayer[];
   /** チーム状況サマリー (Issue #3 2026-04-19) */
   teamPulse?: HomeTeamPulse;
+  /** 最近のOB (Phase 11-A4 2026-04-19) */
+  recentGraduates?: HomeRecentGraduate[];
   /** 試合日フラグ */
   isTournamentDay: boolean;
   /** 大会期間中フラグ */
@@ -156,6 +158,16 @@ export interface HomePulsePlayerRef {
   note: string;  // "疲労80" や "右肘 残3日" 等
 }
 
+/** 最近のOB (Phase 11-A4) */
+export interface HomeRecentGraduate {
+  name: string;
+  graduationYear: number;
+  careerPath: string;  // 'pro' | 'university' | 'corporate' | 'retire'
+  careerPathLabel: string;  // 'プロ入り' | '大学進学' | '社会人' | '引退'
+  bestAchievement: string | null;
+  finalOverall: number;
+}
+
 // ============================================================
 // チーム画面 ViewState
 // ============================================================
@@ -178,6 +190,8 @@ export interface PlayerRowView {
   battingOrderNumber: number | null;  // null = ベンチ
   /** 個別練習メニュー (Phase 11-A1 Issue #4 2026-04-19) */
   individualMenu?: string | null;  // PracticeMenuId。null = チーム共通
+  /** モチベーション 0-100 (Phase 11-A3 2026-04-19) */
+  motivation: number;
 }
 
 export interface LineupView {
@@ -191,6 +205,19 @@ export interface LineupView {
   }[];
   pitcherName: string | null;
   pitcherOverall: number;
+}
+
+/** 監督情報 ViewState (Phase 11-A2 2026-04-19) */
+export interface ManagerView {
+  name: string;
+  yearsActive: number;
+  totalWins: number;
+  totalLosses: number;
+  koshienAppearances: number;
+  /** 戦術スタイル。未設定なら 'balanced' */
+  style: import('../../engine/types/team').ManagerStyle;
+  /** スタイルの日本語ラベル */
+  styleLabel: string;
 }
 
 export interface TeamViewState {
@@ -207,6 +234,8 @@ export interface TeamViewState {
   grade3Count: number;
   grade2Count: number;
   grade1Count: number;
+  /** 監督情報 (Phase 11-A2) */
+  manager: ManagerView;
 }
 
 // ============================================================
@@ -274,6 +303,11 @@ export interface PlayerDetailViewState {
     grade2: SeasonRecordView | null;
     grade3: SeasonRecordView | null;
   };
+
+  /** モチベーション 0-100 (Phase 11-A3 2026-04-19) */
+  motivation: number;
+  /** モチベーションラベル (Phase 11-A3) */
+  motivationLabel: string;
 }
 
 /** シーズン別成績表示用 (Issue #6) */

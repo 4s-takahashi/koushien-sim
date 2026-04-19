@@ -112,6 +112,28 @@ function PlayerDetail({ view }: { view: PlayerDetailViewState }) {
             }}>
               {view.condition.injuryDescription ?? view.condition.moodLabel}
             </span>
+            {/* モチベーション (Phase 11-A3 2026-04-19) */}
+            <span className={styles.pLabel}>やる気</span>
+            <div>
+              <div className={styles.barOuter} style={{ width: 120 }}>
+                <div
+                  className={styles.barInner}
+                  style={{
+                    width: `${view.motivation}%`,
+                    background: view.motivation >= 70 ? '#ff6d00' : view.motivation <= 30 ? '#1565c0' : 'var(--color-accent)',
+                  }}
+                />
+              </div>
+              <span style={{
+                fontSize: 11,
+                marginLeft: 4,
+                color: view.motivation >= 70 ? '#e65100' : view.motivation <= 30 ? '#1565c0' : 'var(--color-text-sub)',
+                fontWeight: (view.motivation >= 70 || view.motivation <= 30) ? 600 : 400,
+              }}>
+                {view.motivation >= 70 ? '🔥 ' : view.motivation <= 30 ? '😢 ' : ''}
+                {view.motivationLabel} ({view.motivation})
+              </span>
+            </div>
           </div>
         </div>
 

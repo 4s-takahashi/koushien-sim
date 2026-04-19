@@ -18,6 +18,7 @@ import { decideBatterAction } from './batter-action';
 import { calculateSwingResult } from './swing-result';
 import { resolveFieldResult } from './field-result';
 import { MATCH_CONSTANTS } from '../constants';
+import { getMotivation, getMatchPerformanceMultiplier } from '../../growth/motivation';
 
 // ============================================================
 // 実効パラメータ算出
@@ -63,6 +64,11 @@ export function getEffectiveBatterParams(mp: MatchPlayer): BatterParams {
     contactMult *= 0.85;
     powerMult *= 0.85;
   }
+
+  // モチベーション補正 (Phase 11-A3 2026-04-19): ±10%
+  const motivationMult = getMatchPerformanceMultiplier(getMotivation(p));
+  contactMult *= motivationMult;
+  powerMult *= motivationMult;
 
   return {
     // 最低実効値を設定して低スペック選手の極端な挙動を抑制

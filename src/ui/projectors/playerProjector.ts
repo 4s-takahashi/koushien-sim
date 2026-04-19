@@ -11,6 +11,7 @@ import type {
 } from './view-state-types';
 import { computePlayerOverall } from '../../engine/world/career/draft-system';
 import { overallToRank, positionToLabel } from './teamProjector';
+import { getMotivation } from '../../engine/growth/motivation';
 
 // ============================================================
 // 内部ヘルパー
@@ -50,6 +51,14 @@ const MOOD_LABELS: Record<string, string> = {
   poor: '不調',
   terrible: '最悪',
 };
+
+/** モチベーションラベル (Phase 11-A3) */
+function motivationLabel(motivation: number): string {
+  if (motivation >= 70) return '🔥 ハイモチベ';
+  if (motivation >= 50) return '普通';
+  if (motivation >= 30) return '低め';
+  return '😢 やる気なし';
+}
 
 function makeStatRow(label: string, value: number, max: number): StatRowView {
   const normalized = Math.min(100, Math.round((value / max) * 100));
@@ -230,6 +239,9 @@ export function projectPlayer(
     battingRecord,
     pitchingRecord,
     seasonRecords,
+    // モチベーション (Phase 11-A3 2026-04-19)
+    motivation: getMotivation(player),
+    motivationLabel: motivationLabel(getMotivation(player)),
   };
 }
 

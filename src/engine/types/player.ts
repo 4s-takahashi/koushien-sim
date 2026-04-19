@@ -150,4 +150,10 @@ export interface Player {
     /** セット日 (debug用) */
     setOn: GameDate;
   } | null;
+  /**
+   * モチベーション: 0-100。デフォルト 50。
+   * 未定義の場合は 50 相当として扱う（後方互換）。
+   * (2026-04-19 Phase 11-A3)
+   */
+  motivation?: number;
 }

@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.18.0';
+export const VERSION = '0.18.2';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-19 16:58 UTC';
-export const GIT_SHA = 'd29d5e2-dirty';
+export const BUILD_DATE = '2026-04-19 17:23 UTC';
+export const GIT_SHA = 'dfa1d7e-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,33 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.18.2',
+    date: '2026-04-19',
+    changes: [
+      'Phase 11-A3: 選手モチベーションシステム',
+      'Player に motivation フィールド追加 (0-100, デフォルト50, 後方互換)',
+      '試合出場 +5、ホームラン +3、好投 +5、ベンチ -2、休養日 +3',
+      'ライバル多い (同ポジション3人以上) -1/日、疲労80以上 -3/日',
+      '試合パフォーマンス: motivation ≥70 で +10%、≤30 で -10%',
+      '練習効率: motivation ≥70 で +20%、≤30 で -20%',
+      'チーム画面に「やる気」列 (🔥 / 😢 アイコン付き)',
+      '選手詳細画面にモチベーションバー表示',
+    ],
+  },
+  {
+    version: '0.18.1',
+    date: '2026-04-19',
+    changes: [
+      'Phase 11-A2: 監督戦術スタイル (aggressive/balanced/defensive/small_ball)',
+      '監督に style フィールドを追加（optional、後方互換）',
+      'aggressive: 長打係数+5%、CPU バント/盗塁確率-10%',
+      'defensive: エラー率-10%、CPU 送りバント+10%',
+      'small_ball: CPU 送りバント+25%、盗塁成功率+5%',
+      'チーム画面の監督セクションに戦術スタイルドロップダウンを追加',
+      'worldStore.setManagerStyle() アクション追加',
+    ],
+  },
   {
     version: '0.18.0',
     date: '2026-04-19',
