@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.15.0';
+export const VERSION = '0.16.0';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-19 15:37 UTC';
-export const GIT_SHA = '3bb4e24-dirty';
+export const BUILD_DATE = '2026-04-19 15:41 UTC';
+export const GIT_SHA = '1ab8bb6-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,17 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.16.0',
+    date: '2026-04-19',
+    changes: [
+      '🏠 ホーム画面にチーム状況サマリー追加 (Issue #3 MVP)',
+      '  - 負傷中選手・けが注意選手・好調選手を一覧表示',
+      '  - 休養中マーカー🛌',
+      '  - チーム画面への一括休養リンク',
+      'Issue #3 (PR #5) MVP 対応',
+    ],
+  },
   {
     version: '0.15.0',
     date: '2026-04-19',

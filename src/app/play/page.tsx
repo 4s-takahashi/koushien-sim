@@ -626,6 +626,83 @@ function HomeContent({ view }: { view: HomeViewState }) {
           )}
         </div>
 
+        {/* チーム状況 (Issue #3 2026-04-19) */}
+        {displayView.teamPulse && (
+          (displayView.teamPulse.injured.length > 0 ||
+           displayView.teamPulse.warning.length > 0 ||
+           displayView.teamPulse.hot.length > 0 ||
+           displayView.teamPulse.restingCount > 0) && (
+            <div className={styles.card}>
+              <div className={styles.cardTitle}>
+                チーム状況
+                {displayView.teamPulse.restingCount > 0 && (
+                  <span style={{ marginLeft: 8, fontSize: 12, color: '#ff9800' }}>
+                    🛌 休養中 {displayView.teamPulse.restingCount}名
+                  </span>
+                )}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {displayView.teamPulse.injured.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 12, color: '#c62828', fontWeight: 600, marginBottom: 4 }}>
+                      🏥 負傷中（{displayView.teamPulse.injured.length}名）
+                    </div>
+                    {displayView.teamPulse.injured.map((p) => (
+                      <Link key={p.id} href={`/team/${p.id}`} style={{
+                        display: 'flex', justifyContent: 'space-between',
+                        padding: '4px 8px', background: '#ffebee', borderRadius: 4,
+                        fontSize: 12, marginBottom: 2, textDecoration: 'none', color: '#333',
+                      }}>
+                        <span>{p.name}</span>
+                        <span style={{ color: '#c62828' }}>{p.note}</span>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+                {displayView.teamPulse.warning.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 12, color: '#e65100', fontWeight: 600, marginBottom: 4 }}>
+                      ⚠️ けが注意（{displayView.teamPulse.warning.length}名）
+                    </div>
+                    {displayView.teamPulse.warning.map((p) => (
+                      <Link key={p.id} href={`/team/${p.id}`} style={{
+                        display: 'flex', justifyContent: 'space-between',
+                        padding: '4px 8px', background: '#fff3e0', borderRadius: 4,
+                        fontSize: 12, marginBottom: 2, textDecoration: 'none', color: '#333',
+                      }}>
+                        <span>{p.name}</span>
+                        <span style={{ color: '#e65100' }}>{p.note}</span>
+                      </Link>
+                    ))}
+                    <div style={{ marginTop: 6, fontSize: 11 }}>
+                      <Link href="/play/team" style={{ color: '#e65100' }}>
+                        チーム画面で一括休養 →
+                      </Link>
+                    </div>
+                  </div>
+                )}
+                {displayView.teamPulse.hot.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 12, color: '#2e7d32', fontWeight: 600, marginBottom: 4 }}>
+                      🔥 好調（{displayView.teamPulse.hot.length}名）
+                    </div>
+                    {displayView.teamPulse.hot.map((p) => (
+                      <Link key={p.id} href={`/team/${p.id}`} style={{
+                        display: 'flex', justifyContent: 'space-between',
+                        padding: '4px 8px', background: '#e8f5e9', borderRadius: 4,
+                        fontSize: 12, marginBottom: 2, textDecoration: 'none', color: '#333',
+                      }}>
+                        <span>{p.name}</span>
+                        <span style={{ color: '#2e7d32' }}>{p.note}</span>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        )}
+
         {/* 次の予定 */}
         <div className={styles.card}>
           <div className={styles.cardTitle}>今後の主な予定</div>

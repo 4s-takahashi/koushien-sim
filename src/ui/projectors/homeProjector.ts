@@ -515,6 +515,9 @@ export function projectHome(
   // 注目選手
   const featuredPlayers = buildFeaturedPlayers(players);
 
+  // チーム状況 (Issue #3 2026-04-19)
+  const teamPulse = buildTeamPulse(players);
+
   // 大会情報
   const tournament = buildTournamentInfo(worldState, currentDate.month, currentDate.day);
   const tournamentStart = !isInTournamentSeason
@@ -532,9 +535,46 @@ export function projectHome(
     scoutBudgetTotal: scoutState.monthlyScoutBudget,
     todayTask,
     featuredPlayers,
+    teamPulse,
     isTournamentDay,
     isInTournamentSeason,
     tournament,
     tournamentStart,
   };
+}
+
+/** Issue #3: チーム状況サマリー */
+function buildTeamPulse(players: import('../../engine/types/player').Player[]): import('./view-state-types').HomeTeamPulse {
+  const injured = players
+    .filter((p) => p.condition.injury !== null)
+    .map((p) => ({
+      id: p.id,
+      name: `${p.lastName}${p.firstName}`,
+      note: p.condition.injury
+        ? `${p.condition.injury.type} 残${p.condition.injury.remainingDays}日`
+        : '',
+    }));
+
+  const warning = players
+    .filter((p) => p.condition.injury === null && p.condition.fatigue >= 50)
+    .sort((a, b) => b.condition.fatigue - a.condition.fatigue)
+    .slice(0, 5)
+    .map((p) => ({
+      id: p.id,
+      name: `${p.lastName}${p.firstName}`,
+      note: `疲労 ${Math.round(p.condition.fatigue)}`,
+    }));
+
+  const hot = players
+    .filter((p) => p.condition.mood === 'excellent' || p.condition.mood === 'good')
+    .slice(0, 5)
+    .map((p) => ({
+      id: p.id,
+      name: `${p.lastName}${p.firstName}`,
+      note: p.condition.mood === 'excellent' ? '絶好調！' : '好調',
+    }));
+
+  const restingCount = players.filter((p) => p.restOverride != null).length;
+
+  return { injured, warning, hot, restingCount };
 }

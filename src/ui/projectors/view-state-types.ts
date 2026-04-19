@@ -130,6 +130,8 @@ export interface HomeViewState {
   todayTask: HomeTodayTask;
   /** 注目選手（上位3人） */
   featuredPlayers: HomeFeaturedPlayer[];
+  /** チーム状況サマリー (Issue #3 2026-04-19) */
+  teamPulse?: HomeTeamPulse;
   /** 試合日フラグ */
   isTournamentDay: boolean;
   /** 大会期間中フラグ */
@@ -138,6 +140,20 @@ export interface HomeViewState {
   tournament?: HomeTournamentInfo;
   /** 大会開始前の情報（大会期間前のみ設定） */
   tournamentStart?: HomeTournamentStartInfo;
+}
+
+/** チーム状況サマリー (Issue #3) */
+export interface HomeTeamPulse {
+  injured: HomePulsePlayerRef[];    // 負傷中
+  warning: HomePulsePlayerRef[];    // 疲労 >= 50
+  hot: HomePulsePlayerRef[];        // 調子が良い (mood: fired_up / in_the_zone)
+  restingCount: number;             // 一時休養中の人数
+}
+
+export interface HomePulsePlayerRef {
+  id: string;
+  name: string;
+  note: string;  // "疲労80" や "右肘 残3日" 等
 }
 
 // ============================================================
