@@ -7,7 +7,7 @@
 import type { WorldState } from '../../engine/world/world-state';
 import type { Player, Position } from '../../engine/types/player';
 import type { Lineup } from '../../engine/types/team';
-import type { ManagerStyle } from '../../engine/types/team';
+
 import type {
   TeamViewState, PlayerRowView, LineupView,
   PositionLabel, AbilityRank, ManagerView,
@@ -131,16 +131,6 @@ function buildLineupView(players: Player[], lineup: Lineup | null): LineupView |
   };
 }
 
-function managerStyleToLabel(style: ManagerStyle): string {
-  const map: Record<ManagerStyle, string> = {
-    aggressive: '強攻策',
-    balanced: 'バランス',
-    defensive: '守備固め',
-    small_ball: '小技野球',
-  };
-  return map[style] ?? 'バランス';
-}
-
 // ============================================================
 // 公開 API
 // ============================================================
@@ -152,15 +142,12 @@ export function projectTeam(worldState: WorldState): TeamViewState {
   const { currentDate, playerSchoolId, schools } = worldState;
   const playerSchool = schools.find((s) => s.id === playerSchoolId);
 
-  const managerStyle = worldState.manager.style ?? 'balanced';
   const managerView: ManagerView = {
     name: worldState.manager.name,
     yearsActive: worldState.manager.yearsActive,
     totalWins: worldState.manager.totalWins,
     totalLosses: worldState.manager.totalLosses,
     koshienAppearances: worldState.manager.koshienAppearances,
-    style: managerStyle,
-    styleLabel: managerStyleToLabel(managerStyle),
   };
 
   if (!playerSchool) {

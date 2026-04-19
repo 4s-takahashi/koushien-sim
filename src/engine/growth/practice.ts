@@ -2,14 +2,17 @@ import type { PracticeMenu, PracticeMenuId, DayType } from '../types/calendar';
 
 export function getPracticeMenus(): PracticeMenu[] {
   return [
+    // Phase 11-D (2026-04-19): 成長速度を 1.6-2倍 に引き上げ
+    // 旧数値は体感に出にくかった (1週間で +1-2 程度)。
+    // 新数値で1週間集中メニュー → +5-8 程度の体感向上。
     {
       id: 'batting_basic',
       name: '打撃基礎',
       description: '素振り・ティー打撃で基礎を固める',
       fatigueLoad: 5,
       statEffects: [
-        { target: 'batting.contact', baseGain: 0.3 },
-        { target: 'batting.technique', baseGain: 0.2 },
+        { target: 'batting.contact', baseGain: 0.5 },
+        { target: 'batting.technique', baseGain: 0.35 },
       ],
       duration: 'half',
     },
@@ -19,9 +22,9 @@ export function getPracticeMenus(): PracticeMenu[] {
       description: 'フリーバッティングで実戦感覚を磨く',
       fatigueLoad: 8,
       statEffects: [
-        { target: 'batting.contact', baseGain: 0.2 },
-        { target: 'batting.power', baseGain: 0.3 },
-        { target: 'batting.eye', baseGain: 0.2 },
+        { target: 'batting.contact', baseGain: 0.35 },
+        { target: 'batting.power', baseGain: 0.5 },
+        { target: 'batting.eye', baseGain: 0.35 },
       ],
       duration: 'full',
     },
@@ -31,8 +34,8 @@ export function getPracticeMenus(): PracticeMenu[] {
       description: 'シャドーピッチング・キャッチボールで基礎を固める',
       fatigueLoad: 6,
       statEffects: [
-        { target: 'pitching.control', baseGain: 0.3 },
-        { target: 'pitching.pitchStamina', baseGain: 0.2 },
+        { target: 'pitching.control', baseGain: 0.5 },
+        { target: 'pitching.pitchStamina', baseGain: 0.35 },
       ],
       duration: 'half',
     },
@@ -42,9 +45,9 @@ export function getPracticeMenus(): PracticeMenu[] {
       description: 'ブルペンで全力投球の感覚を磨く',
       fatigueLoad: 10,
       statEffects: [
-        { target: 'pitching.velocity', baseGain: 0.2 },
-        { target: 'pitching.control', baseGain: 0.2 },
-        { target: 'pitching.pitchStamina', baseGain: 0.2 },
+        { target: 'pitching.velocity', baseGain: 0.35 },
+        { target: 'pitching.control', baseGain: 0.35 },
+        { target: 'pitching.pitchStamina', baseGain: 0.35 },
       ],
       duration: 'full',
     },
@@ -54,8 +57,8 @@ export function getPracticeMenus(): PracticeMenu[] {
       description: 'ノック・守備練習で守備力を向上',
       fatigueLoad: 6,
       statEffects: [
-        { target: 'base.fielding', baseGain: 0.4 },
-        { target: 'base.armStrength', baseGain: 0.1 },
+        { target: 'base.fielding', baseGain: 0.6 },
+        { target: 'base.armStrength', baseGain: 0.2 },
       ],
       duration: 'half',
     },
@@ -65,8 +68,8 @@ export function getPracticeMenus(): PracticeMenu[] {
       description: '走り込みで脚力とスタミナを強化',
       fatigueLoad: 10,
       statEffects: [
-        { target: 'base.speed', baseGain: 0.3 },
-        { target: 'base.stamina', baseGain: 0.3 },
+        { target: 'base.speed', baseGain: 0.5 },
+        { target: 'base.stamina', baseGain: 0.5 },
       ],
       duration: 'full',
     },
@@ -76,9 +79,9 @@ export function getPracticeMenus(): PracticeMenu[] {
       description: 'ウェイトトレーニングで身体を強化',
       fatigueLoad: 8,
       statEffects: [
-        { target: 'batting.power', baseGain: 0.3 },
-        { target: 'base.armStrength', baseGain: 0.2 },
-        { target: 'base.stamina', baseGain: 0.1 },
+        { target: 'batting.power', baseGain: 0.5 },
+        { target: 'base.armStrength', baseGain: 0.35 },
+        { target: 'base.stamina', baseGain: 0.2 },
       ],
       duration: 'full',
     },
@@ -88,8 +91,8 @@ export function getPracticeMenus(): PracticeMenu[] {
       description: '精神力・集中力を鍛える',
       fatigueLoad: 2,
       statEffects: [
-        { target: 'base.mental', baseGain: 0.3 },
-        { target: 'base.focus', baseGain: 0.3 },
+        { target: 'base.mental', baseGain: 0.5 },
+        { target: 'base.focus', baseGain: 0.5 },
       ],
       duration: 'half',
     },

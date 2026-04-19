@@ -62,9 +62,10 @@ function motivationLabel(motivation: number): string {
 
 function makeStatRow(label: string, value: number, max: number): StatRowView {
   const normalized = Math.min(100, Math.round((value / max) * 100));
+  // Phase 11-D 成長可視化: 小数第1位まで表示して、0.3 の成長も見えるように
   return {
     label,
-    value: Math.round(value),
+    value: Math.round(value * 10) / 10,  // 小数第1位
     max,
     rank: overallToRank(normalized),
     barPercent: normalized,

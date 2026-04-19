@@ -214,10 +214,6 @@ export interface ManagerView {
   totalWins: number;
   totalLosses: number;
   koshienAppearances: number;
-  /** 戦術スタイル。未設定なら 'balanced' */
-  style: import('../../engine/types/team').ManagerStyle;
-  /** スタイルの日本語ラベル */
-  styleLabel: string;
 }
 
 export interface TeamViewState {

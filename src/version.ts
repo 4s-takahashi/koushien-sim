@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.18.3';
+export const VERSION = '0.18.4';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-19 21:21 UTC';
-export const GIT_SHA = '8c0f288-dirty';
+export const BUILD_DATE = '2026-04-19 21:38 UTC';
+export const GIT_SHA = '6a705d4-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,19 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.18.4',
+    date: '2026-04-19',
+    changes: [
+      '🔧 Phase 11-D: 磨き込み第1弾',
+      '【バグ修正】A1 個別練習メニュー — パラメータが見える化 (小数第1位表示)',
+      '【成長速度改善】練習成長を 1.5-2倍に引き上げ (baseGain 0.3→0.5 等)',
+      '  1週間の集中メニューで +5-8 の成長が見えるように',
+      '【A2 リセット】監督戦術スタイル (旧A2) を revert',
+      '  新A2「細かい采配＋選手心理描写」への再設計開始',
+      '  DESIGN-PHASE11-A2-NEW.md に新構想を記載',
+    ],
+  },
   {
     version: '0.18.3',
     date: '2026-04-19',
