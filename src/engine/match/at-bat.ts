@@ -10,8 +10,10 @@ import type {
   RunnerInfo,
   PitchResult,
 } from './types';
+import type { ManagerStyle } from '../types/team';
 import { processPitch } from './pitch/process-pitch';
 import { MATCH_CONSTANTS } from './constants';
+import { getStyleEffects } from './manager-style-effects';
 
 // ============================================================
 // 走者進塁ヘルパー（四球・死球共通）
@@ -132,11 +134,14 @@ export function calculateRBI(
 
 /**
  * 1打席を処理する
+ *
+ * @param managerStyle 守備側監督の戦術スタイル (Phase 11-A2)。defensive はエラー率-10%
  */
 export function processAtBat(
   state: MatchState,
   order: TacticalOrder,
   rng: RNG,
+  managerStyle?: ManagerStyle,
 ): { nextState: MatchState; result: AtBatResult } {
   const battingTeam = state.currentHalf === 'top' ? state.awayTeam : state.homeTeam;
   const batterId = battingTeam.battingOrder[state.currentBatterIndex];
@@ -262,9 +267,24 @@ export function processAtBat(
         case 'home_run':
           atBatOutcome = { type: 'home_run' };
           break;
-        case 'error':
-          atBatOutcome = { type: 'error', fielder: fc.fielder };
+        case 'error': {
+          // Phase 11-A2: defensive スタイルはエラー率 -10%
+          // errorRateMultiplier=0.9 → 10% の確率でエラーをアウトに変換
+          const styleEffects = getStyleEffects(managerStyle);
+          if (styleEffects.errorRateMultiplier < 1.0 && rng.chance(1.0 - styleEffects.errorRateMultiplier)) {
+            // エラーをアウトに変換（好守備）
+            if (contactType === 'fly_ball' || contactType === 'popup') {
+              atBatOutcome = { type: 'fly_out', fielder: fc.fielder };
+            } else if (contactType === 'line_drive') {
+              atBatOutcome = { type: 'line_out', fielder: fc.fielder };
+            } else {
+              atBatOutcome = { type: 'ground_out', fielder: fc.fielder };
+            }
+          } else {
+            atBatOutcome = { type: 'error', fielder: fc.fielder };
+          }
           break;
+        }
         case 'out':
           if (contactType === 'fly_ball' || contactType === 'popup') {
             atBatOutcome = { type: 'fly_out', fielder: fc.fielder };
