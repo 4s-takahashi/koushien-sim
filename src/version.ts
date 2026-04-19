@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.12.7';
+export const VERSION = '0.13.0';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-19 12:58 UTC';
-export const GIT_SHA = 'e780ed4-dirty';
+export const BUILD_DATE = '2026-04-19 15:03 UTC';
+export const GIT_SHA = '7c26495-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,18 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.13.0',
+    date: '2026-04-19',
+    changes: [
+      '🎨 共通ヘッダー (GlobalHeader) を新設、全画面で高さ固定 (desktop 56px / mobile 48px)',
+      '🎨 セーブ/ロード/メニューをアイコンボタン化、ハンバーガーメニューで画面遷移',
+      '🎨 各画面の独自ヘッダーを細いサブバーに変更、二重ヘッダーを解消',
+      '🎨 試合画面: 実況ログをスコアボード直下に移動 (リアルタイム感向上)',
+      '🎨 試合画面: 自動進行UIをアイコンのみにコンパクト化',
+      'Issue #2 / #9 / #10 対応',
+    ],
+  },
   {
     version: '0.12.7',
     date: '2026-04-19',

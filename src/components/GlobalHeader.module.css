@@ -1,0 +1,178 @@
+/**
+ * GlobalHeader — 全画面共通ヘッダー
+ *
+ * 設計ルール:
+ * - 高さは固定 (desktop 56px / mobile 48px)
+ * - 画面遷移で変わらない
+ * - モバイルで破綻しない（小さい横幅でも縦積みしない）
+ */
+
+.header {
+  height: 56px;
+  background: var(--color-primary, #2e7d32);
+  color: #fff;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  flex-shrink: 0;
+}
+
+.inner {
+  height: 100%;
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.titleLink {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #fff;
+  text-decoration: none;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.title {
+  font-family: var(--font-serif, serif);
+  font-size: 16px;
+  font-weight: bold;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.phase {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.2);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.date {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.85);
+  white-space: nowrap;
+}
+
+.iconBtn {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-size: 16px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+
+.iconBtn:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.iconBtn:active {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* ── メニュー（ハンバーガーメニュー）──────────────────── */
+
+.menuOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 200;
+  display: flex;
+  justify-content: flex-end;
+  animation: fadeIn 0.15s;
+}
+
+.menu {
+  width: 260px;
+  max-width: 80vw;
+  background: #fff;
+  height: 100%;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  box-shadow: -4px 0 12px rgba(0, 0, 0, 0.2);
+  animation: slideIn 0.2s;
+}
+
+.menuItem {
+  padding: 12px 16px;
+  border-radius: 8px;
+  text-decoration: none;
+  color: #333;
+  font-size: 15px;
+  transition: background 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.menuItem:hover {
+  background: #f5f5f5;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideIn {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+/* ── モバイル対応 ──────────────────── */
+
+@media (max-width: 600px) {
+  .header {
+    height: 48px;
+  }
+  .inner {
+    padding: 0 10px;
+    gap: 6px;
+  }
+  .title {
+    font-size: 14px;
+  }
+  .phase {
+    display: none; /* 狭い画面ではフェーズバッジ非表示 */
+  }
+  .date {
+    font-size: 11px;
+  }
+  .iconBtn {
+    width: 32px;
+    height: 32px;
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 400px) {
+  .date {
+    display: none; /* 超狭い画面では日付も非表示、メニューから確認 */
+  }
+}

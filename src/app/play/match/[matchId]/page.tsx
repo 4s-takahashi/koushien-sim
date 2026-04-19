@@ -620,34 +620,43 @@ interface AutoPlayBarProps {
 }
 
 function AutoPlayBar({ enabled, speed, onToggle, onSetSpeed }: AutoPlayBarProps) {
+  // コンパクトアイコン UI (2026-04-19 Issue #9)
+  // 以前: ラベル+大ボタン3つで1行占有
+  // 現在: アイコン3つの速度選択 + 再生/停止ボタンのみ
   return (
-    <div className={styles.autoPlayBar}>
-      <span className={styles.autoPlayLabel}>🎮 自動進行:</span>
+    <div className={styles.autoPlayBar} data-compact="true">
       <button
         className={`${styles.autoPlayToggle} ${enabled ? styles.autoPlayToggleOn : ''}`}
         onClick={onToggle}
+        title={enabled ? '自動進行を停止' : '自動進行を開始'}
+        aria-label={enabled ? '自動進行を停止' : '自動進行を開始'}
       >
-        {enabled ? '▶ ON' : '⏸ OFF'}
+        {enabled ? '⏸' : '▶'}
       </button>
-      <span className={styles.autoPlayLabel} style={{ marginLeft: 6 }}>速度:</span>
-      <div className={styles.autoPlaySpeedGroup}>
+      <div className={styles.autoPlaySpeedGroup} role="group" aria-label="再生速度">
         <button
           className={`${styles.autoPlaySpeedBtn} ${speed === 'slow' ? styles.autoPlaySpeedBtnActive : ''}`}
           onClick={() => onSetSpeed('slow')}
+          title="ゆっくり"
+          aria-label="ゆっくり"
         >
-          🐢 ゆっくり
+          🐢
         </button>
         <button
           className={`${styles.autoPlaySpeedBtn} ${speed === 'normal' ? styles.autoPlaySpeedBtnActive : ''}`}
           onClick={() => onSetSpeed('normal')}
+          title="標準速度"
+          aria-label="標準速度"
         >
-          ▶ 標準
+          ▶
         </button>
         <button
           className={`${styles.autoPlaySpeedBtn} ${speed === 'fast' ? styles.autoPlaySpeedBtnActive : ''}`}
           onClick={() => onSetSpeed('fast')}
+          title="高速"
+          aria-label="高速"
         >
-          ⚡ 高速
+          ⚡
         </button>
       </div>
     </div>
@@ -948,6 +957,11 @@ export default function MatchPage() {
       {/* イニングスコア */}
       <InningScoreTable view={view} />
 
+      {/* 実況ログ (スコアボード直下に配置 2026-04-19 Issue #10) */}
+      <div style={{ maxWidth: 900, margin: '0 auto', padding: '0 16px 12px', width: '100%', boxSizing: 'border-box' }}>
+        <NarrationPanel entries={narration} />
+      </div>
+
       {/* 自動進行バー */}
       <AutoPlayBar
         enabled={autoPlayEnabled}
@@ -1071,12 +1085,7 @@ export default function MatchPage() {
           </div>
         )}
 
-        {/* 実況ログ */}
-        <div className={styles.mainFull}>
-          <NarrationPanel entries={narration} />
-        </div>
-
-        {/* 直近ログ */}
+        {/* 直近ログ (1球ごとの詳細) */}
         <div className={styles.mainFull}>
           <RecentLog pitches={pitchLog} />
         </div>

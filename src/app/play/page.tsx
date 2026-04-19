@@ -361,42 +361,7 @@ function HomeContent({ view }: { view: HomeViewState }) {
         />
       )}
 
-      {/* ヘッダー */}
-      <header className={styles.header}>
-        <div className={styles.headerInner}>
-          <span className={styles.headerTitle}>{displayView.team.schoolName}</span>
-          <div className={styles.headerMeta}>
-            <div>{displayView.date.japaneseDisplay}</div>
-            <div>
-              <span className={styles.phaseBadge}>{displayView.seasonPhaseLabel}</span>
-            </div>
-            <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
-              <button
-                onClick={() => { setSaveTab('save'); setShowSavePanel(true); }}
-                style={{
-                  padding: '3px 10px', fontSize: 11, borderRadius: 3,
-                  background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.5)',
-                  color: '#fff', cursor: 'pointer',
-                }}
-              >
-                💾 セーブ
-              </button>
-              <button
-                onClick={() => { setSaveTab('load'); setShowSavePanel(true); }}
-                style={{
-                  padding: '3px 10px', fontSize: 11, borderRadius: 3,
-                  background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.4)',
-                  color: '#fff', cursor: 'pointer',
-                }}
-              >
-                📂 ロード
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* ナビゲーション */}
+      {/* ナビゲーション (GlobalHeader で代用) */}
       <nav className={styles.nav}>
         <div className={styles.navInner}>
           <Link href="/play" className={`${styles.navLink} ${styles.navLinkActive}`}>ホーム</Link>
