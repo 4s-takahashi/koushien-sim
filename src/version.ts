@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.20.0';
+export const VERSION = '0.21.0';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-20 08:15 UTC';
-export const GIT_SHA = 'f8aa074-dirty';
+export const BUILD_DATE = '2026-04-20 10:56 UTC';
+export const GIT_SHA = 'fc20ef8-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,36 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.21.0',
+    date: '2026-04-20',
+    changes: [
+      '🧠 Phase 7-E: 心理システム仕上げ — モノローグが試合に効く',
+      '【7-E1】MentalEffect → MatchOverrides → 試合ロジック反映:',
+      '  MatchOverrides インターフェース追加 (runner-types.ts)',
+      '  runner.stepOnePitch/stepOneAtBat に overrides?: MatchOverrides を追加',
+      '  getEffectiveBatterParams / getEffectivePitcherParams が補正を受け取る',
+      '  contactBonus / powerBonus / swingAggressionBonus / velocityBonus / controlBonus',
+      '  補正係数クリップ: ±0.3（velocity は ±5km/h）',
+      '  buildBatterOverridesFromEffects / buildPitcherOverridesFromEffects ヘルパー追加',
+      '【7-E2】ignoreOrder 実装（頑固特性）:',
+      '  hasIgnoreOrderEffect() で MentalEffect 配列を検査',
+      '  stubborn 特性のモノローグが発火すると采配を即時リセット',
+      '  実況ログに「[名前]は監督の指示を無視した！」を追加',
+      '【7-E3】モノローグ連続重複回避:',
+      '  generatePitchMonologues(ctx, excludeIds?) — 除外セット引数追加',
+      '  match-store.ts に recentMonologueIds: string[] を追加（最新5件リングバッファ）',
+      '  PitchMonologuesWithEffects: pickedIds フィールド追加',
+      '【7-E4】新特性10種の選手生成への割り当て:',
+      '  generateTraits(rng, position?) — 位置引数追加（後方互換）',
+      '  中頻度特性プール: hotblooded/stoic/cautious/scatterbrained/steady/timid（各~7.5%）',
+      '  希少特性: clutch_hitter/big_game_player（~2%、野手）、ace（~2%、投手のみ）',
+      '  stubborn（~1%、全ポジション）',
+      '  新コンフリクト: hotblooded↔stoic、cautious↔timid、hotblooded↔cautious、stoic↔scatterbrained',
+      '【テスト】tests/engine/psyche/phase7e.test.ts 追加 — 26テスト',
+      '  合計: 843テスト (817 既存 + 26 新規)',
+    ],
+  },
   {
     version: '0.20.0',
     date: '2026-04-20',

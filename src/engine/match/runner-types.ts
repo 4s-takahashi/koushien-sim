@@ -6,6 +6,40 @@
  */
 
 // ============================================================
+// MatchOverrides（Phase 7-E: 心理システム補正）
+// ============================================================
+
+/**
+ * モノローグのメンタル補正を試合エンジンに渡すためのオーバーライド。
+ * stepOnePitch / stepOneAtBat の第2引数として渡す。
+ * 未指定（undefined）の場合は従来通りの挙動。
+ *
+ * 補正値はすべて相対係数または加算値で表現する:
+ *   - contactBonus / powerBonus: 0.0 = 補正なし、+0.1 = +10%、-0.1 = -10%
+ *   - velocityBonus: km/h 加算（+3 = 3km/h アップ）
+ *   - controlBonus: 0.0 = 補正なし、+0.1 = +10%
+ *   - swingAggressionBonus: 積極性補正（+0.1 = ボール球スイング率+10%）
+ *
+ * 上限クリップ: clamp(bonus, -0.3, +0.3) で極端な補正を防ぐ。
+ */
+export interface MatchOverrides {
+  batterMental?: {
+    /** ミート補正 (相対係数: -0.3 ~ +0.3) */
+    contactBonus?: number;
+    /** パワー補正 (相対係数: -0.3 ~ +0.3) */
+    powerBonus?: number;
+    /** スイング積極性補正 (-0.3 ~ +0.3) */
+    swingAggressionBonus?: number;
+  };
+  pitcherMental?: {
+    /** 球速補正 (km/h 加算: -5 ~ +5) */
+    velocityBonus?: number;
+    /** 制球補正 (相対係数: -0.3 ~ +0.3) */
+    controlBonus?: number;
+  };
+}
+
+// ============================================================
 // RunnerMode（2軸の直交設計）
 // ============================================================
 

@@ -19,6 +19,19 @@ import { calculateSwingResult } from './swing-result';
 import { resolveFieldResult } from './field-result';
 import { MATCH_CONSTANTS } from '../constants';
 import { getMotivation, getMatchPerformanceMultiplier } from '../../growth/motivation';
+import type { MatchOverrides } from '../runner-types';
+
+// ============================================================
+// メンタル補正ヘルパー（Phase 7-E1）
+// ============================================================
+
+/**
+ * 補正値を安全範囲にクリップする。
+ * 極端なメンタル補正によるゲームバランス崩壊を防ぐ。
+ */
+function clampBonus(value: number, min = -0.3, max = 0.3): number {
+  return Math.max(min, Math.min(max, value));
+}
 
 // ============================================================
 // 実効パラメータ算出
@@ -26,8 +39,12 @@ import { getMotivation, getMatchPerformanceMultiplier } from '../../growth/motiv
 
 /**
  * 投手の実効パラメータを算出する（疲労・コンディション補正込み）
+ * @param overrides Phase 7-E1: 心理補正（省略可）
  */
-export function getEffectivePitcherParams(mp: MatchPlayer): PitcherParams {
+export function getEffectivePitcherParams(
+  mp: MatchPlayer,
+  overrides?: MatchOverrides['pitcherMental'],
+): PitcherParams {
   const p = mp.player;
   const ps = p.stats.pitching!;
 
@@ -35,9 +52,17 @@ export function getEffectivePitcherParams(mp: MatchPlayer): PitcherParams {
   const moodMult = getMoodMultiplier(p.condition.mood);
   const confMult = getConfidenceMultiplier(mp.confidence);
 
+  // Phase 7-E1: 心理補正を適用（override が未指定なら従来通り）
+  const velBonus = overrides?.velocityBonus !== undefined
+    ? Math.max(-5, Math.min(5, overrides.velocityBonus))
+    : 0;
+  const ctrlBonus = overrides?.controlBonus !== undefined
+    ? clampBonus(overrides.controlBonus)
+    : 0;
+
   return {
-    velocity: ps.velocity * (0.85 + 0.15 * fatigueRatio) * moodMult,
-    control: ps.control * fatigueRatio * moodMult * confMult,
+    velocity: ps.velocity * (0.85 + 0.15 * fatigueRatio) * moodMult + velBonus,
+    control: ps.control * fatigueRatio * moodMult * confMult * (1 + ctrlBonus),
     pitchStamina: ps.pitchStamina,
     pitches: ps.pitches,
     mental: p.stats.base.mental,
@@ -51,8 +76,12 @@ export function getEffectivePitcherParams(mp: MatchPlayer): PitcherParams {
 
 /**
  * 打者の実効パラメータを算出する（コンディション補正込み）
+ * @param overrides Phase 7-E1: 心理補正（省略可）
  */
-export function getEffectiveBatterParams(mp: MatchPlayer): BatterParams {
+export function getEffectiveBatterParams(
+  mp: MatchPlayer,
+  overrides?: MatchOverrides['batterMental'],
+): BatterParams {
   const p = mp.player;
   const moodMult = getMoodMultiplier(p.condition.mood);
   const confMult = getConfidenceMultiplier(mp.confidence);
@@ -69,6 +98,17 @@ export function getEffectiveBatterParams(mp: MatchPlayer): BatterParams {
   const motivationMult = getMatchPerformanceMultiplier(getMotivation(p));
   contactMult *= motivationMult;
   powerMult *= motivationMult;
+
+  // Phase 7-E1: 心理補正を適用（override が未指定なら従来通り）
+  const contactBonus = overrides?.contactBonus !== undefined
+    ? clampBonus(overrides.contactBonus)
+    : 0;
+  const powerBonus = overrides?.powerBonus !== undefined
+    ? clampBonus(overrides.powerBonus)
+    : 0;
+
+  contactMult *= (1 + contactBonus);
+  powerMult *= (1 + powerBonus);
 
   return {
     // 最低実効値を設定して低スペック選手の極端な挙動を抑制
@@ -371,19 +411,24 @@ function advanceRunnersOnExtra(
 /**
  * 1球を処理する。試合エンジンの最小単位。
  * 純関数：同じ入力なら同じ結果を返す。
+ *
+ * @param overrides Phase 7-E1: 心理システムからの補正（省略可）。
+ *   省略時は従来通りの挙動。
  */
 export function processPitch(
   state: MatchState,
   order: TacticalOrder,
   rng: RNG,
+  overrides?: MatchOverrides,
 ): { nextState: MatchState; pitchResult: PitchResult } {
   const pitcherMP = getCurrentPitcher(state);
   const batterMP = getCurrentBatter(state);
   const fieldingTeam = getFieldingTeam(state);
 
   // ── (1) 投手のアクション決定 ──
-  const pitcher = getEffectivePitcherParams(pitcherMP);
-  const batter = getEffectiveBatterParams(batterMP);
+  // Phase 7-E1: 心理補正を渡す
+  const pitcher = getEffectivePitcherParams(pitcherMP, overrides?.pitcherMental);
+  const batter = getEffectiveBatterParams(batterMP, overrides?.batterMental);
 
   const { selection, target } = selectPitch(
     pitcher.velocity,
@@ -398,8 +443,18 @@ export function processPitch(
   const actualLocation = applyControlError(target, pitcher.control, rng);
 
   // ── (3) 打者の反応決定 ──
+  // Phase 7-E1: swingAggressionBonus が指定されている場合、打者の選球眼を補正する。
+  //   積極性が高い（+）→ eye を下げてボール球を振りやすくする
+  //   積極性が低い（-）→ eye を上げてボール球を見やすくする
+  const aggressionBonus = overrides?.batterMental?.swingAggressionBonus !== undefined
+    ? clampBonus(overrides.batterMental.swingAggressionBonus)
+    : 0;
+  const batterForAction: BatterParams = aggressionBonus !== 0
+    ? { ...batter, eye: Math.max(1, Math.min(100, batter.eye * (1 - aggressionBonus))) }
+    : batter;
+
   const batterAction: BatterAction = decideBatterAction(
-    batter,
+    batterForAction,
     selection,
     actualLocation,
     state.count,

@@ -6,7 +6,6 @@ import type {
 } from '../types/player';
 import { generateId } from '../core/id';
 import { pickLastName, pickFirstName } from './name-dict';
-
 export interface PlayerGenConfig {
   enrollmentYear: number;
   schoolReputation: number;
@@ -162,27 +161,86 @@ const TRAIT_CONFLICTS: [TraitId, TraitId][] = [
   ['overconfident', 'self_doubt'],
   ['honest', 'rebellious'],
   ['caring', 'lone_wolf'],
+  // Phase 7-D/7-E4: 新特性のコンフリクト
+  ['hotblooded', 'stoic'],       // 熱血 ↔ 冷静は両立しない
+  ['cautious', 'timid'],         // 慎重 ↔ 臆病は似すぎるため両立しない
+  ['hotblooded', 'cautious'],    // 熱血 ↔ 慎重も逆方向
+  ['stoic', 'scatterbrained'],   // 鉄心 ↔ 気分屋は両立しない
 ];
 
-const ALL_TRAITS: TraitId[] = [
+/**
+ * Phase 7-E4: 通常の選手（投手・野手共通）に出る特性のプール（中頻度）
+ * 出現重みはプールに同じIDを複数入れることで調整する（単純化のため）。
+ */
+const COMMON_TRAIT_POOL: TraitId[] = [
+  // 既存25種 — そのまま維持
   'passionate', 'calm', 'easygoing', 'sensitive', 'bold',
   'leader', 'morale_booster', 'lone_wolf', 'shy',
   'hard_worker', 'natural_talent', 'strategist', 'competitive', 'fun_lover',
   'short_tempered', 'slacker', 'overconfident', 'self_doubt', 'rebellious',
   'responsible', 'caring', 'gritty', 'honest', 'ambitious',
+  // Phase 7-D 新特性 (中頻度: 5-10% — プール25個中 2個ずつで約8%)
+  'hotblooded', 'hotblooded',
+  'stoic', 'stoic',
+  'cautious', 'cautious',
+  'scatterbrained', 'scatterbrained',
+  'steady', 'steady',
+  'timid', 'timid',
 ];
 
-export function generateTraits(rng: RNG): TraitId[] {
+/**
+ * Phase 7-E4: 稀少特性（全選手対象だが確率が低い）
+ * 野手向け希少特性: clutch_hitter (打者中心), big_game_player (全員)
+ * 投手限定: ace
+ */
+const RARE_TRAITS_FIELDER: TraitId[] = [
+  'clutch_hitter',     // 勝負強さ（野手向け）
+  'big_game_player',   // 大舞台に強い（全員）
+];
+
+const RARE_TRAITS_PITCHER: TraitId[] = [
+  'big_game_player',   // 大舞台に強い（全員）
+  'ace',               // エース気質（投手のみ）
+];
+
+/**
+ * Phase 7-D/7-E4: 特性の選手ポジション適性チェック。
+ * ace は投手のみ、stubborn は全員OK。
+ */
+function isTraitCompatibleWithPosition(trait: TraitId, position: Position): boolean {
+  if (trait === 'ace' && position !== 'pitcher') return false;
+  return true;
+}
+
+/**
+ * Phase 7-E4: ポジションを考慮した特性生成。
+ * 以前の generateTraits() を拡張し、新特性10種を確率テーブルに組み込む。
+ *
+ * @param rng 乱数生成器
+ * @param position 選手のポジション（投手/野手で稀少特性の候補が変わる）
+ */
+export function generateTraits(rng: RNG, position?: Position): TraitId[] {
   const count = rng.intBetween(2, 4);
   const selected: TraitId[] = [];
-  const remaining = [...ALL_TRAITS];
 
-  while (selected.length < count && remaining.length > 0) {
-    const idx = Math.floor(rng.next() * remaining.length);
-    const candidate = remaining[idx];
-    remaining.splice(idx, 1);
+  // ── 通常プールからランダム選択 ──
+  const remaining = [...COMMON_TRAIT_POOL];
 
-    // Check conflicts
+  // ポジション非対応の特性を除外
+  const filtered = remaining.filter((t) =>
+    isTraitCompatibleWithPosition(t, position ?? 'center'),
+  );
+  const shuffled = [...filtered];
+
+  while (selected.length < count && shuffled.length > 0) {
+    const idx = Math.floor(rng.next() * shuffled.length);
+    const candidate = shuffled[idx];
+    shuffled.splice(idx, 1);
+
+    // 重複チェック（プールに同IDが複数入っているため）
+    if (selected.includes(candidate)) continue;
+
+    // コンフリクトチェック
     let conflicted = false;
     for (const [a, b] of TRAIT_CONFLICTS) {
       if ((candidate === a && selected.includes(b)) ||
@@ -194,6 +252,23 @@ export function generateTraits(rng: RNG): TraitId[] {
 
     if (!conflicted) {
       selected.push(candidate);
+    }
+  }
+
+  // ── 稀少特性の追加（低確率）──
+  // stubborn: 1% (全ポジション) — 現在4個未満の場合のみ追加
+  if (selected.length < 4 && rng.chance(0.01) && !selected.includes('stubborn')) {
+    selected.push('stubborn');
+  }
+
+  // clutch_hitter / big_game_player / ace: 2-3% — 現在4個未満の場合のみ追加
+  const rarePool = position === 'pitcher' ? RARE_TRAITS_PITCHER : RARE_TRAITS_FIELDER;
+  if (selected.length < 4) {
+    for (const rare of rarePool) {
+      if (rng.chance(0.02) && !selected.includes(rare)) {
+        selected.push(rare);
+        break; // 1つだけ付与
+      }
     }
   }
 
@@ -286,7 +361,8 @@ export function generatePlayer(rng: RNG, config: PlayerGenConfig): Player {
   const stats = generatePlayerStats(rng, grade, growthType, tempPosition, config.schoolReputation);
   const { position, subPositions } = assignPosition(rng, stats, config.forcePosition ?? (isPitcher ? 'pitcher' : undefined));
   const potential = generatePotential(rng, stats, growthType);
-  const traits = generateTraits(rng);
+  // Phase 7-E4: ポジションを渡して特性を生成（投手には ace が付く可能性）
+  const traits = generateTraits(rng, position);
   const background = generateBackground(rng);
   const { height, weight } = generatePhysical(rng, position);
   const { battingSide, throwingHand } = pickHandedness(rng);

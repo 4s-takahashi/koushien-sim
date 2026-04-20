@@ -12,12 +12,30 @@ import type {
   PitchMonologues,
   MonologuePattern,
   MonologueEntry,
+  MentalEffect,
   SituationCondition,
   OrderCondition,
   CountCondition,
 } from './types';
 import { MONOLOGUE_DB } from './monologue-db';
 import type { TraitId } from '../types/player';
+
+// ============================================================
+// Phase 7-E1: MentalEffect 集計用の拡張戻り値
+// ============================================================
+
+/**
+ * generatePitchMonologues の拡張戻り値。
+ * 通常のモノローグエントリに加え、集計したメンタル補正効果と選択されたIDを返す。
+ */
+export interface PitchMonologuesWithEffects extends PitchMonologues {
+  /** 打者に適用される全メンタル補正の合計 */
+  batterEffects: MentalEffect[];
+  /** 投手に適用される全メンタル補正の合計 */
+  pitcherEffects: MentalEffect[];
+  /** Phase 7-E3: 今回選ばれたパターンの ID 一覧（重複回避用） */
+  pickedIds: string[];
+}
 
 // ============================================================
 // 条件マッチング
@@ -118,17 +136,37 @@ function filterPatterns(
 // 重み付き選択
 // ============================================================
 
-function weightedPick(candidates: MonologuePattern[]): MonologuePattern | null {
+/**
+ * 重み付きランダム選択。
+ * @param candidates 選択候補
+ * @param excludeIds Phase 7-E3: 除外するパターン ID セット（連続重複回避）
+ *   全候補が除外される場合は excludeIds を無視してフォールバック。
+ */
+function weightedPick(
+  candidates: MonologuePattern[],
+  excludeIds?: ReadonlySet<string>,
+): MonologuePattern | null {
   if (candidates.length === 0) return null;
-  const total = candidates.reduce((sum, p) => sum + p.weight, 0);
+
+  // Phase 7-E3: 除外フィルタリング
+  let filtered = candidates;
+  if (excludeIds && excludeIds.size > 0) {
+    const nonExcluded = candidates.filter((p) => !excludeIds.has(p.id));
+    // 全候補が除外される場合はフォールバック（除外を無視）
+    if (nonExcluded.length > 0) {
+      filtered = nonExcluded;
+    }
+  }
+
+  const total = filtered.reduce((sum, p) => sum + p.weight, 0);
   // 決定論的ではなく Math.random() を使用（試合状態非依存）
   const r = Math.random() * total;
   let acc = 0;
-  for (const p of candidates) {
+  for (const p of filtered) {
     acc += p.weight;
     if (r <= acc) return p;
   }
-  return candidates[candidates.length - 1];
+  return filtered[filtered.length - 1];
 }
 
 // ============================================================
@@ -151,9 +189,13 @@ function toEntry(pattern: MonologuePattern): MonologueEntry {
  * 1球ごとのモノローグを生成する。
  *
  * @param ctx 投球コンテキスト
- * @returns 打者 / 投手 / 捕手 それぞれのモノローグ（該当なしは null）
+ * @param excludeIds Phase 7-E3: 連続重複回避のための除外 ID セット（省略可）
+ * @returns 打者 / 投手 / 捕手 それぞれのモノローグ + メンタル補正効果
  */
-export function generatePitchMonologues(ctx: PitchContext): PitchMonologues {
+export function generatePitchMonologues(
+  ctx: PitchContext,
+  excludeIds?: ReadonlySet<string>,
+): PitchMonologuesWithEffects {
   const batterPatterns = MONOLOGUE_DB.filter((p) => p.role === 'batter');
   const pitcherPatterns = MONOLOGUE_DB.filter((p) => p.role === 'pitcher');
   const catcherPatterns = MONOLOGUE_DB.filter((p) => p.role === 'catcher');
@@ -162,14 +204,33 @@ export function generatePitchMonologues(ctx: PitchContext): PitchMonologues {
   const pitcherCandidates = filterPatterns(pitcherPatterns, ctx, ctx.pitcherTraits);
   const catcherCandidates = filterPatterns(catcherPatterns, ctx, ctx.pitcherTraits); // 捕手特性は投手と同軍と仮定
 
-  const batterPick = weightedPick(batterCandidates);
-  const pitcherPick = weightedPick(pitcherCandidates);
-  const catcherPick = weightedPick(catcherCandidates);
+  const batterPick = weightedPick(batterCandidates, excludeIds);
+  const pitcherPick = weightedPick(pitcherCandidates, excludeIds);
+  const catcherPick = weightedPick(catcherCandidates, excludeIds);
+
+  // Phase 7-E1: メンタル補正効果を収集する
+  // - 打者モノローグ（batter/catcher は打者側の補正に含める）
+  // - 投手モノローグは投手側
+  const batterEffects: MentalEffect[] = [];
+  const pitcherEffects: MentalEffect[] = [];
+
+  if (batterPick) batterEffects.push(batterPick.mentalEffect);
+  if (catcherPick) batterEffects.push(catcherPick.mentalEffect); // 捕手のサインも打者に影響
+  if (pitcherPick) pitcherEffects.push(pitcherPick.mentalEffect);
+
+  // Phase 7-E3: 選ばれたパターンの ID を収集
+  const pickedIds: string[] = [];
+  if (batterPick) pickedIds.push(batterPick.id);
+  if (pitcherPick) pickedIds.push(pitcherPick.id);
+  if (catcherPick) pickedIds.push(catcherPick.id);
 
   return {
     batter: batterPick ? toEntry(batterPick) : null,
     pitcher: pitcherPick ? toEntry(pitcherPick) : null,
     catcher: catcherPick ? toEntry(catcherPick) : null,
+    batterEffects,
+    pitcherEffects,
+    pickedIds,
   };
 }
 
@@ -179,4 +240,70 @@ export function generatePitchMonologues(ctx: PitchContext): PitchMonologues {
  */
 export function getMonologueEffect(pattern: MonologuePattern) {
   return pattern.mentalEffect;
+}
+
+// ============================================================
+// Phase 7-E1: MentalEffect → MatchOverrides 変換
+// ============================================================
+
+/**
+ * MentalEffect の配列を集計して、打者側の MatchOverrides を構築する。
+ * 複数のモノローグがある場合は各補正を加算する（上限クリップは runner 側で行う）。
+ */
+export function buildBatterOverridesFromEffects(
+  effects: MentalEffect[],
+): { contactBonus: number; powerBonus: number; swingAggressionBonus: number } {
+  let contactBonus = 0;
+  let powerBonus = 0;
+  let swingAggressionBonus = 0;
+
+  for (const e of effects) {
+    // contactMultiplier: 1.0 = 変化なし、1.1 = +10% → bonus = mult - 1
+    if (e.contactMultiplier !== undefined) {
+      contactBonus += e.contactMultiplier - 1;
+    }
+    // powerMultiplier: 同上
+    if (e.powerMultiplier !== undefined) {
+      powerBonus += e.powerMultiplier - 1;
+    }
+    // batterFocusDisrupt: 集中乱れ → ミート/パワーにマイナス補正
+    if (e.batterFocusDisrupt) {
+      contactBonus -= 0.08;
+      powerBonus -= 0.05;
+    }
+    // eyeMultiplier が高い（選球眼アップ）→ 積極性を下げる（ボール球を振りにくくする）
+    if (e.eyeMultiplier !== undefined) {
+      swingAggressionBonus -= (e.eyeMultiplier - 1) * 0.5;
+    }
+  }
+
+  return { contactBonus, powerBonus, swingAggressionBonus };
+}
+
+/**
+ * MentalEffect の配列を集計して、投手側の MatchOverrides を構築する。
+ */
+export function buildPitcherOverridesFromEffects(
+  effects: MentalEffect[],
+): { velocityBonus: number; controlBonus: number } {
+  let velocityBonus = 0;
+  let controlBonus = 0;
+
+  for (const e of effects) {
+    if (e.velocityBonus !== undefined) {
+      velocityBonus += e.velocityBonus;
+    }
+    if (e.controlMultiplier !== undefined) {
+      controlBonus += e.controlMultiplier - 1;
+    }
+  }
+
+  return { velocityBonus, controlBonus };
+}
+
+/**
+ * モノローグの効果から ignoreOrder フラグを持つものがあるかチェックする。
+ */
+export function hasIgnoreOrderEffect(effects: MentalEffect[]): boolean {
+  return effects.some((e) => e.ignoreOrder === true);
 }

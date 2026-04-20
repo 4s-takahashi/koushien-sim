@@ -12,6 +12,7 @@ import type {
 } from './types';
 import { processPitch } from './pitch/process-pitch';
 import { MATCH_CONSTANTS } from './constants';
+import type { MatchOverrides } from './runner-types';
 
 // ============================================================
 // 走者進塁ヘルパー（四球・死球共通）
@@ -132,11 +133,14 @@ export function calculateRBI(
 
 /**
  * 1打席を処理する
+ * @param overrides Phase 7-E1: 心理システムからのメンタル補正（省略可）。
+ *   省略時は従来通りの挙動。
  */
 export function processAtBat(
   state: MatchState,
   order: TacticalOrder,
   rng: RNG,
+  overrides?: MatchOverrides,
 ): { nextState: MatchState; result: AtBatResult } {
   const battingTeam = state.currentHalf === 'top' ? state.awayTeam : state.homeTeam;
   const batterId = battingTeam.battingOrder[state.currentBatterIndex];
@@ -201,8 +205,8 @@ export function processAtBat(
     // 投球前のストライクカウントを記録（三振判定に使用）
     const strikesBeforePitch = currentState.count.strikes;
 
-    // 1球処理
-    const { nextState, pitchResult } = processPitch(currentState, order, rng);
+    // 1球処理（Phase 7-E1: 心理補正を渡す）
+    const { nextState, pitchResult } = processPitch(currentState, order, rng, overrides);
     pitches.push(pitchResult);
     currentState = nextState;
     currentCount = nextState.count;

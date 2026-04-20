@@ -17,9 +17,15 @@ import { createRNG } from '../engine/core/rng';
 import { buildNarrationForPitch, buildNarrationForAtBat } from '../ui/narration/buildNarration';
 import type { NarrationEntry } from '../ui/narration/buildNarration';
 import { serializeMatchState, deserializeMatchState } from '../engine/match/serialize';
-import { generatePitchMonologues } from '../engine/psyche/generator';
+import {
+  generatePitchMonologues,
+  buildBatterOverridesFromEffects,
+  buildPitcherOverridesFromEffects,
+  hasIgnoreOrderEffect,
+} from '../engine/psyche/generator';
 import type { PitchContext, OrderConditionType } from '../engine/psyche/types';
 import type { TraitId } from '../engine/types/player';
+import type { MatchOverrides } from '../engine/match/runner-types';
 
 // ============================================================
 // 型定義
@@ -56,6 +62,10 @@ export interface MatchStoreState {
   // --- 現在の采配指示（Phase 7-B/7-C） ---
   /** applyOrder で設定、次の投球時に参照される */
   currentOrder: TacticalOrder;
+
+  // --- Phase 7-E3: モノローグ連続重複回避 ---
+  /** 直近のモノローグID（最新5件、セッションメモリのみ・保存不要） */
+  recentMonologueIds: string[];
 }
 
 export interface MatchStoreActions {
@@ -149,7 +159,52 @@ const INITIAL_STATE: MatchStoreState = {
   matchResult: null,
   isProcessing: false,
   currentOrder: { type: 'none' },
+  recentMonologueIds: [],
 };
+
+// Phase 7-E3: 直近モノローグID リングバッファのサイズ
+const RECENT_MONOLOGUE_RING_SIZE = 5;
+
+/**
+ * Phase 7-E3: 直近モノローグIDを更新する（リングバッファ）
+ */
+function updateRecentMonologueIds(
+  current: string[],
+  newIds: string[],
+): string[] {
+  const updated = [...current, ...newIds];
+  return updated.slice(-RECENT_MONOLOGUE_RING_SIZE);
+}
+
+/**
+ * Phase 7-E1/7-E2: モノローグの MentalEffect を集計して MatchOverrides を構築する。
+ * また ignoreOrder フラグ（7-E2）を検出する。
+ */
+function buildMatchOverridesFromMonologues(
+  monologues: ReturnType<typeof generatePitchMonologues>,
+): { overrides: MatchOverrides; shouldIgnoreOrder: boolean } {
+  const { batterEffects, pitcherEffects } = monologues;
+
+  const batterRaw = buildBatterOverridesFromEffects(batterEffects);
+  const pitcherRaw = buildPitcherOverridesFromEffects(pitcherEffects);
+
+  const overrides: MatchOverrides = {
+    batterMental: {
+      contactBonus: batterRaw.contactBonus,
+      powerBonus: batterRaw.powerBonus,
+      swingAggressionBonus: batterRaw.swingAggressionBonus,
+    },
+    pitcherMental: {
+      velocityBonus: pitcherRaw.velocityBonus,
+      controlBonus: pitcherRaw.controlBonus,
+    },
+  };
+
+  // Phase 7-E2: ignoreOrder チェック（打者・投手両方のエフェクトを対象）
+  const shouldIgnoreOrder = hasIgnoreOrderEffect([...batterEffects, ...pitcherEffects]);
+
+  return { overrides, shouldIgnoreOrder };
+}
 
 const NARRATION_MAX = 30;
 
@@ -443,7 +498,7 @@ export const useMatchStore = create<MatchStore>((set, get) => ({
   // 1球進行
   // ----------------------------------------------------------------
   stepOnePitch: () => {
-    const { runner, runnerMode, pitchLog, narration, gameSeed, currentOrder } = get();
+    const { runner, runnerMode, pitchLog, narration, gameSeed, currentOrder, recentMonologueIds } = get();
     if (!runner || runner.isOver()) return;
 
     set({ isProcessing: true });
@@ -463,16 +518,47 @@ export const useMatchStore = create<MatchStore>((set, get) => ({
         : '不明';
 
       // Phase 7-B: 投球前にモノローグを生成
+      // Phase 7-E3: 直近モノローグIDを除外セットとして渡す
       const pitchCtx = buildPitchContext(stateBefore, currentOrder);
-      const monologues = generatePitchMonologues(pitchCtx);
+      const excludeIds = new Set(recentMonologueIds);
+      const monologues = generatePitchMonologues(pitchCtx, excludeIds);
       const monologueEntries = [
         monologues.batter,
         monologues.pitcher,
         monologues.catcher,
       ].filter((m): m is NonNullable<typeof m> => m !== null);
 
-      const { pitchResult } = runner.stepOnePitch(rng);
+      // Phase 7-E1: メンタル補正を集計
+      // Phase 7-E2: ignoreOrder フラグを検出
+      const { overrides, shouldIgnoreOrder } = buildMatchOverridesFromMonologues(monologues);
+
+      // Phase 7-E2: ignoreOrder の場合は実況に一言追加し currentOrder をリセット
+      const effectiveOrder = shouldIgnoreOrder ? { type: 'none' } as const : currentOrder;
+      let ignoreOrderNarration: NarrationEntry[] = [];
+      if (shouldIgnoreOrder && currentOrder.type !== 'none') {
+        const batterName2 = batterMP
+          ? `${batterMP.player.lastName}${batterMP.player.firstName}`
+          : '打者';
+        ignoreOrderNarration = [{
+          id: `ignore-order-${Date.now()}`,
+          text: `${batterName2}は監督の指示を無視した！`,
+          kind: 'highlight',
+          inning: stateBefore.currentInning,
+          half: stateBefore.currentHalf,
+          at: Date.now(),
+        }];
+      }
+
+      // Phase 7-E2: runner に渡す前に currentOrder をリセットしておく
+      if (shouldIgnoreOrder && currentOrder.type !== 'none') {
+        runner.applyPlayerOrder(effectiveOrder);
+      }
+
+      const { pitchResult } = runner.stepOnePitch(rng, overrides);
       const newState = runner.getState();
+
+      // Phase 7-E3: 直近モノローグIDを更新
+      const newRecentIds = updateRecentMonologueIds(recentMonologueIds, monologues.pickedIds);
 
       // 投球ログに追加
       const logEntry: PitchLogEntry = {
@@ -500,7 +586,7 @@ export const useMatchStore = create<MatchStore>((set, get) => ({
 
       // 実況ログ
       const narrationEntries = buildNarrationForPitch(stateBefore, newState, pitchResult);
-      const newNarration = [...narration, ...narrationEntries].slice(-NARRATION_MAX);
+      const newNarration = [...narration, ...ignoreOrderNarration, ...narrationEntries].slice(-NARRATION_MAX);
 
       const matchResult = newState.isOver ? newState.result : null;
       const pauseReason = evaluatePause(runner, runnerMode);
@@ -513,6 +599,7 @@ export const useMatchStore = create<MatchStore>((set, get) => ({
         isProcessing: false,
         // 1球終了後は采配をリセット（次の打席/球では再度指定が必要）
         currentOrder: { type: 'none' },
+        recentMonologueIds: newRecentIds,
       });
     } catch {
       set({ isProcessing: false });
@@ -523,7 +610,7 @@ export const useMatchStore = create<MatchStore>((set, get) => ({
   // 1打席進行
   // ----------------------------------------------------------------
   stepOneAtBat: () => {
-    const { runner, runnerMode, pitchLog, narration, gameSeed, currentOrder } = get();
+    const { runner, runnerMode, pitchLog, narration, gameSeed, currentOrder, recentMonologueIds } = get();
     if (!runner || runner.isOver()) return;
 
     set({ isProcessing: true });
@@ -543,15 +630,42 @@ export const useMatchStore = create<MatchStore>((set, get) => ({
         : '不明';
 
       // Phase 7-B: 打席先頭のモノローグを生成（1打席モードでは打席の最初の1球のみ生成）
+      // Phase 7-E3: 直近モノローグIDを除外セットとして渡す
       const pitchCtx = buildPitchContext(stateBefore, currentOrder);
-      const monologues = generatePitchMonologues(pitchCtx);
+      const excludeIds = new Set(recentMonologueIds);
+      const monologues = generatePitchMonologues(pitchCtx, excludeIds);
       const monologueEntries = [
         monologues.batter,
         monologues.pitcher,
         monologues.catcher,
       ].filter((m): m is NonNullable<typeof m> => m !== null);
 
-      const { atBatResult } = runner.stepOneAtBat(rng);
+      // Phase 7-E1: メンタル補正を集計
+      // Phase 7-E2: ignoreOrder フラグを検出
+      const { overrides, shouldIgnoreOrder } = buildMatchOverridesFromMonologues(monologues);
+
+      // Phase 7-E2: ignoreOrder の場合は実況に一言追加し currentOrder をリセット
+      let ignoreOrderNarration: NarrationEntry[] = [];
+      if (shouldIgnoreOrder && currentOrder.type !== 'none') {
+        const batterName2 = batterMP
+          ? `${batterMP.player.lastName}${batterMP.player.firstName}`
+          : '打者';
+        ignoreOrderNarration = [{
+          id: `ignore-order-${Date.now()}`,
+          text: `${batterName2}は監督の指示を無視した！`,
+          kind: 'highlight',
+          inning: stateBefore.currentInning,
+          half: stateBefore.currentHalf,
+          at: Date.now(),
+        }];
+        // runner に none 采配を適用
+        runner.applyPlayerOrder({ type: 'none' });
+      }
+
+      // Phase 7-E3: 直近モノローグIDを更新
+      const newRecentIds = updateRecentMonologueIds(recentMonologueIds, monologues.pickedIds);
+
+      const { atBatResult } = runner.stepOneAtBat(rng, overrides);
       const newState = runner.getState();
 
       // 打席内の全投球をログに追加
@@ -574,7 +688,7 @@ export const useMatchStore = create<MatchStore>((set, get) => ({
 
       // 実況ログ
       const narrationEntries = buildNarrationForAtBat(stateBefore, newState, atBatResult);
-      const newNarration = [...narration, ...narrationEntries].slice(-NARRATION_MAX);
+      const newNarration = [...narration, ...ignoreOrderNarration, ...narrationEntries].slice(-NARRATION_MAX);
 
       const matchResult = newState.isOver ? newState.result : null;
       const pauseReason = evaluatePause(runner, runnerMode);
@@ -586,6 +700,7 @@ export const useMatchStore = create<MatchStore>((set, get) => ({
         matchResult: matchResult ?? null,
         isProcessing: false,
         currentOrder: { type: 'none' },
+        recentMonologueIds: newRecentIds,
       });
     } catch {
       set({ isProcessing: false });

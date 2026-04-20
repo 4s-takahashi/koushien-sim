@@ -36,7 +36,7 @@ import {
   collectPitcherStats,
   selectMVP,
 } from './result';
-import type { RunnerMode, PauseReason } from './runner-types';
+import type { RunnerMode, PauseReason, MatchOverrides } from './runner-types';
 
 // ============================================================
 // 内部ヘルパー
@@ -405,9 +405,15 @@ export class MatchRunner {
    * 1球だけ処理する。
    * pendingPlayerOrder がプレイヤー攻撃時に適用される。
    *
+   * @param rng 乱数生成器
+   * @param overrides Phase 7-E1: 心理システムからのメンタル補正（省略可）。
+   *   省略時は従来通りの挙動（既存テストへの影響なし）。
    * @returns { pitchResult, events }
    */
-  stepOnePitch(rng: RNG): { pitchResult: PitchResult; events: MatchEvent[]; atBatEnded: boolean } {
+  stepOnePitch(
+    rng: RNG,
+    overrides?: MatchOverrides,
+  ): { pitchResult: PitchResult; events: MatchEvent[]; atBatEnded: boolean } {
     if (this.state.isOver) {
       throw new Error('MatchRunner: 試合は既に終了しています');
     }
@@ -418,7 +424,7 @@ export class MatchRunner {
     // 投球前のカウントを記録（三振・四球判定に使用）
     const strikesBefore = this.state.count.strikes;
 
-    const { nextState, pitchResult } = processPitch(this.state, order, rng);
+    const { nextState, pitchResult } = processPitch(this.state, order, rng, overrides);
     this.state = nextState;
 
     // ── 打席終了判定 ──
@@ -638,9 +644,15 @@ export class MatchRunner {
   /**
    * 1打席完了まで進める。
    *
+   * @param rng 乱数生成器
+   * @param overrides Phase 7-E1: 心理システムからのメンタル補正（省略可）。
+   *   省略時は従来通りの挙動（既存テストへの影響なし）。
    * @returns { atBatResult, events }
    */
-  stepOneAtBat(rng: RNG): { atBatResult: AtBatResult; events: MatchEvent[] } {
+  stepOneAtBat(
+    rng: RNG,
+    overrides?: MatchOverrides,
+  ): { atBatResult: AtBatResult; events: MatchEvent[] } {
     if (this.state.isOver) {
       throw new Error('MatchRunner: 試合は既に終了しています');
     }
@@ -648,7 +660,7 @@ export class MatchRunner {
     const order = this.resolveOrderForCurrentHalf(rng);
     const prevLog = this.state.log;
 
-    const { nextState, result } = processAtBat(this.state, order, rng);
+    const { nextState, result } = processAtBat(this.state, order, rng, overrides);
     // ⚠️ 打席終了時にカウントを必ずリセット（防衛コード）
     // processAtBat 内でもリセットするが、全ケースでの確実性を保証するため。
     // これを怠ると次の打席に前の打席のカウントが引き継がれ、
