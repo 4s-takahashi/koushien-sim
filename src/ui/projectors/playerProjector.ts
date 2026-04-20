@@ -42,6 +42,17 @@ const TRAIT_LABELS: Record<TraitId, string> = {
   gritty: '根性',
   honest: '誠実',
   ambitious: '野心家',
+  // Phase 7-D: 心理特性10種 (2026-04-20)
+  hotblooded: '熱血',
+  stoic: '冷静',
+  cautious: '慎重',
+  stubborn: '頑固',
+  clutch_hitter: '勝負師',
+  scatterbrained: '混乱しやすい',
+  big_game_player: '大舞台',
+  steady: '地味',
+  timid: 'ビビリ',
+  ace: 'エース',
 };
 
 const MOOD_LABELS: Record<string, string> = {

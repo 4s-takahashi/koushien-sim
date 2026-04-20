@@ -16,7 +16,28 @@ export type TraitId =
   | 'leader' | 'morale_booster' | 'lone_wolf' | 'shy'
   | 'hard_worker' | 'natural_talent' | 'strategist' | 'competitive' | 'fun_lover'
   | 'short_tempered' | 'slacker' | 'overconfident' | 'self_doubt' | 'rebellious'
-  | 'responsible' | 'caring' | 'gritty' | 'honest' | 'ambitious';
+  | 'responsible' | 'caring' | 'gritty' | 'honest' | 'ambitious'
+  // Phase 7-D: 心理特性10種追加 (2026-04-20)
+  /** 熱血: ピンチでも積極的 */
+  | 'hotblooded'
+  /** 冷静: 状況分析的、打率ブレが小さい */
+  | 'stoic'
+  /** 慎重: 消極指示で集中力+、積極指示でプレッシャー */
+  | 'cautious'
+  /** 頑固: 監督指示を無視する確率30% */
+  | 'stubborn'
+  /** 勝負師: 2ストライクからのバッティング+10% */
+  | 'clutch_hitter'
+  /** 混乱しやすい: 詳細指示でミート-10% */
+  | 'scatterbrained'
+  /** 大舞台: 甲子園・決勝で+10% */
+  | 'big_game_player'
+  /** 地味: 目立たないが安定 (ブレが小さい) */
+  | 'steady'
+  /** ビビリ: 大観衆・甲子園で-10% */
+  | 'timid'
+  /** ace: 甲子園・大一番で球速+3, 制球+5% */
+  | 'ace';
 
 export type MentalFlag =
   | 'slump' | 'in_the_zone' | 'injury_anxiety'

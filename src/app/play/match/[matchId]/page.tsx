@@ -18,6 +18,8 @@ import { EMPTY_BASES } from '../../../../engine/match/types';
 import type { TacticalOrder } from '../../../../engine/match/types';
 import type { MatchViewState, PitchLogEntry } from '../../../../ui/projectors/view-state-types';
 import styles from './match.module.css';
+import { PsycheWindow } from './PsycheWindow';
+import { DetailedOrderModal } from './DetailedOrderModal';
 
 // ============================================================
 // 型
@@ -28,7 +30,8 @@ type SelectMode =
   | { type: 'pinch_hit' }
   | { type: 'pitching_change' }
   | { type: 'steal' }
-  | { type: 'bunt' };
+  | { type: 'bunt' }
+  | { type: 'detailed_order'; mode: 'batter' | 'pitcher' };
 
 // ============================================================
 // ヘルパー
@@ -372,6 +375,15 @@ function TacticsBar({ view, onOrder, selectMode, setSelectMode, disabled, showBa
     onOrder({ type: 'mound_visit' });
   }, [onOrder]);
 
+  const handleDetailedOrder = useCallback(() => {
+    if (selectMode.type === 'detailed_order') {
+      setSelectMode({ type: 'none' });
+    } else {
+      const mode = isPlayerBatting ? 'batter' : 'pitcher';
+      setSelectMode({ type: 'detailed_order', mode });
+    }
+  }, [selectMode, setSelectMode, isPlayerBatting]);
+
   return (
     <div className={styles.tacticsCard}>
       {bannerInfo ? (
@@ -449,6 +461,17 @@ function TacticsBar({ view, onOrder, selectMode, setSelectMode, disabled, showBa
           マウンド訪問
           <span className={styles.tacticsBtnLabel}>スタミナ回復</span>
         </button>
+
+        {/* 詳細采配 (Phase 7-C) */}
+        <button
+          className={`${styles.tacticsBtn} ${styles.tacticsBtnDetail} ${selectMode.type === 'detailed_order' ? styles.tacticsBtnActive : ''}`}
+          onClick={handleDetailedOrder}
+          disabled={disabled}
+          title="コース・球種など細かく指示する"
+        >
+          ⚙ 細かく指示
+          <span className={styles.tacticsBtnLabel}>{isPlayerBatting ? '打者指示' : '投手指示'}</span>
+        </button>
       </div>
     </div>
   );
@@ -459,15 +482,13 @@ function TacticsBar({ view, onOrder, selectMode, setSelectMode, disabled, showBa
 // ============================================================
 
 interface SelectPanelProps {
-  mode: SelectMode;
+  mode: Exclude<SelectMode, { type: 'none' } | { type: 'detailed_order'; mode: 'batter' | 'pitcher' }>;
   view: MatchViewState;
   onSelect: (order: TacticalOrder) => void;
   onCancel: () => void;
 }
 
 function SelectPanel({ mode, view, onSelect, onCancel }: SelectPanelProps) {
-  if (mode.type === 'none') return null;
-
   if (mode.type === 'pinch_hit') {
     return (
       <div className={styles.selectOverlay} onClick={onCancel}>
@@ -1158,6 +1179,17 @@ export default function MatchPage() {
         <NarrationPanel entries={narration} />
       </div>
 
+      {/* 心理ウィンドウ (Phase 7-B) — 最新投球のモノローグを表示 */}
+      {pitchLog.length > 0 && pitchLog[pitchLog.length - 1].monologues && (
+        <div style={{ maxWidth: 900, margin: '0 auto', padding: '0 16px 8px', width: '100%', boxSizing: 'border-box' }}>
+          <PsycheWindow
+            monologues={pitchLog[pitchLog.length - 1].monologues}
+            batterName={pitchLog[pitchLog.length - 1].batterName}
+            pitcherName={view.pitcher.name}
+          />
+        </div>
+      )}
+
       {/* コントロールバー (進行ボタン + 自動進行) */}
       <AutoPlayBar
         enabled={autoPlayEnabled}
@@ -1251,12 +1283,24 @@ export default function MatchPage() {
       </div>
 
       {/* 采配選択モーダル */}
-      {selectMode.type !== 'none' && (
+      {selectMode.type !== 'none' && selectMode.type !== 'detailed_order' && (
         <SelectPanel
           mode={selectMode}
           view={view}
           onSelect={handleOrder}
           onCancel={() => setSelectMode({ type: 'none' })}
+        />
+      )}
+
+      {/* 詳細采配モーダル (Phase 7-C) */}
+      {selectMode.type === 'detailed_order' && (
+        <DetailedOrderModal
+          mode={selectMode.mode}
+          onClose={() => setSelectMode({ type: 'none' })}
+          onApply={(order) => {
+            handleOrder(order);
+            setSelectMode({ type: 'none' });
+          }}
         />
       )}
 

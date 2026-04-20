@@ -323,6 +323,44 @@ export interface MatchPitcherStat {
 // 采配
 // ============================================================
 
+// ============================================================
+// Phase 7-C: 細かい采配
+// ============================================================
+
+/** 打者への焦点エリア */
+export type BatterFocusArea = 'inside' | 'outside' | 'low' | 'high' | 'middle';
+
+/** 打者の狙い球種 */
+export type BatterPitchType = 'fastball' | 'breaking' | 'offspeed' | 'any';
+
+/** 打者への詳細采配 */
+export interface BatterDetailedOrder {
+  type: 'batter_detailed';
+  /** 狙うコース */
+  focusArea?: BatterFocusArea;
+  /** 狙う球種 */
+  pitchType?: BatterPitchType;
+  /** 積極性: passive=消極 / normal=普通 / aggressive=積極 */
+  aggressiveness?: 'passive' | 'normal' | 'aggressive';
+}
+
+/** 投手への焦点エリア */
+export type PitcherFocusArea = 'inside' | 'outside' | 'low' | 'high' | 'edge';
+
+/** 投手の配球比率 */
+export type PitcherPitchMix = 'fastball_heavy' | 'breaking_heavy' | 'balanced';
+
+/** 投手への詳細采配 */
+export interface PitcherDetailedOrder {
+  type: 'pitcher_detailed';
+  /** コース指定 */
+  focusArea?: PitcherFocusArea;
+  /** 球種比率 */
+  pitchMix?: PitcherPitchMix;
+  /** 内角攻め */
+  intimidation?: 'brush_back' | 'normal';
+}
+
 /** 監督の采配指示 */
 export type TacticalOrder =
   | { type: 'none' }
@@ -334,7 +372,9 @@ export type TacticalOrder =
   | { type: 'pinch_hit'; outPlayerId: string; inPlayerId: string }
   | { type: 'pinch_run'; outPlayerId: string; inPlayerId: string }
   | { type: 'defensive_sub'; outPlayerId: string; inPlayerId: string; position: Position }
-  | { type: 'mound_visit' };
+  | { type: 'mound_visit' }
+  | BatterDetailedOrder
+  | PitcherDetailedOrder;
 
 /** 采配を入力するコールバック */
 export type TacticsProvider = (state: MatchState) => TacticalOrder;

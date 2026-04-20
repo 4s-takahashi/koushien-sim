@@ -16,7 +16,7 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.19.0';
+export const VERSION = '0.20.0';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
 export const BUILD_DATE = '2026-04-19 22:58 UTC';
@@ -33,6 +33,30 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.20.0',
+    date: '2026-04-20',
+    changes: [
+      '🧠 Phase 7-B/C/D: 心理システム・細かい采配・特性拡張',
+      '【7-B】心理システム基盤:',
+      '  src/engine/psyche/types.ts — MonologuePattern / MentalEffect / PitchContext 型定義',
+      '  src/engine/psyche/monologue-db.ts — 45パターンのモノローグDB（設計書§10 20件含む）',
+      '  src/engine/psyche/generator.ts — generatePitchMonologues() 実装（状況/特性/采配マッチング）',
+      '  PitchLogEntry に monologues?: MonologueEntry[] フィールド追加（optional: 後方互換）',
+      '  match-store.ts に generatePitchMonologues() 統合 — stepOnePitch/stepOneAtBat で生成',
+      '  PsycheWindow.tsx — 試合画面に心理ウィンドウUI追加（打者左・投手右・捕手中央の吹き出し）',
+      '【7-C】細かい采配:',
+      '  TacticalOrder に BatterDetailedOrder / PitcherDetailedOrder を追加',
+      '  DetailedOrderModal.tsx — 「⚙ 細かく指示」ボタン + コース/球種/積極性 選択モーダル',
+      '  match-store.ts: currentOrder フィールド追加、toOrderConditionType() でモノローグと連動',
+      '  §5 効果メカニズム: 采配タイプ → OrderConditionType 変換でモノローグ生成に反映',
+      '【7-D】特性拡張（10種追加）:',
+      '  TraitId に hotblooded / stoic / cautious / stubborn / clutch_hitter / scatterbrained',
+      '             / big_game_player / steady / timid / ace を追加',
+      '  TRAIT_LABELS に日本語マッピング追加',
+      '  モノローグDB に新特性対応パターン追加（大舞台/ビビリ×甲子園 等）',
+    ],
+  },
   {
     version: '0.19.0',
     date: '2026-04-19',

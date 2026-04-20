@@ -573,6 +573,15 @@ export interface PitchLogEntry {
   pitchLocation?: PitchLocationLabel;
   /** 球種ラベル — Phase 7-A-2 追加（optional: 旧セーブデータ互換） */
   pitchTypeLabel?: EnrichedPitchType;
+  /** 心理モノローグ — Phase 7-B 追加（optional: 旧セーブデータ互換） */
+  monologues?: MonologueEntry[];
+}
+
+/** モノローグエントリ (Phase 7-B) */
+export interface MonologueEntry {
+  role: 'batter' | 'pitcher' | 'catcher' | 'runner' | 'fielder';
+  text: string;
+  effectSummary?: string;
 }
 
 /** ランナー情報（UI用） */

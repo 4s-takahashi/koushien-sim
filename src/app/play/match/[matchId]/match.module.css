@@ -592,6 +592,18 @@
   margin-top: 2px;
 }
 
+/* Phase 7-C: 詳細采配ボタン強調 */
+.tacticsBtnDetail {
+  border-color: #4a0a7a;
+  color: #ce93d8;
+}
+
+.tacticsBtnDetail:hover:not(:disabled) {
+  background: #4a0a7a;
+  border-color: #ce93d8;
+  color: #fff;
+}
+
 /* ============================================================ */
 /* 進行ボタン */
 /* ============================================================ */

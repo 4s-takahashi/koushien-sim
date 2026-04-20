@@ -1,0 +1,217 @@
+/* ============================================================ */
+/* 詳細采配モーダル — detailedOrderModal.module.css (Phase 7-C) */
+/* ============================================================ */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 60;
+  padding: 0 0 16px;
+}
+
+.modal {
+  background: #0d2137;
+  border: 1px solid #2a4a6e;
+  border-radius: 12px 12px 0 0;
+  padding: 0;
+  width: 100%;
+  max-width: 520px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+/* ============================================================ */
+/* ヘッダー */
+/* ============================================================ */
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid #1a3a5c;
+  position: sticky;
+  top: 0;
+  background: #0d2137;
+  z-index: 1;
+}
+
+.headerIcon {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.headerText {
+  flex: 1;
+}
+
+.headerTitle {
+  font-size: 14px;
+  font-weight: 700;
+  color: #e8eaf0;
+}
+
+.headerSub {
+  font-size: 11px;
+  color: #607d8b;
+  margin-top: 1px;
+}
+
+.closeBtn {
+  background: transparent;
+  border: none;
+  color: #607d8b;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.closeBtn:hover {
+  color: #b0bec5;
+  background: rgba(255,255,255,0.05);
+}
+
+/* ============================================================ */
+/* フォーム */
+/* ============================================================ */
+
+.form {
+  padding: 12px 16px 16px;
+}
+
+.section {
+  margin-bottom: 14px;
+}
+
+.sectionTitle {
+  font-size: 11px;
+  color: #90a4ae;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #1a3050;
+}
+
+/* ============================================================ */
+/* ラジオグループ */
+/* ============================================================ */
+
+.radioGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.radioLabel {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid #2a4a6e;
+  background: #0a1628;
+  cursor: pointer;
+  font-size: 12px;
+  color: #b0bec5;
+  transition: all 0.15s;
+  user-select: none;
+}
+
+.radioLabel:hover {
+  background: #1a3050;
+  border-color: #4a7aae;
+}
+
+.radioLabelActive {
+  background: #1565c0;
+  border-color: #42a5f5;
+  color: #fff;
+}
+
+.radioInput {
+  display: none;
+}
+
+.optDesc {
+  font-size: 10px;
+  color: #607d8b;
+  margin-left: 4px;
+}
+
+.radioLabelActive .optDesc {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* ============================================================ */
+/* ボタン */
+/* ============================================================ */
+
+.formBtns {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.cancelBtn {
+  flex: 1;
+  padding: 10px;
+  background: transparent;
+  border: 1px solid #37474f;
+  border-radius: 6px;
+  color: #607d8b;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.cancelBtn:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: #b0bec5;
+}
+
+.applyBtn {
+  flex: 2;
+  padding: 10px;
+  background: #1565c0;
+  border: 1px solid #42a5f5;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.applyBtn:hover {
+  background: #1976d2;
+}
+
+.applyBtnPitcher {
+  background: #b71c1c;
+  border-color: #ef5350;
+}
+
+.applyBtnPitcher:hover {
+  background: #c62828;
+}
+
+/* ============================================================ */
+/* レスポンシブ */
+/* ============================================================ */
+
+@media (max-width: 480px) {
+  .radioGroup {
+    gap: 4px;
+  }
+
+  .radioLabel {
+    padding: 5px 8px;
+    font-size: 11px;
+  }
+}

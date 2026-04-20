@@ -17,6 +17,9 @@ import { createRNG } from '../engine/core/rng';
 import { buildNarrationForPitch, buildNarrationForAtBat } from '../ui/narration/buildNarration';
 import type { NarrationEntry } from '../ui/narration/buildNarration';
 import { serializeMatchState, deserializeMatchState } from '../engine/match/serialize';
+import { generatePitchMonologues } from '../engine/psyche/generator';
+import type { PitchContext, OrderConditionType } from '../engine/psyche/types';
+import type { TraitId } from '../engine/types/player';
 
 // ============================================================
 // 型定義
@@ -49,6 +52,10 @@ export interface MatchStoreState {
 
   // --- ローディング ---
   isProcessing: boolean;
+
+  // --- 現在の采配指示（Phase 7-B/7-C） ---
+  /** applyOrder で設定、次の投球時に参照される */
+  currentOrder: TacticalOrder;
 }
 
 export interface MatchStoreActions {
@@ -141,6 +148,7 @@ const INITIAL_STATE: MatchStoreState = {
   autoPlaySpeed: 'normal',
   matchResult: null,
   isProcessing: false,
+  currentOrder: { type: 'none' },
 };
 
 const NARRATION_MAX = 30;
@@ -200,6 +208,97 @@ function toEnrichedPitchType(type: string): EnrichedPitchType {
  */
 function toPitchSpeedKmh(velocity: number): number {
   return Math.round(velocity);
+}
+
+// ============================================================
+// ヘルパー：ランナー状況を分類する（Phase 7-B）
+// ============================================================
+
+function toRunnersOnCategory(
+  state: MatchState,
+): 'none' | 'some' | 'scoring' | 'bases_loaded' {
+  const { first, second, third } = state.bases;
+  if (!first && !second && !third) return 'none';
+  if (first && second && third) return 'bases_loaded';
+  if (second || third) return 'scoring';
+  return 'some';
+}
+
+/**
+ * TacticalOrder を OrderConditionType に変換する（Phase 7-B）
+ * 詳細采配（7-C）が実装されたら拡張する。
+ */
+function toOrderConditionType(order: TacticalOrder): OrderConditionType | null {
+  if (order.type === 'none') return null;
+  if (order.type === 'bunt') return 'passive';
+  if (order.type === 'steal') return 'aggressive';
+  if (order.type === 'hit_and_run') return 'aggressive';
+  if (order.type === 'intentional_walk') return 'passive';
+  // 7-C で batter_detailed / pitcher_detailed が追加される
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const orderAny = order as any;
+  if (orderAny.type === 'batter_detailed') {
+    if (orderAny.focusArea === 'outside') return 'outside_focus';
+    if (orderAny.focusArea === 'inside') return 'inside_focus';
+    if (orderAny.aggressiveness === 'aggressive') return 'aggressive';
+    if (orderAny.aggressiveness === 'passive') return 'passive';
+    return 'detailed_focus';
+  }
+  if (orderAny.type === 'pitcher_detailed') {
+    if (orderAny.pitchMix === 'fastball_heavy') return 'fastball_heavy';
+    if (orderAny.pitchMix === 'breaking_heavy') return 'breaking_heavy';
+    if (orderAny.intimidation === 'brush_back') return 'brush_back';
+    if (orderAny.focusArea === 'outside') return 'outside_focus';
+    if (orderAny.focusArea === 'inside') return 'inside_focus';
+    return 'detailed_focus';
+  }
+  return null;
+}
+
+/**
+ * MatchState から PitchContext を生成する（Phase 7-B）
+ */
+function buildPitchContext(
+  state: MatchState,
+  currentOrder: TacticalOrder,
+): PitchContext {
+  const battingTeam = state.currentHalf === 'top' ? state.awayTeam : state.homeTeam;
+  const pitchingTeam = state.currentHalf === 'top' ? state.homeTeam : state.awayTeam;
+
+  const batterId = battingTeam.battingOrder[state.currentBatterIndex];
+  const batterMP = battingTeam.players.find((mp) => mp.player.id === batterId);
+  const batterTraits: TraitId[] = batterMP ? (batterMP.player.traits as TraitId[]) : [];
+
+  const pitcherId = pitchingTeam.currentPitcherId;
+  const pitcherMP = pitchingTeam.players.find((mp) => mp.player.id === pitcherId);
+  const pitcherTraits: TraitId[] = pitcherMP ? (pitcherMP.player.traits as TraitId[]) : [];
+  const pitcherStamina = pitcherMP ? pitcherMP.stamina : 100;
+
+  const scoreDiff =
+    state.currentHalf === 'top'
+      ? state.score.away - state.score.home   // 攻撃側（away）から見た得点差
+      : state.score.home - state.score.away;  // 攻撃側（home）から見た得点差
+
+  const orderType = toOrderConditionType(currentOrder);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const orderAny = currentOrder as any;
+  const orderFocusArea: string | undefined = orderAny.focusArea ?? orderAny.pitchMix;
+
+  return {
+    inning: state.currentInning,
+    half: state.currentHalf,
+    outs: state.outs,
+    balls: state.count.balls,
+    strikes: state.count.strikes,
+    runnersOn: toRunnersOnCategory(state),
+    scoreDiff,
+    isKoshien: state.config.isKoshien,
+    batterTraits,
+    pitcherTraits,
+    pitcherStamina,
+    orderType,
+    orderFocusArea,
+  };
 }
 
 // ============================================================
@@ -332,7 +431,10 @@ export const useMatchStore = create<MatchStore>((set, get) => ({
       // 即時適用采配後（代打・継投等）はビューを更新
       const { runnerMode } = get();
       const pauseReason = evaluatePause(runner, runnerMode);
-      set({ pauseReason });
+      set({ pauseReason, currentOrder: order });
+    } else {
+      // 即時適用でない采配（バント・盗塁等）も currentOrder に保存
+      set({ currentOrder: order });
     }
     return result;
   },
@@ -341,7 +443,7 @@ export const useMatchStore = create<MatchStore>((set, get) => ({
   // 1球進行
   // ----------------------------------------------------------------
   stepOnePitch: () => {
-    const { runner, runnerMode, pitchLog, narration, gameSeed } = get();
+    const { runner, runnerMode, pitchLog, narration, gameSeed, currentOrder } = get();
     if (!runner || runner.isOver()) return;
 
     set({ isProcessing: true });
@@ -359,6 +461,15 @@ export const useMatchStore = create<MatchStore>((set, get) => ({
       const batterName = batterMP
         ? `${batterMP.player.lastName}${batterMP.player.firstName}`
         : '不明';
+
+      // Phase 7-B: 投球前にモノローグを生成
+      const pitchCtx = buildPitchContext(stateBefore, currentOrder);
+      const monologues = generatePitchMonologues(pitchCtx);
+      const monologueEntries = [
+        monologues.batter,
+        monologues.pitcher,
+        monologues.catcher,
+      ].filter((m): m is NonNullable<typeof m> => m !== null);
 
       const { pitchResult } = runner.stepOnePitch(rng);
       const newState = runner.getState();
@@ -382,6 +493,8 @@ export const useMatchStore = create<MatchStore>((set, get) => ({
           pitchResult.actualLocation.col,
         ),
         pitchTypeLabel: toEnrichedPitchType(pitchResult.pitchSelection.type),
+        // Phase 7-B: 心理モノローグ
+        monologues: monologueEntries.length > 0 ? monologueEntries : undefined,
       };
       const newLog = [...pitchLog, logEntry].slice(-50);
 
@@ -398,6 +511,8 @@ export const useMatchStore = create<MatchStore>((set, get) => ({
         pauseReason,
         matchResult: matchResult ?? null,
         isProcessing: false,
+        // 1球終了後は采配をリセット（次の打席/球では再度指定が必要）
+        currentOrder: { type: 'none' },
       });
     } catch {
       set({ isProcessing: false });
@@ -408,7 +523,7 @@ export const useMatchStore = create<MatchStore>((set, get) => ({
   // 1打席進行
   // ----------------------------------------------------------------
   stepOneAtBat: () => {
-    const { runner, runnerMode, pitchLog, narration, gameSeed } = get();
+    const { runner, runnerMode, pitchLog, narration, gameSeed, currentOrder } = get();
     if (!runner || runner.isOver()) return;
 
     set({ isProcessing: true });
@@ -427,11 +542,20 @@ export const useMatchStore = create<MatchStore>((set, get) => ({
         ? `${batterMP.player.lastName}${batterMP.player.firstName}`
         : '不明';
 
+      // Phase 7-B: 打席先頭のモノローグを生成（1打席モードでは打席の最初の1球のみ生成）
+      const pitchCtx = buildPitchContext(stateBefore, currentOrder);
+      const monologues = generatePitchMonologues(pitchCtx);
+      const monologueEntries = [
+        monologues.batter,
+        monologues.pitcher,
+        monologues.catcher,
+      ].filter((m): m is NonNullable<typeof m> => m !== null);
+
       const { atBatResult } = runner.stepOneAtBat(rng);
       const newState = runner.getState();
 
       // 打席内の全投球をログに追加
-      const newEntries: PitchLogEntry[] = atBatResult.pitches.map((p) => ({
+      const newEntries: PitchLogEntry[] = atBatResult.pitches.map((p, idx) => ({
         inning: stateBefore.currentInning,
         half: stateBefore.currentHalf,
         pitchType: p.pitchSelection.type,
@@ -443,6 +567,8 @@ export const useMatchStore = create<MatchStore>((set, get) => ({
         pitchSpeed: toPitchSpeedKmh(p.pitchSelection.velocity),
         pitchLocation: toPitchLocationLabel(p.actualLocation.row, p.actualLocation.col),
         pitchTypeLabel: toEnrichedPitchType(p.pitchSelection.type),
+        // Phase 7-B: 1球目にのみモノローグを付加
+        monologues: idx === 0 && monologueEntries.length > 0 ? monologueEntries : undefined,
       }));
       const newLog = [...pitchLog, ...newEntries].slice(-50);
 
@@ -459,6 +585,7 @@ export const useMatchStore = create<MatchStore>((set, get) => ({
         pauseReason,
         matchResult: matchResult ?? null,
         isProcessing: false,
+        currentOrder: { type: 'none' },
       });
     } catch {
       set({ isProcessing: false });
