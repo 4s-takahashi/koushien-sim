@@ -136,6 +136,7 @@ function buildPitcherView(state: MatchState): PitcherView {
     return {
       id: '',
       name: '不明',
+      schoolShortName: undefined,
       pitchCount: 0,
       staminaPct: 1.0,
       staminaClass: 'fresh',
@@ -162,6 +163,7 @@ function buildPitcherView(state: MatchState): PitcherView {
   return {
     id: pitcherMP.player.id,
     name: getBatterName(pitcherMP),
+    schoolShortName: fieldingTeam.shortName,
     pitchCount: pitcherMP.pitchCountInGame,
     staminaPct,
     staminaClass: staminaToClass(staminaPct),
@@ -183,6 +185,7 @@ function buildBatterView(state: MatchState): BatterView {
     return {
       id: '',
       name: '不明',
+      schoolShortName: undefined,
       battingAvg: '0-0',
       overall: 0,
       moodLabel: '普通',
@@ -193,6 +196,7 @@ function buildBatterView(state: MatchState): BatterView {
   return {
     id: batterMP.player.id,
     name: getBatterName(batterMP),
+    schoolShortName: battingTeam.shortName,
     battingAvg: getTodayBattingAvg(state, batterId),
     overall: computeOverall(batterMP),
     moodLabel: moodToLabel(batterMP.player.condition.mood),
@@ -217,6 +221,7 @@ function buildAvailableRelievers(state: MatchState): RelieverView[] {
     .map((mp) => ({
       id: mp.player.id,
       name: getBatterName(mp),
+      schoolShortName: fieldingTeam.shortName,
       staminaPct: mp.stamina / 100,
     }));
 }
@@ -232,6 +237,7 @@ function buildAvailablePinchHitters(state: MatchState): PinchHitterView[] {
     .map((mp) => ({
       id: mp.player.id,
       name: getBatterName(mp),
+      schoolShortName: battingTeam.shortName,
       overall: computeOverall(mp),
     }));
 }
@@ -348,8 +354,10 @@ export function projectMatch(
     },
     homeSchoolName: state.homeTeam.name,
     homeSchoolId: state.homeTeam.id,
+    homeSchoolShortName: state.homeTeam.shortName,
     awaySchoolName: state.awayTeam.name,
     awaySchoolId: state.awayTeam.id,
+    awaySchoolShortName: state.awayTeam.shortName,
     bases,
     pitcher,
     batter,

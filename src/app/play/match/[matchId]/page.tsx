@@ -259,7 +259,7 @@ function PitcherPanel({ view, matchId }: { view: MatchViewState; matchId: string
           className={styles.playerNameLink}
           onClick={handlePlayerClick}
         >
-          {p.name}
+          {p.name}{p.schoolShortName ? <span className={styles.schoolShortName}>({p.schoolShortName})</span> : null}
         </Link>
       </div>
 
@@ -320,7 +320,7 @@ function BatterPanel({ view, matchId }: { view: MatchViewState; matchId: string 
           className={styles.playerNameLink}
           onClick={handlePlayerClick}
         >
-          {b.name}
+          {b.name}{b.schoolShortName ? <span className={styles.schoolShortName}>({b.schoolShortName})</span> : null}
         </Link>
       </div>
 
@@ -544,7 +544,7 @@ function SelectPanel({ mode, view, onSelect, onCancel }: SelectPanelProps) {
     return (
       <div className={styles.selectOverlay} onClick={onCancel}>
         <div className={styles.selectPanel} onClick={(e) => e.stopPropagation()}>
-          <div className={styles.selectTitle}>代打を選択（現在: {view.batter.name}）</div>
+          <div className={styles.selectTitle}>代打を選択（現在: {view.batter.name}{view.batter.schoolShortName ? `(${view.batter.schoolShortName})` : ''}）</div>
           <ul className={styles.selectList}>
             {view.availablePinchHitters.map((ph) => (
               <li
@@ -558,7 +558,9 @@ function SelectPanel({ mode, view, onSelect, onCancel }: SelectPanelProps) {
                   })
                 }
               >
-                <span className={styles.selectItemName}>{ph.name}</span>
+                <span className={styles.selectItemName}>
+                  {ph.name}{ph.schoolShortName ? <span className={styles.schoolShortName}>({ph.schoolShortName})</span> : null}
+                </span>
                 <span className={styles.selectItemDetail}>総合力 {ph.overall}</span>
               </li>
             ))}
@@ -592,7 +594,9 @@ function SelectPanel({ mode, view, onSelect, onCancel }: SelectPanelProps) {
                     })
                   }
                 >
-                  <span className={styles.selectItemName}>{r.name}</span>
+                  <span className={styles.selectItemName}>
+                    {r.name}{r.schoolShortName ? <span className={styles.schoolShortName}>({r.schoolShortName})</span> : null}
+                  </span>
                   <span className={`${styles.selectItemDetail} ${staminaCls}`}>
                     スタミナ {staminaPct}%
                   </span>
@@ -653,7 +657,9 @@ function SelectPanel({ mode, view, onSelect, onCancel }: SelectPanelProps) {
                 onSelect({ type: 'bunt', playerId: view.batter.id })
               }
             >
-              <span className={styles.selectItemName}>{view.batter.name} にバントを指示</span>
+              <span className={styles.selectItemName}>
+                {view.batter.name}{view.batter.schoolShortName ? `(${view.batter.schoolShortName})` : ''} にバントを指示
+              </span>
             </li>
           </ul>
           <button className={styles.selectCancelBtn} onClick={onCancel}>キャンセル</button>
@@ -682,7 +688,7 @@ function RecentLog({ pitches }: { pitches: PitchLogEntry[] }) {
           return (
             <li key={i} className={styles.logItem}>
               <span className={styles.logInning}>{e.inning}回{e.half === 'top' ? '表' : '裏'}</span>
-              <span>{e.batterName}</span>
+              <span>{e.batterName}{e.batterSchoolShortName ? `(${e.batterSchoolShortName})` : ''}</span>
               <span className={`${styles.logOutcome} ${cls}`}>{text}</span>
               <span className={styles.logOutcome}>{PITCH_LABELS[e.pitchType] ?? e.pitchType}</span>
             </li>
@@ -975,6 +981,8 @@ export default function MatchPage() {
   const consumePausedMatch = useWorldStore((s) => s.consumePausedMatch);
   const getHomeView = useWorldStore((s) => s.getHomeView);
 
+  const matchStoreHasHydrated = useMatchStore((s) => s._hasHydrated);
+  const matchStoreRunner = useMatchStore((s) => s.runner);
   const initMatch = useMatchStore((s) => s.initMatch);
   const restoreFromSnapshot = useMatchStore((s) => s.restoreFromSnapshot);
   const resetMatch = useMatchStore((s) => s.resetMatch);
@@ -1004,14 +1012,23 @@ export default function MatchPage() {
 
   // ゲーム初期化
   useEffect(() => {
-    // persist の復元が完了するまで何もしない
+    // world-store と match-store 両方の persist 復元が完了するまで何もしない
     // (hydration 前に router.replace すると、リロード時に /play へ飛んでしまう)
     if (!hasHydrated) return;
+    if (!matchStoreHasHydrated) return;
     if (initialized) return;
 
     if (!worldState) {
       // ゲーム未開始 → /play に戻せば PlayPage が /new-game にリダイレクトする
       router.replace('/play');
+      return;
+    }
+
+    // ── match-store の persist から runner が復元済みの場合（リロード対応）──
+    // 画面リロードや選手/高校詳細へ遷移後に戻ってきたときに、
+    // localStorage から runner が復元されていれば、そのまま試合を継続する。
+    if (matchStoreRunner !== null && !worldState.pausedInteractiveMatch) {
+      setInitialized(true);
       return;
     }
 
@@ -1080,7 +1097,7 @@ export default function MatchPage() {
 
     initMatch(initialState, worldState.playerSchoolId, worldState.seed);
     setInitialized(true);
-  }, [hasHydrated, worldState, initialized, initMatch, router, consumePausedMatch, restoreFromSnapshot]);
+  }, [hasHydrated, matchStoreHasHydrated, matchStoreRunner, worldState, initialized, initMatch, router, consumePausedMatch, restoreFromSnapshot]);
 
   // 試合終了後の処理
   const handleGoHome = useCallback(() => {
@@ -1182,7 +1199,7 @@ export default function MatchPage() {
 
   const view = getMatchView();
 
-  if (!hasHydrated || !worldState) {
+  if (!hasHydrated || !matchStoreHasHydrated || !worldState) {
     return <div className={styles.loading}>読み込み中...</div>;
   }
 
@@ -1239,7 +1256,9 @@ export default function MatchPage() {
           <PsycheWindow
             monologues={pitchLog[pitchLog.length - 1].monologues}
             batterName={pitchLog[pitchLog.length - 1].batterName}
+            batterSchoolShortName={pitchLog[pitchLog.length - 1].batterSchoolShortName}
             pitcherName={view.pitcher.name}
+            pitcherSchoolShortName={view.pitcher.schoolShortName}
           />
         </div>
       )}

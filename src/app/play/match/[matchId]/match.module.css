@@ -1323,3 +1323,12 @@
   color: #80deea;
   border-bottom-color: #80deea;
 }
+
+
+/* v0.23.0: 選手名横の学校短縮名 */
+.schoolShortName {
+  font-size: 0.78em;
+  color: rgba(255,255,255,0.55);
+  margin-left: 2px;
+  font-weight: normal;
+}

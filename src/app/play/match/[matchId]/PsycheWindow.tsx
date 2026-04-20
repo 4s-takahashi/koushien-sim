@@ -22,8 +22,12 @@ interface PsycheWindowProps {
   monologues: MonologueEntry[] | undefined;
   /** 打者名 */
   batterName: string;
+  /** 打者の所属チーム短縮名（v0.23.0） */
+  batterSchoolShortName?: string;
   /** 投手名 */
   pitcherName: string;
+  /** 投手の所属チーム短縮名（v0.23.0） */
+  pitcherSchoolShortName?: string;
 }
 
 // ============================================================
@@ -70,7 +74,7 @@ function Bubble({ role, text, effectSummary, playerName }: BubbleProps) {
 // メインコンポーネント
 // ============================================================
 
-export function PsycheWindow({ monologues, batterName, pitcherName }: PsycheWindowProps) {
+export function PsycheWindow({ monologues, batterName, batterSchoolShortName, pitcherName, pitcherSchoolShortName }: PsycheWindowProps) {
   if (!monologues || monologues.length === 0) {
     return null;
   }
@@ -83,8 +87,12 @@ export function PsycheWindow({ monologues, batterName, pitcherName }: PsycheWind
   if (!hasBubble) return null;
 
   const getPlayerName = (role: MonologueEntry['role']) => {
-    if (role === 'batter') return batterName;
-    if (role === 'pitcher') return pitcherName;
+    if (role === 'batter') {
+      return batterSchoolShortName ? `${batterName}(${batterSchoolShortName})` : batterName;
+    }
+    if (role === 'pitcher') {
+      return pitcherSchoolShortName ? `${pitcherName}(${pitcherSchoolShortName})` : pitcherName;
+    }
     if (role === 'catcher') return '捕手';
     return role;
   };

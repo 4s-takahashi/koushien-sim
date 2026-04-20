@@ -567,6 +567,8 @@ export interface PitchLogEntry {
   location: { row: number; col: number };
   batterId: string;
   batterName: string;
+  /** 打者の所属チーム短縮名 — v0.23.0 追加（optional: 旧セーブデータ互換） */
+  batterSchoolShortName?: string;
   /** 球速 km/h — Phase 7-A-2 追加（optional: 旧セーブデータ互換） */
   pitchSpeed?: number;
   /** 投球コース — Phase 7-A-2 追加（optional: 旧セーブデータ互換） */
@@ -594,6 +596,8 @@ export interface RunnerBaseView {
 export interface PitcherView {
   id: string;
   name: string;
+  /** 投手の所属チーム短縮名（v0.23.0）。未設定の場合は undefined */
+  schoolShortName?: string;
   pitchCount: number;
   staminaPct: number;
   staminaClass: 'fresh' | 'normal' | 'tired' | 'exhausted';
@@ -605,6 +609,8 @@ export interface PitcherView {
 export interface BatterView {
   id: string;
   name: string;
+  /** 打者の所属チーム短縮名（v0.23.0）。未設定の場合は undefined */
+  schoolShortName?: string;
   battingAvg: string;   // 今日の成績 "2-3" 形式
   overall: number;
   moodLabel: string;
@@ -615,6 +621,8 @@ export interface BatterView {
 export interface RelieverView {
   id: string;
   name: string;
+  /** 所属チーム短縮名（v0.23.0） */
+  schoolShortName?: string;
   staminaPct: number;
 }
 
@@ -622,6 +630,8 @@ export interface RelieverView {
 export interface PinchHitterView {
   id: string;
   name: string;
+  /** 所属チーム短縮名（v0.23.0） */
+  schoolShortName?: string;
   overall: number;
 }
 

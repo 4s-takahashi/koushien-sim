@@ -3,10 +3,12 @@
  *
  * Phase 10-B: 試合画面で使用する状態管理。
  * MatchRunner をメモリ上で保持し、UIに MatchViewState を提供する。
- * persist ミドルウェアは使用しない（試合中はメモリのみ）。
+ * persist ミドルウェアを使用して localStorage に試合状態を保存する。
+ * （画面リロード・遷移後のスコアボード初期化バグ修正 v0.23.0）
  */
 
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import type { MatchState, MatchResult, TacticalOrder } from '../engine/match/types';
 import type { RunnerMode, PauseReason } from '../engine/match/runner-types';
 import type { PitchLogEntry, MatchViewState, PitchLocationLabel, EnrichedPitchType } from '../ui/projectors/view-state-types';
@@ -35,6 +37,19 @@ export interface MatchStoreState {
   // --- 試合エンジン（メモリのみ、persist しない） ---
   /** MatchRunner インスタンス（null = 試合未開始） */
   runner: MatchRunner | null;
+  /**
+   * persist 復元用: MatchState の JSON 文字列。
+   * partialize で serializeMatchState() から生成し、
+   * onRehydrateStorage で deserializeMatchState() して runner を再生成する。
+   * 通常の UI からは参照しない内部フィールド。
+   */
+  matchStateJson: string | null;
+  /**
+   * persist の hydration が完了したかどうか。
+   * onRehydrateStorage で true に設定される。
+   * ページ側が「既にランナーが復元済み」かを判断するために使用。
+   */
+  _hasHydrated: boolean;
   /** プレイヤー校 ID */
   playerSchoolId: string;
   /** ゲームシード（RNG 用） */
@@ -152,6 +167,8 @@ type MatchStore = MatchStoreState & MatchStoreActions;
 
 const INITIAL_STATE: MatchStoreState = {
   runner: null,
+  matchStateJson: null,
+  _hasHydrated: false,
   playerSchoolId: '',
   gameSeed: '',
   runnerMode: { time: 'standard', pitch: 'on' },
@@ -362,10 +379,42 @@ function buildPitchContext(
 }
 
 // ============================================================
+// persist 用ストレージキーとバージョン
+// ============================================================
+
+const MATCH_STORE_KEY = 'koushien-sim-match';
+/** バージョン不整合時に全リセットするための番号 */
+const MATCH_STORE_VERSION = 1;
+
+/**
+ * 永続化対象の部分状態型
+ * runner は MatchRunner インスタンスなので JSON 化できない。
+ * 代わりに matchStateJson を永続化し、復元時に runner を再生成する。
+ */
+interface MatchPersistedState {
+  /** MatchState の JSON 文字列（serialize/deserialize で Map/Set を変換） */
+  matchStateJson: string | null;
+  playerSchoolId: string;
+  gameSeed: string;
+  runnerMode: RunnerMode;
+  pauseReason: PauseReason | null;
+  pitchLog: PitchLogEntry[];
+  narration: NarrationEntry[];
+  autoPlayEnabled: boolean;
+  autoPlaySpeed: 'slow' | 'normal' | 'fast';
+  matchResult: MatchResult | null;
+  currentOrder: TacticalOrder;
+  recentMonologueIds: string[];
+  lastOrder: TacticalOrder | null;
+}
+
+// ============================================================
 // Zustand ストア
 // ============================================================
 
-export const useMatchStore = create<MatchStore>((set, get) => ({
+export const useMatchStore = create<MatchStore>()(
+  persist(
+    (set, get) => ({
   ...INITIAL_STATE,
 
   // ----------------------------------------------------------------
@@ -586,6 +635,8 @@ export const useMatchStore = create<MatchStore>((set, get) => ({
         },
         batterId,
         batterName,
+        // v0.23.0: 打者の所属チーム短縮名
+        batterSchoolShortName: battingTeam.shortName,
         // Phase 7-A-2: 球速・コース・球種ラベル
         pitchSpeed: toPitchSpeedKmh(pitchResult.pitchSelection.velocity),
         pitchLocation: toPitchLocationLabel(
@@ -691,6 +742,8 @@ export const useMatchStore = create<MatchStore>((set, get) => ({
         location: { row: p.actualLocation.row, col: p.actualLocation.col },
         batterId,
         batterName,
+        // v0.23.0: 打者の所属チーム短縮名
+        batterSchoolShortName: battingTeam.shortName,
         // Phase 7-A-2: 球速・コース・球種ラベル
         pitchSpeed: toPitchSpeedKmh(p.pitchSelection.velocity),
         pitchLocation: toPitchLocationLabel(p.actualLocation.row, p.actualLocation.col),
@@ -796,4 +849,70 @@ export const useMatchStore = create<MatchStore>((set, get) => ({
   clearNarration: () => {
     set({ narration: [] });
   },
-}));
+    }),
+    {
+      name: MATCH_STORE_KEY,
+      version: MATCH_STORE_VERSION,
+      storage: createJSONStorage(() => {
+        // SSR 時は localStorage が存在しないため、noop ストレージにフォールバック
+        if (typeof window === 'undefined') {
+          return {
+            getItem: () => null,
+            setItem: () => undefined,
+            removeItem: () => undefined,
+          };
+        }
+        return localStorage;
+      }),
+      /**
+       * 永続化する状態を絞り込む。
+       * runner は MatchRunner インスタンスなので除外し、
+       * 代わりに matchStateJson として保存する。
+       * isProcessing は実行中フラグなので復元時には false にリセットされる（除外）。
+       */
+      partialize: (state): MatchPersistedState => {
+        const runner = state.runner;
+        const matchStateJson = runner ? serializeMatchState(runner.getState()) : null;
+        return {
+          matchStateJson,
+          playerSchoolId: state.playerSchoolId,
+          gameSeed: state.gameSeed,
+          runnerMode: state.runnerMode,
+          pauseReason: state.pauseReason,
+          pitchLog: state.pitchLog,
+          narration: state.narration,
+          autoPlayEnabled: state.autoPlayEnabled,
+          autoPlaySpeed: state.autoPlaySpeed,
+          matchResult: state.matchResult,
+          currentOrder: state.currentOrder,
+          recentMonologueIds: state.recentMonologueIds,
+          lastOrder: state.lastOrder,
+        };
+      },
+      /**
+       * 復元時のコールバック。
+       * matchStateJson から MatchRunner を再生成する。
+       * Map/Set は deserializeMatchState が正しく復元する。
+       */
+      onRehydrateStorage: () => (state) => {
+        if (!state) return;
+        // hydration 完了フラグを立てる
+        state._hasHydrated = true;
+        // isProcessing は常に false にリセット
+        state.isProcessing = false;
+        // matchStateJson が存在する場合は runner を再生成
+        if (state.matchStateJson !== null && state.matchStateJson !== undefined) {
+          try {
+            const matchState = deserializeMatchState(state.matchStateJson as unknown as string);
+            const runner = new MatchRunner(matchState, cpuAutoTactics, state.playerSchoolId);
+            state.runner = runner;
+          } catch {
+            // 復元失敗時は runner を null にリセット（ゲームリセット扱い）
+            state.runner = null;
+            state.matchStateJson = null;
+          }
+        }
+      },
+    },
+  ),
+);
