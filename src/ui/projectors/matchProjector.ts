@@ -18,6 +18,7 @@ import type {
   PinchHitterView,
 } from './view-state-types';
 import { detectKeyMoment } from '../../engine/match/runner';
+import { TRAIT_LABELS } from '../labels/trait-labels';
 
 // ============================================================
 // 内部ヘルパー
@@ -116,35 +117,9 @@ function getTodayBattingAvg(state: MatchState, batterId: string): string {
 
 /** 特性の最初のラベルを返す */
 function getFirstTraitLabel(mp: MatchPlayer): string | null {
-  const traitMap: Record<string, string> = {
-    passionate: '熱血',
-    calm: '冷静',
-    easygoing: 'のんびり',
-    sensitive: '繊細',
-    bold: '大胆',
-    leader: 'リーダー',
-    morale_booster: '精神的支柱',
-    lone_wolf: '一匹狼',
-    shy: '内気',
-    hard_worker: '努力家',
-    natural_talent: '天才肌',
-    strategist: '策士',
-    competitive: '勝負師',
-    fun_lover: '陽気',
-    short_tempered: '短気',
-    slacker: '怠け者',
-    overconfident: '過信',
-    self_doubt: '自信喪失',
-    rebellious: '反骨',
-    responsible: '責任感',
-    caring: '面倒見が良い',
-    gritty: '根性',
-    honest: '素直',
-    ambitious: '野心家',
-  };
   const first = mp.player.traits[0];
   if (!first) return null;
-  return traitMap[first] ?? first;
+  return TRAIT_LABELS[first] ?? first;
 }
 
 // ============================================================

@@ -5,63 +5,15 @@
  */
 
 import type { WorldState } from '../../engine/world/world-state';
-import type { Player, Position, TraitId } from '../../engine/types/player';
+import type { Player } from '../../engine/types/player';
 import type {
   PlayerDetailViewState, StatRowView, ConditionView, AbilityRank, PositionLabel,
 } from './view-state-types';
 import { computePlayerOverall } from '../../engine/world/career/draft-system';
 import { overallToRank, positionToLabel } from './teamProjector';
 import { getMotivation } from '../../engine/growth/motivation';
-
-// ============================================================
-// 内部ヘルパー
-// ============================================================
-
-const TRAIT_LABELS: Record<TraitId, string> = {
-  passionate: '情熱家',
-  calm: '冷静沈着',
-  easygoing: 'のんびり屋',
-  sensitive: '繊細',
-  bold: '大胆',
-  leader: 'リーダー',
-  morale_booster: 'ムードメーカー',
-  lone_wolf: '一匹狼',
-  shy: '内気',
-  hard_worker: '努力家',
-  natural_talent: '天才型',
-  strategist: '戦略家',
-  competitive: '負けず嫌い',
-  fun_lover: '楽天家',
-  short_tempered: '短気',
-  slacker: '怠け者',
-  overconfident: '自信過剰',
-  self_doubt: '自信喪失',
-  rebellious: '反骨心',
-  responsible: '責任感',
-  caring: '面倒見がいい',
-  gritty: '根性',
-  honest: '誠実',
-  ambitious: '野心家',
-  // Phase 7-D: 心理特性10種 (2026-04-20)
-  hotblooded: '熱血',
-  stoic: '冷静',
-  cautious: '慎重',
-  stubborn: '頑固',
-  clutch_hitter: '勝負師',
-  scatterbrained: '混乱しやすい',
-  big_game_player: '大舞台',
-  steady: '地味',
-  timid: 'ビビリ',
-  ace: 'エース',
-};
-
-const MOOD_LABELS: Record<string, string> = {
-  excellent: '絶好調',
-  good: '好調',
-  normal: '普通',
-  poor: '不調',
-  terrible: '最悪',
-};
+import { TRAIT_LABELS } from '../labels/trait-labels';
+import { MOOD_LABELS } from '../labels/mood-labels';
 
 /** モチベーションラベル (Phase 11-A3) */
 function motivationLabel(motivation: number): string {

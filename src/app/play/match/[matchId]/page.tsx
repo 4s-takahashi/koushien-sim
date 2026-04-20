@@ -17,6 +17,7 @@ import type { MatchState } from '../../../../engine/match/types';
 import { EMPTY_BASES } from '../../../../engine/match/types';
 import type { TacticalOrder } from '../../../../engine/match/types';
 import type { MatchViewState, PitchLogEntry } from '../../../../ui/projectors/view-state-types';
+import { PITCH_LABELS } from '../../../../ui/labels/pitch-labels';
 import styles from './match.module.css';
 import { PsycheWindow } from './PsycheWindow';
 import { DetailedOrderModal } from './DetailedOrderModal';
@@ -253,7 +254,9 @@ function PitcherPanel({ view }: { view: MatchViewState }) {
         <span className={styles.panelStatLabel}>球種</span>
         <span>
           {p.availablePitches.slice(0, 3).map((pitch) => (
-            <span key={pitch.type} className={styles.pitchBadge}>{pitch.type}</span>
+            <span key={pitch.type} className={styles.pitchBadge}>
+              {PITCH_LABELS[pitch.type] ?? pitch.type}
+            </span>
           ))}
         </span>
       </div>
@@ -633,7 +636,7 @@ function RecentLog({ pitches }: { pitches: PitchLogEntry[] }) {
               <span className={styles.logInning}>{e.inning}回{e.half === 'top' ? '表' : '裏'}</span>
               <span>{e.batterName}</span>
               <span className={`${styles.logOutcome} ${cls}`}>{text}</span>
-              <span className={styles.logOutcome}>{e.pitchType}</span>
+              <span className={styles.logOutcome}>{PITCH_LABELS[e.pitchType] ?? e.pitchType}</span>
             </li>
           );
         })}

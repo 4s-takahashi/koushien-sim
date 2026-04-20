@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useWorldStore } from '../../../../stores/world-store';
 import type { PlayerDetailViewState, StatRowView } from '../../../../ui/projectors/view-state-types';
+import { POSITION_LABELS } from '../../../../ui/labels/position-labels';
+import type { Position } from '../../../../engine/types/player';
 import styles from './page.module.css';
 
 function StatBar({ stat }: { stat: StatRowView }) {
@@ -73,7 +75,7 @@ function PlayerDetail({ view }: { view: PlayerDetailViewState }) {
               {view.positionLabel}
               {view.subPositions.length > 0 && (
                 <span style={{ color: 'var(--color-text-sub)', fontSize: 11 }}>
-                  {' '}（{view.subPositions.join('・')}）
+                  {' '}（{view.subPositions.map((p) => POSITION_LABELS[p as Position] ?? p).join('・')}）
                 </span>
               )}
             </span>
