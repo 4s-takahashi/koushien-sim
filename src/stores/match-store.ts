@@ -66,6 +66,10 @@ export interface MatchStoreState {
   // --- Phase 7-E3: モノローグ連続重複回避 ---
   /** 直近のモノローグID（最新5件、セッションメモリのみ・保存不要） */
   recentMonologueIds: string[];
+
+  // --- Phase 7-F: 直前采配の記憶（詳細采配モーダル用プリセレクト） ---
+  /** 直前に適用した詳細采配 (batter_detailed / pitcher_detailed)。新打者に変わるとリセット */
+  lastOrder: TacticalOrder | null;
 }
 
 export interface MatchStoreActions {
@@ -160,6 +164,7 @@ const INITIAL_STATE: MatchStoreState = {
   isProcessing: false,
   currentOrder: { type: 'none' },
   recentMonologueIds: [],
+  lastOrder: null,
 };
 
 // Phase 7-E3: 直近モノローグID リングバッファのサイズ
@@ -482,14 +487,23 @@ export const useMatchStore = create<MatchStore>((set, get) => ({
     if (!runner) return { applied: false, reason: '試合が開始されていません' };
 
     const result = runner.applyPlayerOrder(order);
+    // Phase 7-F: 詳細采配（batter_detailed / pitcher_detailed）は lastOrder に記憶する
+    const isDetailedOrder = order.type === 'batter_detailed' || order.type === 'pitcher_detailed';
     if (result.applied) {
       // 即時適用采配後（代打・継投等）はビューを更新
       const { runnerMode } = get();
       const pauseReason = evaluatePause(runner, runnerMode);
-      set({ pauseReason, currentOrder: order });
+      set({
+        pauseReason,
+        currentOrder: order,
+        ...(isDetailedOrder ? { lastOrder: order } : {}),
+      });
     } else {
       // 即時適用でない采配（バント・盗塁等）も currentOrder に保存
-      set({ currentOrder: order });
+      set({
+        currentOrder: order,
+        ...(isDetailedOrder ? { lastOrder: order } : {}),
+      });
     }
     return result;
   },
@@ -701,14 +715,13 @@ export const useMatchStore = create<MatchStore>((set, get) => ({
         isProcessing: false,
         currentOrder: { type: 'none' },
         recentMonologueIds: newRecentIds,
+        // Phase 7-F: 1打席終了 = 次の打者に変わる → lastOrder をリセット
+        lastOrder: null,
       });
     } catch {
       set({ isProcessing: false });
     }
   },
-
-  // ----------------------------------------------------------------
-  // 1イニング進行
   // ----------------------------------------------------------------
   stepOneInning: () => {
     const { runner, runnerMode, pitchLog, gameSeed } = get();

@@ -225,6 +225,8 @@ export interface MatchPlayer {
 export interface MatchTeam {
   id: string;
   name: string;
+  /** 3文字短縮表記（Phase 7-F）。画面狭い場合のフォールバック用 */
+  shortName?: string;
   players: MatchPlayer[];
   battingOrder: string[]; // 打順（9人のplayerId）
   fieldPositions: Map<string, Position>;

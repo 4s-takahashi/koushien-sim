@@ -359,13 +359,116 @@ export function willObeySign(
 // 盗塁
 // ============================================================
 
+/**
+ * 盗塁を試みる。
+ * 走者の走力 vs 捕手の肩力に基づいて成否を判定し、
+ * MatchState を更新して返す。
+ *
+ * @param state  現在の試合状態
+ * @param runnerId 盗塁を試みる走者の playerId
+ * @param rng    乱数生成器
+ * @returns { success, nextState }
+ */
 export function attemptSteal(
   state: MatchState,
   runnerId: string,
   rng: RNG,
 ): { success: boolean; nextState: MatchState } {
-  // 簡易実装: 常に成功（詳細な走力vs肩力計算はM3.5以降）
-  return { success: true, nextState: state };
+  const battingTeam = state.currentHalf === 'top' ? state.awayTeam : state.homeTeam;
+  const fieldingTeam = state.currentHalf === 'top' ? state.homeTeam : state.awayTeam;
+
+  // 走者情報を特定
+  const runnerMP = battingTeam.players.find((mp) => mp.player.id === runnerId);
+  if (!runnerMP) return { success: false, nextState: state };
+
+  // 捕手の肩力を取得（batting チームの positions から catcher を探す）
+  // fieldPositions は Map<playerId, Position>
+  let catcherArm = 50; // デフォルト肩力
+  for (const [pid, pos] of fieldingTeam.fieldPositions) {
+    if (pos === 'catcher') {
+      const catcherMP = fieldingTeam.players.find((mp) => mp.player.id === pid);
+      if (catcherMP) {
+        catcherArm = catcherMP.player.stats.base.fielding;
+      }
+      break;
+    }
+  }
+
+  // 走力 (1-100)
+  const runnerSpeed = runnerMP.player.stats.base.speed;
+
+  // 盗塁成功率の計算: 走力 vs 肩力
+  // 走力 70, 肩力 50 → 標準 (約65%)
+  // 走力 90 → 約 80%, 走力 50 → 約 50%
+  const rawSuccessRate = 0.40 + (runnerSpeed - catcherArm) * 0.004 + 0.20;
+  const successRate = Math.max(0.20, Math.min(0.85, rawSuccessRate));
+  const success = rng.chance(successRate);
+
+  // 盗塁対象の塁を特定
+  let fromBase: 'first' | 'second' | null = null;
+  if (state.bases.first?.playerId === runnerId) {
+    fromBase = 'first';
+  } else if (state.bases.second?.playerId === runnerId) {
+    fromBase = 'second';
+  }
+
+  if (!fromBase) return { success: false, nextState: state };
+
+  let nextState: MatchState;
+
+  if (success) {
+    // 盗塁成功: 塁を進める
+    let newBases = { ...state.bases };
+    if (fromBase === 'first') {
+      // 1塁 → 2塁
+      newBases = { ...newBases, second: newBases.first, first: null };
+    } else {
+      // 2塁 → 3塁
+      newBases = { ...newBases, third: newBases.second, second: null };
+    }
+
+    nextState = {
+      ...state,
+      bases: newBases,
+      log: [
+        ...state.log,
+        {
+          inning: state.currentInning,
+          half: state.currentHalf,
+          type: 'stolen_base' as const,
+          description: `盗塁成功: ${runnerId} (${fromBase === 'first' ? '1→2塁' : '2→3塁'})`,
+          playerId: runnerId,
+        },
+      ],
+    };
+  } else {
+    // 盗塁失敗: 走者アウト
+    let newBases = { ...state.bases };
+    if (fromBase === 'first') {
+      newBases = { ...newBases, first: null };
+    } else {
+      newBases = { ...newBases, second: null };
+    }
+
+    const newOuts = Math.min(state.outs + 1, 3);
+    nextState = {
+      ...state,
+      bases: newBases,
+      outs: newOuts,
+      log: [
+        ...state.log,
+        {
+          inning: state.currentInning,
+          half: state.currentHalf,
+          type: 'caught_stealing' as const,
+          description: `盗塁失敗・タッチアウト: ${runnerId} (${fromBase === 'first' ? '1→2塁' : '2→3塁'})`,
+          playerId: runnerId,
+        },
+      ],
+    };
+  }
+
+  return { success, nextState };
 }
 
 // ============================================================

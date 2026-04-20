@@ -126,6 +126,7 @@ export function buildMatchTeam(school: HighSchool): MatchTeam {
   return {
     id: school.id,
     name: school.name,
+    shortName: school.shortName,
     players: matchPlayers,
     battingOrder,
     fieldPositions,

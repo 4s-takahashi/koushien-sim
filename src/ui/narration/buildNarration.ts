@@ -86,6 +86,26 @@ function outcomeJP(outcome: string): string {
 }
 
 // ============================================================
+// 守備位置 → 日本語 (Phase 7-F: アウト実況詳細化)
+// ============================================================
+
+const POSITION_JP: Record<string, string> = {
+  pitcher: '投手',
+  catcher: '捕手',
+  first: '一塁手',
+  second: '二塁手',
+  third: '三塁手',
+  shortstop: '遊撃手',
+  left: '左翼手',
+  center: '中堅手',
+  right: '右翼手',
+};
+
+function positionJP(pos: string): string {
+  return POSITION_JP[pos] ?? pos;
+}
+
+// ============================================================
 // 打席結果 → 日本語
 // ============================================================
 
@@ -99,11 +119,30 @@ function batResultJP(atBat: AtBatResult): { text: string; kind: NarrationEntry['
     case 'walk':          return { text: 'フォアボール', kind: 'normal' };
     case 'intentional_walk': return { text: '敬遠', kind: 'normal' };
     case 'hit_by_pitch':  return { text: '死球', kind: 'normal' };
-    case 'strikeout':     return { text: '⚡ 三振', kind: 'out' };
-    case 'ground_out':    return { text: 'ゴロアウト', kind: 'out' };
-    case 'fly_out':       return { text: 'フライアウト', kind: 'out' };
-    case 'line_out':      return { text: 'ライナーアウト', kind: 'out' };
-    case 'double_play':   return { text: 'ダブルプレー', kind: 'out' };
+    case 'strikeout': {
+      // Phase 7-F: 最後の投球から空振り/見逃しを判定
+      const lastPitch = atBat.pitches[atBat.pitches.length - 1];
+      const strikeoutType = lastPitch?.outcome === 'swinging_strike' ? '空振り三振' : '見逃し三振';
+      return { text: `⚡ ${strikeoutType}`, kind: 'out' };
+    }
+    case 'ground_out': {
+      // Phase 7-F: どこへのゴロかを表示
+      const pos = o.fielder ? positionJP(o.fielder) : '';
+      return { text: pos ? `${pos}ゴロ` : 'ゴロアウト', kind: 'out' };
+    }
+    case 'fly_out': {
+      // Phase 7-F: どこへのフライかを表示
+      const pos = o.fielder ? positionJP(o.fielder) : '';
+      return { text: pos ? `${pos}フライ` : 'フライアウト', kind: 'out' };
+    }
+    case 'line_out': {
+      // Phase 7-F: ライナー方向を表示
+      const pos = o.fielder ? positionJP(o.fielder) : '';
+      return { text: pos ? `${pos}ライナー` : 'ライナーアウト', kind: 'out' };
+    }
+    case 'double_play': {
+      return { text: '🔄 ゲッツー（ダブルプレー）', kind: 'out' };
+    }
     case 'error':         return { text: 'エラー出塁', kind: 'normal' };
     case 'sacrifice_bunt': return { text: '犠打成功', kind: 'normal' };
     case 'sacrifice_fly':  return { text: '犠牲フライ', kind: 'normal' };
@@ -155,6 +194,31 @@ export function buildNarrationForPitch(
   const pitcher = getPitcherName(stateBefore);
   const pitchType = pitchTypeJP(pitch.pitchSelection.type);
 
+  // ── Phase 7-F: 盗塁イベントの実況（投球前に差し込む） ──
+  const prevLogLen = stateBefore.log.length;
+  const newLogEvents = stateAfter.log.slice(prevLogLen);
+  for (const evt of newLogEvents) {
+    if (evt.type === 'stolen_base') {
+      entries.push({
+        id: `${baseId}-steal-ok`,
+        text: `🏃 盗塁成功！`,
+        kind: 'highlight',
+        inning: stateBefore.currentInning,
+        half: stateBefore.currentHalf,
+        at: Date.now(),
+      });
+    } else if (evt.type === 'caught_stealing') {
+      entries.push({
+        id: `${baseId}-steal-ng`,
+        text: `❌ 盗塁失敗！タッチアウト`,
+        kind: 'out',
+        inning: stateBefore.currentInning,
+        half: stateBefore.currentHalf,
+        at: Date.now(),
+      });
+    }
+  }
+
   // 打席開始時（count 0-0）は「N番 打者 登場」を前に出す
   const isAtBatStart =
     stateBefore.count.balls === 0 && stateBefore.count.strikes === 0;
@@ -184,14 +248,23 @@ export function buildNarrationForPitch(
       : stateAfter.score.home - stateBefore.score.home;
 
     // 打球結果マップ（人間が読める日本語）
+    const getOutText = () => {
+      if (!pitch.batContact) return 'アウト';
+      const ct = pitch.batContact.contactType;
+      const fielder = positionJP(fr.fielder);
+      if (ct === 'fly_ball' || ct === 'popup') return `${fielder}フライ`;
+      if (ct === 'line_drive') return `${fielder}ライナー`;
+      return `${fielder}ゴロ`;
+    };
+
     const resultMap: Record<string, { text: string; kind: NarrationEntry['kind'] }> = {
       single: { text: 'ヒット！', kind: 'highlight' },
       double: { text: '二塁打！', kind: 'highlight' },
       triple: { text: '三塁打！！', kind: 'highlight' },
       home_run: { text: '🔥 ホームラン！！', kind: 'score' },
       error: { text: 'エラー出塁', kind: 'normal' },
-      out: { text: 'アウト', kind: 'out' },
-      double_play: { text: 'ダブルプレー！', kind: 'out' },
+      out: { text: getOutText(), kind: 'out' },
+      double_play: { text: '🔄 ゲッツー！', kind: 'out' },
       sacrifice: { text: '犠打', kind: 'normal' },
       sacrifice_fly: { text: '犠牲フライ', kind: 'normal' },
     };
@@ -314,6 +387,32 @@ export function buildNarrationForAtBat(
   const pitcher = getPitcherName(stateBefore);
   const order = stateBefore.currentBatterIndex + 1;
   const pitchCount = atBat.pitches.length;
+
+  // ── Phase 7-F: 盗塁イベントの実況（打席ログより前に差し込む） ──
+  // stateAfter.log に stolen_base / caught_stealing イベントがあれば実況追加
+  const prevLogLen = stateBefore.log.length;
+  const newLogEvents = stateAfter.log.slice(prevLogLen);
+  for (const evt of newLogEvents) {
+    if (evt.type === 'stolen_base') {
+      entries.push({
+        id: `${baseId}-steal-ok`,
+        text: `🏃 盗塁成功！`,
+        kind: 'highlight',
+        inning: stateBefore.currentInning,
+        half: stateBefore.currentHalf,
+        at: Date.now(),
+      });
+    } else if (evt.type === 'caught_stealing') {
+      entries.push({
+        id: `${baseId}-steal-ng`,
+        text: `❌ 盗塁失敗！タッチアウト`,
+        kind: 'out',
+        inning: stateBefore.currentInning,
+        half: stateBefore.currentHalf,
+        at: Date.now(),
+      });
+    }
+  }
 
   // 打席開始 + 投球数（1行にまとめる。ログが縦に長くなりすぎないよう）
   entries.push({

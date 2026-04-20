@@ -18,7 +18,7 @@ import {
   createInitialSeasonState,
   createInitialScoutState,
 } from './world-state';
-import { generateAISchools } from './school-generator';
+import { generateAISchools, generateSchoolShortName } from './school-generator';
 
 // ============================================================
 // 定数
@@ -125,6 +125,7 @@ function teamToHighSchool(team: Team, rng: RNG): HighSchool {
     simulationTier: 'full',
     coachStyle,
     yearResults: createEmptyYearResults(),
+    shortName: generateSchoolShortName(team.name),
     _summary: null,
   };
 }

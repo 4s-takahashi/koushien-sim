@@ -1292,3 +1292,34 @@
   color: #90a4ae;
 }
 
+
+/* Phase 7-F: クリッカブルリンク */
+.teamNameLink {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  border-bottom: 1px dotted rgba(255,255,255,0.4);
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.teamNameLink:hover {
+  color: #90caf9;
+  border-bottom-color: #90caf9;
+}
+
+.playerNameLink {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  border-bottom: 1px dotted rgba(255,255,255,0.3);
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.playerNameLink:hover {
+  color: #80deea;
+  border-bottom-color: #80deea;
+}

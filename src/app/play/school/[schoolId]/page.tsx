@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import { useWorldStore } from '../../../../stores/world-store';
 import { computePlayerOverall } from '../../../../engine/world/career/draft-system';
 import type { HighSchool } from '../../../../engine/world/world-state';
@@ -116,6 +117,14 @@ function StarRating({ stars }: { stars: number }) {
 function SchoolDetail({ school, isPlayerSchool, currentYear }: { school: HighSchool; isPlayerSchool: boolean; currentYear: number }) {
   const strength = getTeamStrength(school);
   const stars = reputationToStars(school.reputation);
+  const [returnMatchId, setReturnMatchId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const id = sessionStorage.getItem('returnMatchId');
+      setReturnMatchId(id);
+    }
+  }, []);
 
   // 主要選手（全選手を overall 順でソート）
   const sortedPlayers = [...school.players]
@@ -128,9 +137,26 @@ function SchoolDetail({ school, isPlayerSchool, currentYear }: { school: HighSch
       <header className={styles.header}>
         <div className={styles.headerInner}>
           <span className={styles.headerTitle}>{school.name}</span>
-          <Link href="/play" style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12 }}>
-            ← ホームに戻る
-          </Link>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            {returnMatchId && (
+              <Link
+                href={`/play/match/${returnMatchId}`}
+                style={{
+                  color: '#ffd54f',
+                  fontSize: 12,
+                  background: 'rgba(255,213,79,0.15)',
+                  padding: '2px 8px',
+                  borderRadius: 4,
+                  border: '1px solid rgba(255,213,79,0.4)',
+                }}
+              >
+                ⚾ 試合に戻る
+              </Link>
+            )}
+            <Link href="/play" style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12 }}>
+              ← ホームに戻る
+            </Link>
+          </div>
         </div>
       </header>
 

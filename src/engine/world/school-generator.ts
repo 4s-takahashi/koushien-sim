@@ -41,6 +41,54 @@ const SCHOOL_FIRST_NAMES = [
 ];
 
 // ============================================================
+// 短縮名生成
+// ============================================================
+
+/**
+ * 接尾辞パターン（除外対象）
+ * 例: 「大阪桐蔭高等学校」→「大阪桐蔭」を短縮
+ */
+const SCHOOL_SUFFIXES_TO_STRIP = [
+  '大学附属高等学校', '大学附属高校',
+  '高等学校', '高校',
+  '工業高校', '商業高校', '農業高校',
+  '第一高校', '第二高校', '北高校', '南高校', '東高校', '西高校',
+  '中央高校', '附属高校', '学院高校',
+  '中学校', '中学',
+  '学園', '学院',
+];
+
+/**
+ * 学校名から3文字の短縮表記を生成する。
+ *
+ * アルゴリズム:
+ * 1. 既知の接尾辞を除去して「コア名」を得る
+ * 2. コア名の先頭3文字を返す
+ * 3. コア名が3文字未満ならコア名をそのまま返す
+ *
+ * 例:
+ *   「大阪桐蔭高等学校」→ コア「大阪桐蔭」→ 「大阪桐」
+ *   「PL学園」          → コア「PL」         → 「PL」
+ *   「帝京高校」        → コア「帝京」        → 「帝京」
+ *   「明訓高校」        → コア「明訓」        → 「明訓」
+ */
+export function generateSchoolShortName(name: string): string {
+  let core = name;
+  // 長い接尾辞から順に試して除去（最初にマッチしたものを使う）
+  for (const suffix of SCHOOL_SUFFIXES_TO_STRIP) {
+    if (core.endsWith(suffix)) {
+      core = core.slice(0, core.length - suffix.length);
+      break;
+    }
+  }
+  if (core.length === 0) {
+    // 接尾辞だけで構成されていた場合はフォールバック
+    return name.slice(0, 3);
+  }
+  return core.slice(0, 3);
+}
+
+// ============================================================
 // ヘルパー
 // ============================================================
 
@@ -205,6 +253,7 @@ export function generateAISchools(
       simulationTier: 'minimal',
       coachStyle,
       yearResults: createEmptyYearResults(),
+      shortName: generateSchoolShortName(name),
       _summary: null,
     };
 

@@ -43,6 +43,12 @@ export interface HighSchool {
   yearResults: YearResults;
 
   /**
+   * 3文字短縮表記（例: 「大阪桐蔭高校」→「大阪桐」）
+   * Phase 7-F で追加。既存セーブデータは world-store の hydrate で自動付与。
+   */
+  shortName?: string;
+
+  /**
    * 選手ごとの個別練習メニュー (Phase 11-A1 2026-04-19 Issue #4)。
    * key=playerId / value=PracticeMenuId。未指定の選手はチーム共通メニューに従う。
    * UI: Team画面のドロップダウンで選択可能。

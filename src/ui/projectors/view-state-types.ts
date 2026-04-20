@@ -637,9 +637,13 @@ export interface MatchViewState {
   score: { home: number; away: number };
   inningScores: { home: number[]; away: number[] };
 
-  // チーム名
+  // チーム名 + ID（詳細画面リンク用）
   homeSchoolName: string;
+  homeSchoolId: string;
+  homeSchoolShortName?: string;
   awaySchoolName: string;
+  awaySchoolId: string;
+  awaySchoolShortName?: string;
 
   // ダイヤモンド
   bases: {

@@ -29,6 +29,7 @@ import {
   applyMoundVisit,
   applyPinchRun,
   applyDefensiveSub,
+  attemptSteal,
   cpuAutoTactics,
 } from './tactics';
 import {
@@ -421,6 +422,31 @@ export class MatchRunner {
     const order = this.resolveOrderForCurrentHalf(rng);
     const prevLog = this.state.log;
 
+    // ── 盗塁処理: 投球前に実行 ──
+    // 盗塁指示がある場合、投球前に盗塁を試み、結果に応じて state を更新する。
+    // 盗塁後は通常の投球を1球行う（野球では盗塁と投球は同時進行）。
+    if (order.type === 'steal') {
+      const { nextState } = attemptSteal(this.state, order.runnerId, rng);
+      this.state = nextState;
+      this.pendingPlayerOrder = null;
+      // 3アウトになった場合はイニング交代して終了
+      if (!this.state.isOver && this.state.outs >= 3) {
+        this.switchHalfInning();
+        const newEvents = this.state.log.slice(prevLog.length);
+        // 盗塁でアウトカウントが満ちた → 打席を終了扱いにして返す
+        // ダミー pitchResult を返すが、buildNarration はログを参照するので問題なし
+        const dummyPitch: PitchResult = {
+          pitchSelection: { type: 'fastball', velocity: 130 },
+          targetLocation: { row: 2, col: 2 },
+          actualLocation: { row: 2, col: 2 },
+          batterAction: 'take',
+          outcome: 'ball',
+          batContact: null,
+        };
+        return { pitchResult: dummyPitch, events: newEvents, atBatEnded: true };
+      }
+    }
+
     // 投球前のカウントを記録（三振・四球判定に使用）
     const strikesBefore = this.state.count.strikes;
 
@@ -657,8 +683,36 @@ export class MatchRunner {
       throw new Error('MatchRunner: 試合は既に終了しています');
     }
 
-    const order = this.resolveOrderForCurrentHalf(rng);
+    let order = this.resolveOrderForCurrentHalf(rng);
     const prevLog = this.state.log;
+
+    // ── 盗塁処理: 打席の最初の投球前に実行 ──
+    // processAtBat は steal 采配を処理しないため、ここで先に実行する。
+    if (order.type === 'steal') {
+      const { nextState } = attemptSteal(this.state, order.runnerId, rng);
+      this.state = nextState;
+      this.pendingPlayerOrder = null;
+      order = { type: 'none' };
+      // 3アウトになった場合はイニング交代
+      if (!this.state.isOver && this.state.outs >= 3) {
+        this.switchHalfInning();
+        // 盗塁だけで打席終了（ダミーの AtBatResult を返す）
+        const newEvents = this.state.log.slice(prevLog.length);
+        const battingTeam = this.state.currentHalf === 'top'
+          ? nextState.awayTeam : nextState.homeTeam;
+        const dummyResult: AtBatResult = {
+          batterId: battingTeam.battingOrder[nextState.currentBatterIndex] ?? '',
+          pitcherId: '',
+          pitches: [],
+          finalCount: { balls: 0, strikes: 0 },
+          outcome: { type: 'ground_out', fielder: 'second' },
+          rbiCount: 0,
+          runnersBefore: nextState.bases,
+          runnersAfter: this.state.bases,
+        };
+        return { atBatResult: dummyResult, events: newEvents };
+      }
+    }
 
     const { nextState, result } = processAtBat(this.state, order, rng, overrides);
     // ⚠️ 打席終了時にカウントを必ずリセット（防衛コード）

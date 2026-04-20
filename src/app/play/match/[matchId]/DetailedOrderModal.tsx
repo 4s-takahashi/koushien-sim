@@ -25,6 +25,8 @@ import styles from './detailedOrderModal.module.css';
 interface DetailedOrderModalProps {
   /** 打者への指示か投手への指示か */
   mode: 'batter' | 'pitcher';
+  /** 直前に適用した采配（あればプリセレクト・「前回と同じ」ボタン用） */
+  lastOrder: TacticalOrder | null;
   /** モーダルを閉じるコールバック */
   onClose: () => void;
   /** 指示を確定するコールバック */
@@ -81,13 +83,16 @@ const INTIMIDATION: { value: 'brush_back' | 'normal'; label: string; desc: strin
 // 打者向けフォーム
 // ============================================================
 
-function BatterForm({ onApply, onClose }: {
+function BatterForm({ onApply, onClose, lastOrder }: {
   onApply: (order: TacticalOrder) => void;
   onClose: () => void;
+  lastOrder: TacticalOrder | null;
 }) {
-  const [focusArea, setFocusArea] = useState<BatterFocusArea | 'any'>('any');
-  const [pitchType, setPitchType] = useState<BatterPitchType>('any');
-  const [aggressiveness, setAggressiveness] = useState<'passive' | 'normal' | 'aggressive'>('normal');
+  // Phase 7-F: 前回采配があればその値でプリセレクト
+  const prevBatter = lastOrder?.type === 'batter_detailed' ? lastOrder : null;
+  const [focusArea, setFocusArea] = useState<BatterFocusArea | 'any'>(prevBatter?.focusArea ?? 'any');
+  const [pitchType, setPitchType] = useState<BatterPitchType>(prevBatter?.pitchType ?? 'any');
+  const [aggressiveness, setAggressiveness] = useState<'passive' | 'normal' | 'aggressive'>(prevBatter?.aggressiveness ?? 'normal');
 
   const handleApply = () => {
     const order: TacticalOrder = {
@@ -97,6 +102,13 @@ function BatterForm({ onApply, onClose }: {
       aggressiveness,
     };
     onApply(order);
+    onClose();
+  };
+
+  // Phase 7-F: 前回と同じ采配を即座に適用
+  const handleSameAsLast = () => {
+    if (!prevBatter) return;
+    onApply(prevBatter);
     onClose();
   };
 
@@ -165,6 +177,12 @@ function BatterForm({ onApply, onClose }: {
 
       <div className={styles.formBtns}>
         <button className={styles.cancelBtn} onClick={onClose}>キャンセル</button>
+        {/* Phase 7-F: 前回と同じ采配ボタン */}
+        {prevBatter && (
+          <button className={styles.sameAsLastBtn} onClick={handleSameAsLast} title="前回と同じ指示を即座に適用">
+            前回と同じ
+          </button>
+        )}
         <button className={styles.applyBtn} onClick={handleApply}>指示を出す</button>
       </div>
     </div>
@@ -175,13 +193,16 @@ function BatterForm({ onApply, onClose }: {
 // 投手向けフォーム
 // ============================================================
 
-function PitcherForm({ onApply, onClose }: {
+function PitcherForm({ onApply, onClose, lastOrder }: {
   onApply: (order: TacticalOrder) => void;
   onClose: () => void;
+  lastOrder: TacticalOrder | null;
 }) {
-  const [focusArea, setFocusArea] = useState<PitcherFocusArea | 'any'>('any');
-  const [pitchMix, setPitchMix] = useState<PitcherPitchMix>('balanced');
-  const [intimidation, setIntimidation] = useState<'brush_back' | 'normal'>('normal');
+  // Phase 7-F: 前回采配があればその値でプリセレクト
+  const prevPitcher = lastOrder?.type === 'pitcher_detailed' ? lastOrder : null;
+  const [focusArea, setFocusArea] = useState<PitcherFocusArea | 'any'>(prevPitcher?.focusArea ?? 'any');
+  const [pitchMix, setPitchMix] = useState<PitcherPitchMix>(prevPitcher?.pitchMix ?? 'balanced');
+  const [intimidation, setIntimidation] = useState<'brush_back' | 'normal'>(prevPitcher?.intimidation ?? 'normal');
 
   const handleApply = () => {
     const order: TacticalOrder = {
@@ -191,6 +212,13 @@ function PitcherForm({ onApply, onClose }: {
       intimidation: intimidation === 'normal' ? undefined : intimidation,
     };
     onApply(order);
+    onClose();
+  };
+
+  // Phase 7-F: 前回と同じ采配を即座に適用
+  const handleSameAsLast = () => {
+    if (!prevPitcher) return;
+    onApply(prevPitcher);
     onClose();
   };
 
@@ -260,6 +288,12 @@ function PitcherForm({ onApply, onClose }: {
 
       <div className={styles.formBtns}>
         <button className={styles.cancelBtn} onClick={onClose}>キャンセル</button>
+        {/* Phase 7-F: 前回と同じ采配ボタン */}
+        {prevPitcher && (
+          <button className={styles.sameAsLastBtn} onClick={handleSameAsLast} title="前回と同じ指示を即座に適用">
+            前回と同じ
+          </button>
+        )}
         <button className={`${styles.applyBtn} ${styles.applyBtnPitcher}`} onClick={handleApply}>指示を出す</button>
       </div>
     </div>
@@ -270,7 +304,7 @@ function PitcherForm({ onApply, onClose }: {
 // メインコンポーネント
 // ============================================================
 
-export function DetailedOrderModal({ mode, onClose, onApply }: DetailedOrderModalProps) {
+export function DetailedOrderModal({ mode, lastOrder, onClose, onApply }: DetailedOrderModalProps) {
   return (
     <div className={styles.overlay} onClick={onClose}>
       <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
@@ -288,9 +322,9 @@ export function DetailedOrderModal({ mode, onClose, onApply }: DetailedOrderModa
         </div>
 
         {mode === 'batter' ? (
-          <BatterForm onApply={onApply} onClose={onClose} />
+          <BatterForm onApply={onApply} onClose={onClose} lastOrder={lastOrder} />
         ) : (
-          <PitcherForm onApply={onApply} onClose={onClose} />
+          <PitcherForm onApply={onApply} onClose={onClose} lastOrder={lastOrder} />
         )}
       </div>
     </div>

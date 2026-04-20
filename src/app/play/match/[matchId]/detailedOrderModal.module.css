@@ -201,6 +201,26 @@
   background: #c62828;
 }
 
+/* Phase 7-F: 前回と同じボタン */
+.sameAsLastBtn {
+  flex: 1;
+  padding: 10px;
+  background: #1b3a1b;
+  border: 1px solid #388e3c;
+  border-radius: 6px;
+  color: #81c784;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.sameAsLastBtn:hover {
+  background: #1e4620;
+  border-color: #66bb6a;
+  color: #a5d6a7;
+}
+
 /* ============================================================ */
 /* レスポンシブ */
 /* ============================================================ */

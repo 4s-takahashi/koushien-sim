@@ -6,10 +6,12 @@
  * Phase 10-B: 1球 / 1打席 / 1イニング / 試合終了まで采配しながら観戦できる。
  * Phase 10-C: WorldState.pendingInteractiveMatch からゲームを初期化し、
  *             試合終了後にブラケット更新してホームへ戻る。
+ * Phase 7-F: 高校名・選手名クリックで詳細画面へ遷移。
  */
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
+import Link from 'next/link';
 import { useWorldStore } from '../../../../stores/world-store';
 import { useMatchStore } from '../../../../stores/match-store';
 import { buildMatchTeam } from '../../../../engine/world/match-team-builder';
@@ -79,21 +81,39 @@ function outcomeLabel(outcome: string): { text: string; cls: string } {
 // スコアボード
 // ============================================================
 
-function Scoreboard({ view }: { view: MatchViewState }) {
+function Scoreboard({ view, matchId }: { view: MatchViewState; matchId: string }) {
   const outs = view.count; // Use count from view
   const stateOuts = (view as MatchViewState & { _outs?: number })._outs ?? 0;
+
+  const handleSchoolClick = useCallback((schoolId: string) => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('returnMatchId', matchId);
+    }
+  }, [matchId]);
 
   return (
     <div className={styles.scoreboard}>
       <div className={styles.scoreboardMain}>
         <div className={styles.scoreboardTeams}>
-          <span className={styles.teamName}>{view.awaySchoolName}</span>
+          <Link
+            href={`/play/school/${view.awaySchoolId}`}
+            className={styles.teamNameLink}
+            onClick={() => handleSchoolClick(view.awaySchoolId)}
+          >
+            {view.awaySchoolName}
+          </Link>
           <div className={styles.scoreDisplay}>
             <span className={styles.scoreAway}>{view.score.away}</span>
             <span className={styles.scoreDash}>-</span>
             <span className={styles.scoreHome}>{view.score.home}</span>
           </div>
-          <span className={styles.teamName}>{view.homeSchoolName}</span>
+          <Link
+            href={`/play/school/${view.homeSchoolId}`}
+            className={styles.teamNameLink}
+            onClick={() => handleSchoolClick(view.homeSchoolId)}
+          >
+            {view.homeSchoolName}
+          </Link>
         </div>
 
         <div className={styles.scoreboardInfo}>
@@ -216,7 +236,7 @@ function Diamond({ view }: { view: MatchViewState }) {
 // 投手パネル
 // ============================================================
 
-function PitcherPanel({ view }: { view: MatchViewState }) {
+function PitcherPanel({ view, matchId }: { view: MatchViewState; matchId: string }) {
   const p = view.pitcher;
   const staminaCls =
     p.staminaClass === 'fresh' ? styles.staminaFresh
@@ -224,10 +244,24 @@ function PitcherPanel({ view }: { view: MatchViewState }) {
     : p.staminaClass === 'tired' ? styles.staminaTired
     : styles.staminaExhausted;
 
+  const handlePlayerClick = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('returnMatchId', matchId);
+    }
+  }, [matchId]);
+
   return (
     <div className={styles.panelCard}>
       <div className={styles.panelHeader}>投手</div>
-      <div className={styles.panelName}>{p.name}</div>
+      <div className={styles.panelName}>
+        <Link
+          href={`/play/player/${p.id}`}
+          className={styles.playerNameLink}
+          onClick={handlePlayerClick}
+        >
+          {p.name}
+        </Link>
+      </div>
 
       <div className={styles.panelStat}>
         <span className={styles.panelStatLabel}>スタミナ</span>
@@ -268,13 +302,27 @@ function PitcherPanel({ view }: { view: MatchViewState }) {
 // 打者パネル
 // ============================================================
 
-function BatterPanel({ view }: { view: MatchViewState }) {
+function BatterPanel({ view, matchId }: { view: MatchViewState; matchId: string }) {
   const b = view.batter;
+
+  const handlePlayerClick = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('returnMatchId', matchId);
+    }
+  }, [matchId]);
 
   return (
     <div className={styles.panelCard}>
       <div className={styles.panelHeader}>{view.isPlayerBatting ? '打者（自校）' : '打者'}</div>
-      <div className={styles.panelName}>{b.name}</div>
+      <div className={styles.panelName}>
+        <Link
+          href={`/play/player/${b.id}`}
+          className={styles.playerNameLink}
+          onClick={handlePlayerClick}
+        >
+          {b.name}
+        </Link>
+      </div>
 
       <div className={styles.panelStat}>
         <span className={styles.panelStatLabel}>今日の成績</span>
@@ -949,6 +997,7 @@ export default function MatchPage() {
   const autoPlaySpeed = useMatchStore((s) => s.autoPlaySpeed);
   const toggleAutoPlay = useMatchStore((s) => s.toggleAutoPlay);
   const setAutoPlaySpeed = useMatchStore((s) => s.setAutoPlaySpeed);
+  const lastOrder = useMatchStore((s) => s.lastOrder);
 
   const [selectMode, setSelectMode] = useState<SelectMode>({ type: 'none' });
   const [initialized, setInitialized] = useState(false);
@@ -1145,10 +1194,12 @@ export default function MatchPage() {
   const isMatchOver = matchResult !== null;
   const canProgress = !isProcessing && !isMatchOver;
 
+  const matchId = typeof _matchId === 'string' ? _matchId : 'current';
+
   return (
     <div className={styles.page}>
       {/* スコアボード */}
-      <Scoreboard view={view} />
+      <Scoreboard view={view} matchId={matchId} />
 
       {/* 中断ボタン (Issue #8 2026-04-19) */}
       <div style={{
@@ -1272,10 +1323,10 @@ export default function MatchPage() {
         <Diamond view={view} />
 
         {/* 投手パネル */}
-        <PitcherPanel view={view} />
+        <PitcherPanel view={view} matchId={matchId} />
 
         {/* 打者パネル */}
-        <BatterPanel view={view} />
+        <BatterPanel view={view} matchId={matchId} />
 
         {/* 進行ボタンは上の AutoPlayBar に統合済み (2026-04-19) */}
 
@@ -1295,10 +1346,11 @@ export default function MatchPage() {
         />
       )}
 
-      {/* 詳細采配モーダル (Phase 7-C) */}
+      {/* 詳細采配モーダル (Phase 7-C / 7-F) */}
       {selectMode.type === 'detailed_order' && (
         <DetailedOrderModal
           mode={selectMode.mode}
+          lastOrder={lastOrder}
           onClose={() => setSelectMode({ type: 'none' })}
           onApply={(order) => {
             handleOrder(order);

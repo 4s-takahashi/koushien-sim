@@ -18,6 +18,7 @@ import type {
 } from '../ui/projectors/view-state-types';
 import { createRNG } from '../engine/core/rng';
 import { createWorldState } from '../engine/world/create-world';
+import { generateSchoolShortName } from '../engine/world/school-generator';
 import { advanceWorldDay, completeInteractiveMatch } from '../engine/world/world-ticker';
 import { addToWatchList, removeFromWatchList, conductScoutVisit, recruitPlayer } from '../engine/world/scout/scout-system';
 import { projectHome } from '../ui/projectors/homeProjector';
@@ -831,6 +832,24 @@ export const useWorldStore = create<WorldStore>()(
                 };
               } else {
                 parsed.state.worldState = deserialized;
+              }
+
+              // 【セーブ移行】Phase 7-F: shortName が未設定の学校に自動付与
+              {
+                const ws = parsed.state.worldState as typeof deserialized;
+                if (ws && Array.isArray(ws.schools)) {
+                  let changed = false;
+                  const migratedSchools = ws.schools.map((s: { name: string; shortName?: string }) => {
+                    if (!s.shortName) {
+                      changed = true;
+                      return { ...s, shortName: generateSchoolShortName(s.name) };
+                    }
+                    return s;
+                  });
+                  if (changed) {
+                    parsed.state.worldState = { ...ws, schools: migratedSchools };
+                  }
+                }
               }
             }
             return parsed;
