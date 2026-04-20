@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.21.0';
+export const VERSION = '0.22.0';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-20 18:38 UTC';
-export const GIT_SHA = 'ad3465d-dirty';
+export const BUILD_DATE = '2026-04-20 18:52 UTC';
+export const GIT_SHA = '5ef1806-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,30 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.22.0',
+    date: '2026-04-20',
+    changes: [
+      '🔧 Phase 7-F: 細かい修正5件',
+      '【1】試合画面から詳細画面へ遷移 — 高校名・選手名クリックで飛べる',
+      '  詳細画面に「試合に戻る」ボタン (sessionStorage で matchId 保持)',
+      '【2】学校名の3文字短縮表記 — 例「新潟県立長岡商業高等学校」→「長岡商」',
+      '  generateShortName() を school-generator.ts に実装',
+      '  既存セーブデータは world-store.ts で自動 migration',
+      '  選手名の横に (短縮名) を表示して攻撃側・守備側を識別可能に',
+      '【3】采配の前回選択継続 — 「前回と同じ」ボタン追加',
+      '  match-store.ts に lastOrder state 追加',
+      '  打者が変わると自動リセット',
+      '【4】盗塁の完全実装 — attemptSteal() を実装、実況ログに表示',
+      '  ランナー速度 vs 捕手肩力で成功判定',
+      '  「○○、二塁へ盗塁成功！」「△△、二塁盗塁失敗！タッチアウト」',
+      '  新規テスト tests/engine/match/steal.test.ts (368行)',
+      '【5】アウトの詳細化 — ゴロ/フライ/三振/守備位置を明記',
+      '  「サード正面のゴロ、ファースト送球アウト」',
+      '  「センターフライ、アウト」',
+      '  「空振り三振」「見逃し三振」',
+    ],
+  },
   {
     version: '0.21.0',
     date: '2026-04-20',
