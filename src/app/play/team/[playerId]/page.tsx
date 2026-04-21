@@ -48,6 +48,7 @@ function PlayerDetail({ view }: { view: PlayerDetailViewState }) {
           <Link href="/play/tournament" className={styles.navLink}>大会</Link>
           <Link href="/play/results" className={styles.navLink}>試合結果</Link>
           <Link href="/play/ob" className={styles.navLink}>OB</Link>
+          <Link href="/play/staff" className={styles.navLink}>スタッフ</Link>
         </div>
       </nav>
 

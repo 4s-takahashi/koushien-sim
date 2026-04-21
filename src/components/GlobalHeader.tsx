@@ -120,6 +120,9 @@ export default function GlobalHeader({ title, rightSlot }: GlobalHeaderProps) {
             <Link href="/play/practice" className={styles.menuItem} onClick={() => setShowMenu(false)}>
               ⚾ 練習
             </Link>
+            <Link href="/play/staff" className={styles.menuItem} onClick={() => setShowMenu(false)}>
+              👩‍💼 スタッフ
+            </Link>
           </div>
         </div>
       )}

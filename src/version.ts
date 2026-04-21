@@ -16,7 +16,7 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.22.2';
+export const VERSION = '0.22.3';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
 export const BUILD_DATE = '2026-04-21 07:27 UTC';

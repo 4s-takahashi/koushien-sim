@@ -11,6 +11,7 @@ import type { PracticeMenuId, GameDate } from '../engine/types/calendar';
 import type { WorldState } from '../engine/world/world-state';
 import type { WorldDayResult } from '../engine/world/world-ticker';
 import type { ScoutSearchFilter } from '../engine/world/world-state';
+import type { ManagerRole } from '../engine/types/manager-staff';
 import type {
   HomeViewState, TeamViewState, PlayerDetailViewState,
   ScoutViewState, TournamentViewState, ResultsViewState, OBViewState,
@@ -156,6 +157,14 @@ interface WorldStore {
   // --- インタラクティブ試合（Phase 10-C） ---
   /** インタラクティブ試合完了後に呼ぶ。ブラケット更新 + 日付進行。 */
   finishInteractiveMatch: (matchResult: import('../engine/match/types').MatchResult) => WorldDayResult | null;
+
+  // --- マネージャースタッフ (Phase 11.5-G) ---
+  /** デフォルトスタッフを初期化する */
+  initDefaultManagerStaff: () => void;
+  /** マネージャーを新規採用する */
+  hireManager: (role: ManagerRole) => { success: boolean; message: string };
+  /** マネージャーに経験値を加算し、ランクアップ判定を行う */
+  addManagerExp: (managerId: string, exp: number) => void;
 
   // --- 試合中断/再開 (Issue #8 PR #6 2026-04-19) ---
   /**
@@ -808,6 +817,159 @@ export const useWorldStore = create<WorldStore>()(
       worldState: {
         ...worldState,
         pausedInteractiveMatch: null,
+      },
+    });
+  },
+
+  // ----------------------------------------------------------------
+  // マネージャースタッフ (Phase 11.5-G)
+  // ----------------------------------------------------------------
+
+  initDefaultManagerStaff: () => {
+    const { worldState } = get();
+    if (!worldState) return;
+    if (worldState.managerStaff) return; // already initialized
+
+    const playerSchool = worldState.schools.find((s) => s.id === worldState.playerSchoolId);
+    const reputation = playerSchool?.reputation ?? 50;
+    // 評判に基づく最大人数: 弱小1, 中堅2-3, 名門4-5
+    const maxMembers =
+      reputation >= 80 ? 5
+      : reputation >= 65 ? 4
+      : reputation >= 50 ? 3
+      : reputation >= 35 ? 2
+      : 1;
+
+    set({
+      worldState: {
+        ...worldState,
+        managerStaff: {
+          members: [],
+          scoutingReports: {},
+          maxMembers,
+        },
+      },
+    });
+  },
+
+  hireManager: (role: ManagerRole) => {
+    const { worldState } = get();
+    if (!worldState) return { success: false, message: 'ゲームが開始されていません' };
+
+    // staffが未初期化の場合は初期化
+    if (!worldState.managerStaff) {
+      get().initDefaultManagerStaff();
+    }
+
+    const staff = get().worldState?.managerStaff;
+    if (!staff) return { success: false, message: '初期化に失敗しました' };
+
+    if (staff.members.length >= staff.maxMembers) {
+      return {
+        success: false,
+        message: `雇用上限（${staff.maxMembers}人）に達しています`,
+      };
+    }
+
+    // ランダム名前生成 (シンプルな決定論的生成)
+    const seed = `${worldState.seed}:hire-manager:${Date.now()}`;
+    const FIRST_NAMES = ['さくら', 'あおい', 'ひなた', 'みのり', 'かほ', 'つばき', 'ゆい', 'りな'];
+    const LAST_NAMES = ['田中', '鈴木', '佐藤', '高橋', '伊藤', '渡辺', '山本', '中村'];
+
+    let h = 0;
+    for (let i = 0; i < seed.length; i++) {
+      h = Math.imul(31, h) + seed.charCodeAt(i) | 0;
+    }
+    const absH = Math.abs(h);
+    const firstName = FIRST_NAMES[absH % FIRST_NAMES.length];
+    const lastName = LAST_NAMES[(absH >> 4) % LAST_NAMES.length];
+
+    const newManager: import('../engine/types/manager-staff').Manager = {
+      id: `manager-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      firstName,
+      lastName,
+      grade: 1,
+      rank: 'E',
+      level: 1,
+      exp: 0,
+      role,
+      traits: [],
+      joinedYear: worldState.currentDate.year,
+      events: [
+        {
+          date: worldState.currentDate,
+          text: `${lastName}${firstName}がマネージャーとして入部した`,
+          type: 'join',
+        },
+      ],
+    };
+
+    const roleLabels: Record<ManagerRole, string> = {
+      scout: 'スカウト',
+      mental: 'メンタルコーチ',
+      analytics: 'アナリスト',
+      pr: '広報',
+    };
+
+    set({
+      worldState: {
+        ...worldState,
+        managerStaff: {
+          ...staff,
+          members: [...staff.members, newManager],
+        },
+      },
+    });
+
+    return {
+      success: true,
+      message: `${lastName}${firstName}を${roleLabels[role]}として採用しました`,
+    };
+  },
+
+  addManagerExp: (managerId: string, exp: number) => {
+    const { worldState } = get();
+    if (!worldState?.managerStaff) return;
+
+    // ランクアップ閾値テーブル (累積経験値)
+    const RANK_THRESHOLDS: import('../engine/types/evaluator').EvaluatorRank[] = [
+      'F', 'E', 'D', 'C', 'B', 'A', 'S', 'SS', 'SSS',
+    ];
+    const EXP_PER_RANK = 100; // 100経験値でランクアップ
+
+    const newMembers = worldState.managerStaff.members.map((m) => {
+      if (m.id !== managerId) return m;
+
+      let newExp = m.exp + exp;
+      let newRank = m.rank;
+      let newLevel = m.level;
+      const events = [...m.events];
+
+      // ランクアップ判定
+      while (newExp >= EXP_PER_RANK) {
+        const currentRankIdx = RANK_THRESHOLDS.indexOf(newRank);
+        if (currentRankIdx < RANK_THRESHOLDS.length - 1) {
+          newRank = RANK_THRESHOLDS[currentRankIdx + 1];
+          newExp -= EXP_PER_RANK;
+          newLevel = Math.min(100, newLevel + 1);
+          events.push({
+            date: worldState.currentDate,
+            text: `ランクアップ！ ${newRank} に昇格した`,
+            type: 'levelup' as const,
+          });
+        } else {
+          newExp = EXP_PER_RANK - 1; // 上限に達したらストップ
+          break;
+        }
+      }
+
+      return { ...m, exp: newExp, rank: newRank, level: newLevel, events };
+    });
+
+    set({
+      worldState: {
+        ...worldState,
+        managerStaff: { ...worldState.managerStaff, members: newMembers },
       },
     });
   },
