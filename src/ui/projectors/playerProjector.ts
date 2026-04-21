@@ -8,6 +8,7 @@ import type { WorldState } from '../../engine/world/world-state';
 import type { Player } from '../../engine/types/player';
 import type {
   PlayerDetailViewState, StatRowView, ConditionView, AbilityRank, PositionLabel,
+  PracticeHistoryView, PlayerEventView,
 } from './view-state-types';
 import { computePlayerOverall } from '../../engine/world/career/draft-system';
 import { overallToRank, positionToLabel } from './teamProjector';
@@ -15,6 +16,8 @@ import { getMotivation } from '../../engine/growth/motivation';
 import { TRAIT_LABELS } from '../labels/trait-labels';
 import { MOOD_LABELS } from '../labels/mood-labels';
 import { getAbilityNarrative, SUPPORTED_ABILITIES, type AbilityKey } from '../labels/ability-narrative';
+import { generatePlayerConcern } from '../labels/player-concern';
+import type { PlayerEventType } from '../../engine/types/player-history';
 
 /** モチベーションラベル (Phase 11-A3) */
 function motivationLabel(motivation: number): string {
@@ -23,6 +26,24 @@ function motivationLabel(motivation: number): string {
   if (motivation >= 30) return '低め';
   return '😢 やる気なし';
 }
+
+/** イベントタイプ → アイコン (Phase 11.5-E) */
+const EVENT_ICONS: Record<PlayerEventType, string> = {
+  enrollment: '🎓',
+  practice_match: '⚾',
+  tournament_play: '🏟',
+  tournament_win: '🏆',
+  koshien_qualify: '🌸',
+  great_hit: '💥',
+  great_pitch: '🔥',
+  injury: '🤕',
+  recovery: '✨',
+  rest: '😴',
+  growth_spurt: '📈',
+  slump: '📉',
+  graduation: '🎓',
+  evaluator_noted: '👁',
+};
 
 function makeStatRow(label: string, value: number, max: number): StatRowView {
   const normalized = Math.min(100, Math.round((value / max) * 100));
@@ -81,6 +102,11 @@ export function projectPlayer(
   const player = playerSchool?.players.find((p) => p.id === playerId);
 
   if (!player) return null;
+
+  // シーズンフェーズ判定 (Phase 11.5-E concern)
+  const sp = worldState.seasonState.phase;
+  const isInTournamentSeason =
+    sp === 'summer_tournament' || sp === 'koshien' || sp === 'autumn_tournament';
 
   const grade = getPlayerGrade(player.enrollmentYear, currentDate.year);
   const overall = computePlayerOverall(player);
@@ -213,6 +239,26 @@ export function projectPlayer(
     // モチベーション (Phase 11-A3 2026-04-19)
     motivation: getMotivation(player),
     motivationLabel: motivationLabel(getMotivation(player)),
+    // 今の気持ち (Phase 11.5-E)
+    concern: generatePlayerConcern(player, { isInTournamentSeason }, player.id),
+    // 直近練習履歴 (Phase 11.5-E)
+    recentPracticeHistory: player.practiceHistory
+      ? player.practiceHistory.slice(-14).map((h): PracticeHistoryView => ({
+          dateLabel: `${h.date.month}月${h.date.day}日`,
+          menuLabel: h.menuLabel,
+          fatigueAfter: h.fatigueAfter,
+          motivationAfter: h.motivationAfter,
+        }))
+      : undefined,
+    // イベント履歴 (Phase 11.5-E)
+    eventHistory: player.eventHistory
+      ? player.eventHistory.slice(-10).map((e): PlayerEventView => ({
+          dateLabel: `${e.date.month}月${e.date.day}日`,
+          text: e.text,
+          importance: e.importance,
+          icon: EVENT_ICONS[e.type] ?? '📌',
+        }))
+      : undefined,
   };
 }
 

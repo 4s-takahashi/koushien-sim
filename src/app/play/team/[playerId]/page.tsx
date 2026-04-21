@@ -293,6 +293,96 @@ function PlayerDetail({ view }: { view: PlayerDetailViewState }) {
             </table>
           </div>
         )}
+
+        {/* 今の気持ち (Phase 11.5-E) */}
+        {view.concern && (
+          <div className={styles.section}>
+            <div className={styles.sectionTitle}>今の気持ち</div>
+            <p style={{
+              fontSize: 13,
+              lineHeight: 1.7,
+              color: 'var(--color-text)',
+              fontStyle: 'italic',
+              padding: '8px 12px',
+              background: 'rgba(255,255,255,0.04)',
+              borderLeft: '3px solid var(--color-accent)',
+              borderRadius: 4,
+              margin: 0,
+            }}>
+              「{view.concern}」
+            </p>
+          </div>
+        )}
+
+        {/* 直近練習履歴 (Phase 11.5-E) */}
+        {view.recentPracticeHistory && view.recentPracticeHistory.length > 0 && (
+          <div className={styles.section}>
+            <div className={styles.sectionTitle}>直近の練習履歴</div>
+            <table className={styles.recordTable}>
+              <thead>
+                <tr>
+                  <th>日付</th>
+                  <th>メニュー</th>
+                  <th>疲労</th>
+                  <th>やる気</th>
+                </tr>
+              </thead>
+              <tbody>
+                {view.recentPracticeHistory.map((h, i) => (
+                  <tr key={i}>
+                    <td style={{ fontSize: 12, color: 'var(--color-text-sub)' }}>{h.dateLabel}</td>
+                    <td style={{ fontSize: 12 }}>{h.menuLabel}</td>
+                    <td style={{
+                      fontSize: 12,
+                      color: h.fatigueAfter >= 80 ? 'var(--color-primary)' : h.fatigueAfter >= 50 ? '#f57c00' : 'var(--color-text)',
+                    }}>{h.fatigueAfter}%</td>
+                    <td style={{
+                      fontSize: 12,
+                      color: h.motivationAfter >= 70 ? '#e65100' : h.motivationAfter <= 30 ? '#1565c0' : 'var(--color-text)',
+                    }}>{h.motivationAfter}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* イベント履歴 (Phase 11.5-E) */}
+        {view.eventHistory && view.eventHistory.length > 0 && (
+          <div className={styles.section}>
+            <div className={styles.sectionTitle}>イベント履歴</div>
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+              {view.eventHistory.map((e, i) => (
+                <li key={i} style={{
+                  display: 'flex',
+                  gap: 8,
+                  padding: '6px 0',
+                  borderBottom: '1px solid rgba(255,255,255,0.06)',
+                  fontSize: 12,
+                  color: e.importance === 'high'
+                    ? 'var(--color-text)'
+                    : e.importance === 'medium'
+                    ? 'var(--color-text)'
+                    : 'var(--color-text-sub)',
+                }}>
+                  <span style={{ fontSize: 16, lineHeight: 1.4 }}>{e.icon}</span>
+                  <span style={{ color: 'var(--color-text-sub)', minWidth: 48 }}>{e.dateLabel}</span>
+                  <span>{e.text}</span>
+                  {e.importance === 'high' && (
+                    <span style={{
+                      marginLeft: 'auto',
+                      fontSize: 10,
+                      padding: '1px 6px',
+                      background: 'var(--color-primary)',
+                      borderRadius: 4,
+                      color: '#fff',
+                    }}>重要</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </main>
     </div>
   );

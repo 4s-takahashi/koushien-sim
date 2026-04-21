@@ -340,6 +340,28 @@ export interface PlayerDetailViewState {
   motivation: number;
   /** モチベーションラベル (Phase 11-A3) */
   motivationLabel: string;
+  /** 今の気持ち（動的生成）(Phase 11.5-E) */
+  concern?: string;
+  /** 直近の練習履歴（14日分）(Phase 11.5-E) */
+  recentPracticeHistory?: PracticeHistoryView[];
+  /** イベント履歴（最大10件）(Phase 11.5-E) */
+  eventHistory?: PlayerEventView[];
+}
+
+/** 練習履歴表示用 (Phase 11.5-E) */
+export interface PracticeHistoryView {
+  dateLabel: string;   // "4月1日"
+  menuLabel: string;   // "打撃・基礎"
+  fatigueAfter: number;
+  motivationAfter: number;
+}
+
+/** イベント履歴表示用 (Phase 11.5-E) */
+export interface PlayerEventView {
+  dateLabel: string;
+  text: string;
+  importance: 'high' | 'medium' | 'low';
+  icon: string;  // emoji based on type
 }
 
 /** シーズン別成績表示用 (Issue #6) */

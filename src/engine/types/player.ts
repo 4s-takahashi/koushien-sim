@@ -177,4 +177,8 @@ export interface Player {
    * (2026-04-19 Phase 11-A3)
    */
   motivation?: number;
+  /** イベント履歴（最大50件）(Phase 11.5-E) */
+  eventHistory?: import('./player-history').PlayerEvent[];
+  /** 直近練習履歴（最大14日分）(Phase 11.5-E) */
+  practiceHistory?: import('./player-history').PracticeHistoryEntry[];
 }
