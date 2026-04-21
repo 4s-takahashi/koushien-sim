@@ -24,17 +24,27 @@ import { projectHome, buildTeamConditionSummary } from '@/ui/projectors/homeProj
 function makePlayer(opts: {
   id?: string;
   fatigue?: number;
-  injury?: { type: string; remainingDays: number } | null;
+  injury?: { type: string; severity?: 'minor' | 'moderate' | 'severe'; remainingDays: number } | null;
 } = {}): Player {
   const rng = createRNG('test-' + (opts.id ?? 'p0'));
   const base = generatePlayer(rng, { enrollmentYear: 1, schoolReputation: 60 });
+  const injury = opts.injury !== undefined
+    ? opts.injury === null
+      ? null
+      : {
+          type: opts.injury.type,
+          severity: opts.injury.severity ?? 'minor' as const,
+          remainingDays: opts.injury.remainingDays,
+          startDate: { year: 1, month: 4, day: 1 },
+        }
+    : null;
   return {
     ...base,
     id: opts.id ?? base.id,
     condition: {
       ...base.condition,
       fatigue: opts.fatigue ?? 0,
-      injury: opts.injury !== undefined ? opts.injury : null,
+      injury,
     },
   };
 }
@@ -114,7 +124,7 @@ describe('buildTeamConditionSummary (Phase 11.5-A)', () => {
     const injuryPlayer = makePlayer({
       id: 'p1',
       fatigue: 20,
-      injury: { type: '右肘', remainingDays: 5 },
+      injury: { type: '右肘', severity: 'moderate', remainingDays: 5 },
     });
     const healthyPlayer = makePlayer({ id: 'p2', fatigue: 10, injury: null });
 
@@ -161,7 +171,7 @@ describe('projectHome — teamConditionSummary (Phase 11.5-A)', () => {
     const players = [
       makePlayer({ id: 'p1', fatigue: 10, injury: null }),
       makePlayer({ id: 'p2', fatigue: 70, injury: null }),
-      makePlayer({ id: 'p3', fatigue: 20, injury: { type: '腰', remainingDays: 3 } }),
+      makePlayer({ id: 'p3', fatigue: 20, injury: { type: '腰', severity: 'minor', remainingDays: 3 } }),
     ];
     const world = makeTestWorld(players);
     const view = projectHome(world);

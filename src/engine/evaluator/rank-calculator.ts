@@ -167,13 +167,13 @@ function getStatValue(player: Player, statPath: string): number {
   const stats = player.stats;
 
   if (group === 'base') {
-    return (stats.base as Record<string, number>)[key] ?? 0;
+    return ((stats.base as unknown) as Record<string, number>)[key] ?? 0;
   }
   if (group === 'batting') {
-    return (stats.batting as Record<string, number>)[key] ?? 0;
+    return ((stats.batting as unknown) as Record<string, number>)[key] ?? 0;
   }
   if (group === 'pitching' && stats.pitching) {
-    return (stats.pitching as Record<string, number>)[key] ?? 0;
+    return ((stats.pitching as unknown) as Record<string, number>)[key] ?? 0;
   }
   return 0;
 }

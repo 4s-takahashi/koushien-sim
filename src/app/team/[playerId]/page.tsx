@@ -17,6 +17,11 @@ function StatBar({ stat }: { stat: StatRowView }) {
             style={{ width: `${stat.barPercent}%` }}
           />
         </div>
+        {stat.narrative && (
+          <div style={{ fontSize: 10, color: '#78909c', marginTop: 1, fontStyle: 'italic' }}>
+            {stat.narrative}
+          </div>
+        )}
       </td>
       <td className={styles.statValue}>{stat.value}</td>
       <td className={`${styles.statRank} ${styles['rank' + stat.rank]}`}>{stat.rank}</td>

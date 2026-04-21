@@ -14,6 +14,7 @@ import { overallToRank, positionToLabel } from './teamProjector';
 import { getMotivation } from '../../engine/growth/motivation';
 import { TRAIT_LABELS } from '../labels/trait-labels';
 import { MOOD_LABELS } from '../labels/mood-labels';
+import { getAbilityNarrative, SUPPORTED_ABILITIES, type AbilityKey } from '../labels/ability-narrative';
 
 /** モチベーションラベル (Phase 11-A3) */
 function motivationLabel(motivation: number): string {
@@ -25,13 +26,19 @@ function motivationLabel(motivation: number): string {
 
 function makeStatRow(label: string, value: number, max: number): StatRowView {
   const normalized = Math.min(100, Math.round((value / max) * 100));
+  const rank = overallToRank(normalized);
+  // Phase 11.5-D: 能力値言葉化
+  const narrative = SUPPORTED_ABILITIES.includes(label as AbilityKey)
+    ? getAbilityNarrative(label as AbilityKey, rank)
+    : undefined;
   // Phase 11-D 成長可視化: 小数第1位まで表示して、0.3 の成長も見えるように
   return {
     label,
     value: Math.round(value * 10) / 10,  // 小数第1位
     max,
-    rank: overallToRank(normalized),
+    rank,
     barPercent: normalized,
+    narrative,
   };
 }
 

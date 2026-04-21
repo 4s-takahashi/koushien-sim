@@ -278,6 +278,8 @@ export interface StatRowView {
   max: number;
   rank: AbilityRank;
   barPercent: number;   // 0-100 (表示用)
+  /** 能力値言葉化テキスト (Phase 11.5-D)。未対応の能力は undefined */
+  narrative?: string;
 }
 
 export interface PlayerDetailViewState {
