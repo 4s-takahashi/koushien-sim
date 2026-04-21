@@ -12,6 +12,7 @@ import type { PersonRegistry } from './person-state';
 import type { CoachStyle, SchoolBlueprint } from './person-blueprint';
 import type { TournamentBracket } from './tournament-bracket';
 import type { ScheduledPracticeGame, PracticeGameRecord } from '../types/practice-game';
+import type { EvaluatorState } from '../types/evaluator';
 
 // ============================================================
 // 計算粒度
@@ -212,6 +213,13 @@ export interface WorldState {
   scheduledPracticeGames?: ScheduledPracticeGame[];
   /** 練習試合・紅白戦の実施履歴（最大30件） */
   practiceGameHistory?: PracticeGameRecord[];
+
+  // --- 評価者状態 (Phase 11.5-C) ---
+  /**
+   * 評価者システムの状態。未初期化の場合は undefined。
+   * advanceDay で定期的に更新される（予定）。
+   */
+  evaluatorState?: EvaluatorState;
 
   // --- インタラクティブ試合（Phase 10-C） ---
   /**
