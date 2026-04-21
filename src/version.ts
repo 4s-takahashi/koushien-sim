@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.22.3';
+export const VERSION = '0.23.0';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-21 07:27 UTC';
-export const GIT_SHA = '032ffd5';
+export const BUILD_DATE = '2026-04-21 17:28 UTC';
+export const GIT_SHA = '34e35e6-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,20 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.23.0',
+    date: '2026-04-21',
+    changes: [
+      '🎭 Phase 11.5: 物語化リデザイン — 全7サブフェーズ実装',
+      '🏠 11.5-A: ホーム画面タブUI（自校/他校/評価者）・チーム状態サマリー',
+      '⚾ 11.5-B: チーム画面に今日の練習設定セクション追加',
+      '📊 11.5-C: 評価者システム基盤（24評価者・ランク計算エンジン）',
+      '📝 11.5-D: 選手能力値の言葉化（13能力×7段階×2+候補）',
+      '👤 11.5-E: 選手プロフィール拡充（今の気持ち・練習履歴・イベント履歴）',
+      '🔍 11.5-F: マネージャー経由スカウティングレポート言葉化',
+      '👩‍💼 11.5-G: マネージャー管理画面（/play/staff・複数雇用・育成）',
+    ],
+  },
   {
     version: '0.22.0',
     date: '2026-04-20',
