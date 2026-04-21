@@ -13,6 +13,7 @@ import type { CoachStyle, SchoolBlueprint } from './person-blueprint';
 import type { TournamentBracket } from './tournament-bracket';
 import type { ScheduledPracticeGame, PracticeGameRecord } from '../types/practice-game';
 import type { EvaluatorState } from '../types/evaluator';
+import type { ManagerStaff } from '../types/manager-staff';
 
 // ============================================================
 // 計算粒度
@@ -220,6 +221,12 @@ export interface WorldState {
    * advanceDay で定期的に更新される（予定）。
    */
   evaluatorState?: EvaluatorState;
+
+  // --- マネージャースタッフ (Phase 11.5-F/G) ---
+  /**
+   * マネージャースタッフの状態。未初期化の場合は undefined。
+   */
+  managerStaff?: ManagerStaff;
 
   // --- インタラクティブ試合（Phase 10-C） ---
   /**

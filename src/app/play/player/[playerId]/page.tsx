@@ -7,6 +7,12 @@ import { useWorldStore } from '../../../../stores/world-store';
 import { computePlayerOverall } from '../../../../engine/world/career/draft-system';
 import type { Player } from '../../../../engine/types/player';
 import type { HighSchool } from '../../../../engine/world/world-state';
+import {
+  generatePlayerScoutingReport,
+  getRankLabel,
+  getDepthLabel,
+} from '../../../../ui/labels/scouting-narrative';
+import type { EvaluatorRank } from '../../../../engine/types/evaluator';
 import styles from './page.module.css';
 
 // ============================================================
@@ -108,11 +114,15 @@ function OtherSchoolPlayerView({
   school,
   scoutReport,
   currentYear,
+  managerRank,
+  managerSeed,
 }: {
   player: Player;
   school: HighSchool;
   scoutReport: string | null;
   currentYear: number;
+  managerRank: EvaluatorRank;
+  managerSeed: string;
 }) {
   const overall = computePlayerOverall(player);
   const rank = overallToRank(overall);
@@ -120,6 +130,8 @@ function OtherSchoolPlayerView({
   const style = isPitcher ? getPitcherStyle(player) : getBatterStyle(player);
   const grade = getPlayerGrade(player.enrollmentYear, currentYear);
   const [returnMatchId, setReturnMatchId] = useState<string | null>(null);
+
+  const scoutingReport = generatePlayerScoutingReport(player, managerRank, managerSeed);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -224,6 +236,50 @@ function OtherSchoolPlayerView({
           </div>
         )}
 
+        {/* マネージャースカウティング (Phase 11.5-F) */}
+        <div className={`${styles.section} ${styles.sectionFull}`}>
+          <div className={styles.sectionTitle}>
+            マネージャー分析
+            <span style={{
+              marginLeft: 8,
+              fontSize: 11,
+              color: 'var(--color-text-sub)',
+              fontWeight: 400,
+            }}>
+              [{getRankLabel(managerRank)} / {getDepthLabel(scoutingReport.informationDepth)}]
+            </span>
+          </div>
+          {scoutingReport.evaluations.length > 0 ? (
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+              {scoutingReport.evaluations.map((ev, i) => (
+                <li key={i} style={{
+                  display: 'flex',
+                  gap: 8,
+                  padding: '5px 0',
+                  borderBottom: '1px solid rgba(255,255,255,0.05)',
+                  fontSize: 12,
+                }}>
+                  <span style={{
+                    minWidth: 56,
+                    color: 'var(--color-text-sub)',
+                    fontSize: 11,
+                    background: 'rgba(255,255,255,0.06)',
+                    padding: '1px 6px',
+                    borderRadius: 3,
+                    height: 'fit-content',
+                    alignSelf: 'center',
+                  }}>{ev.label}</span>
+                  <span style={{ color: 'var(--color-text)' }}>{ev.text}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p style={{ color: 'var(--color-text-sub)', fontSize: 12, margin: 0 }}>
+              分析情報が不足しています。
+            </p>
+          )}
+        </div>
+
         {/* スカウトへのリンク */}
         <div className={`${styles.section} ${styles.sectionFull}`}>
           <div className={styles.sectionTitle}>アクション</div>
@@ -290,12 +346,21 @@ export default function PlayerPage() {
   const scoutReportData = worldState.scoutState.scoutReports.get(playerId);
   const scoutReport = scoutReportData?.scoutComment ?? null;
 
+  // マネージャーランク取得 (Phase 11.5-F): staffがなければデフォルトC
+  const managerStaff = worldState.managerStaff;
+  const topManager = managerStaff?.members.find((m) => m.role === 'scout')
+    ?? managerStaff?.members[0];
+  const managerRank: EvaluatorRank = topManager?.rank ?? 'C';
+  const managerSeed = `${worldState.seed}:scout-view:${playerId}`;
+
   return (
     <OtherSchoolPlayerView
       player={foundPlayer}
       school={foundSchool}
       scoutReport={scoutReport}
       currentYear={worldState.currentDate.year}
+      managerRank={managerRank}
+      managerSeed={managerSeed}
     />
   );
 }
