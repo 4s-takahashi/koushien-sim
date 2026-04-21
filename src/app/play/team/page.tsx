@@ -4,7 +4,20 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useWorldStore } from '../../../stores/world-store';
 import type { TeamViewState } from '../../../ui/projectors/view-state-types';
+import type { PracticeMenuId } from '../../../engine/types/calendar';
 import styles from './page.module.css';
+
+const TEAM_MENU_OPTIONS: Array<{ id: PracticeMenuId; label: string }> = [
+  { id: 'batting_basic',    label: '基礎打撃練習' },
+  { id: 'batting_live',     label: '実戦打撃練習' },
+  { id: 'pitching_basic',   label: '投球基礎練習' },
+  { id: 'pitching_bullpen', label: '投手ブルペン強化' },
+  { id: 'fielding_drill',   label: '守備練習' },
+  { id: 'running',          label: '走塁・体力練習' },
+  { id: 'strength',         label: '筋力トレーニング' },
+  { id: 'mental',           label: 'メンタルトレーニング' },
+  { id: 'rest',             label: '休養（疲労回復）' },
+];
 
 function getRankClass(rank: string): string {
   const map: Record<string, string> = {
@@ -44,7 +57,14 @@ function TeamPage({ view }: { view: TeamViewState }) {
   const restAllInjuredAndWarned = useWorldStore((s) => s.restAllInjuredAndWarned);
   const setIndividualMenu = useWorldStore((s) => s.setIndividualMenu);
   const clearAllIndividualMenus = useWorldStore((s) => s.clearAllIndividualMenus);
+  const setTeamPracticeMenu = useWorldStore((s) => s.setTeamPracticeMenu);
+  const worldState = useWorldStore((s) => s.worldState);
   const [restToast, setRestToast] = useState<string | null>(null);
+  const [menuToast, setMenuToast] = useState<string | null>(null);
+
+  // 現在のチーム練習メニュー
+  const playerSchool = worldState?.schools.find((s) => s.id === worldState.playerSchoolId);
+  const currentTeamMenu: PracticeMenuId = playerSchool?.practiceMenu ?? 'batting_basic';
 
   const handleBulkRest = () => {
     const { count } = restAllInjuredAndWarned();
@@ -61,10 +81,21 @@ function TeamPage({ view }: { view: TeamViewState }) {
     setIndividualMenu(playerId, (menuId || null) as any);
   };
 
+  const handleTeamMenuChange = (menuId: string) => {
+    setTeamPracticeMenu(menuId as PracticeMenuId);
+    const label = TEAM_MENU_OPTIONS.find((m) => m.id === menuId)?.label ?? menuId;
+    setMenuToast(`チーム練習メニューを「${label}」に変更しました`);
+    setTimeout(() => setMenuToast(null), 3000);
+  };
+
   const individualMenuCount = view.players.filter((p) => p.individualMenu).length;
 
-  // 休養中選手数 (UI 表示用: restOverride が true の選手をカウント)
+  // 休養中選手数
   const restingCount = view.players.filter((p) => p.isResting).length;
+
+  // 負傷・注意選手リスト
+  const injuredPlayers = view.players.filter((p) => p.conditionBrief === '負傷中');
+  const cautionPlayers = view.players.filter((p) => p.conditionBrief === '注意' || p.conditionBrief === '要休養');
 
   return (
     <div className={styles.page}>
@@ -128,6 +159,111 @@ function TeamPage({ view }: { view: TeamViewState }) {
           </div>
         </div>
 
+        {/* 📋 今日の練習設定 (Phase 11.5-B) */}
+        <div className={styles.section}>
+          <div className={styles.sectionTitle}>📋 今日の練習設定</div>
+
+          {/* チーム練習メニュー */}
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 12, color: 'var(--color-text-sub)', marginBottom: 6 }}>
+              チーム全体の練習メニュー
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <select
+                value={currentTeamMenu}
+                onChange={(e) => handleTeamMenuChange(e.target.value)}
+                style={{
+                  padding: '6px 10px',
+                  borderRadius: 6,
+                  border: '1px solid #90caf9',
+                  background: '#e3f2fd',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: '#0d47a1',
+                  cursor: 'pointer',
+                }}
+              >
+                {TEAM_MENU_OPTIONS.map((m) => (
+                  <option key={m.id} value={m.id}>{m.label}</option>
+                ))}
+              </select>
+              {menuToast && (
+                <span style={{
+                  fontSize: 12, color: '#2e7d32',
+                  background: '#e8f5e9', padding: '4px 10px', borderRadius: 4,
+                }}>
+                  ✓ {menuToast}
+                </span>
+              )}
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--color-text-sub)', marginTop: 4 }}>
+              ※ 個別設定のない選手はこのメニューに従います。ホーム画面の「1日進む」で使用されます。
+            </div>
+          </div>
+
+          {/* 負傷・注意選手リスト + 一括休養 */}
+          {(injuredPlayers.length > 0 || cautionPlayers.length > 0) && (
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 12, color: '#c62828', fontWeight: 600, marginBottom: 6 }}>
+                コンディション要注意 ({injuredPlayers.length + cautionPlayers.length}名)
+              </div>
+              {injuredPlayers.map((p) => (
+                <Link key={p.id} href={`/team/${p.id}`} style={{
+                  display: 'flex', justifyContent: 'space-between',
+                  padding: '4px 8px', background: '#ffebee', borderRadius: 4,
+                  fontSize: 12, marginBottom: 2, textDecoration: 'none', color: '#333',
+                  borderLeft: '3px solid #c62828',
+                }}>
+                  <span>🏥 {p.lastName}{p.firstName}</span>
+                  <span style={{ color: '#c62828' }}>{p.conditionBrief}</span>
+                </Link>
+              ))}
+              {cautionPlayers.map((p) => (
+                <Link key={p.id} href={`/team/${p.id}`} style={{
+                  display: 'flex', justifyContent: 'space-between',
+                  padding: '4px 8px', background: '#fff3e0', borderRadius: 4,
+                  fontSize: 12, marginBottom: 2, textDecoration: 'none', color: '#333',
+                  borderLeft: '3px solid #e65100',
+                }}>
+                  <span>⚠️ {p.lastName}{p.firstName}</span>
+                  <span style={{ color: '#e65100' }}>{p.conditionBrief}</span>
+                </Link>
+              ))}
+            </div>
+          )}
+
+          {/* 一括休養ボタン (Issue #5 改善版) */}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <button
+              onClick={handleBulkRest}
+              style={{
+                padding: '8px 16px',
+                background: (injuredPlayers.length + cautionPlayers.length) > 0 ? '#fff3e0' : '#f5f5f5',
+                color: (injuredPlayers.length + cautionPlayers.length) > 0 ? '#e65100' : '#999',
+                border: `1px solid ${(injuredPlayers.length + cautionPlayers.length) > 0 ? '#ffb74d' : '#ddd'}`,
+                borderRadius: 6,
+                fontSize: 12,
+                cursor: 'pointer',
+                fontWeight: 600,
+              }}
+              title="疲労50以上・負傷中の選手を1日休養に。翌日は通常練習に戻る"
+            >
+              🛌 けが人・けが注意を一括休養（1日）
+            </button>
+            {restingCount > 0 && (
+              <span style={{ fontSize: 12, color: '#ff9800' }}>🛌 休養中 {restingCount}名</span>
+            )}
+            {restToast && (
+              <span style={{
+                fontSize: 12, color: '#2e7d32',
+                background: '#e8f5e9', padding: '4px 10px', borderRadius: 4,
+              }}>
+                {restToast}
+              </span>
+            )}
+          </div>
+        </div>
+
         {/* ラインナップ */}
         {view.lineup ? (
           <div className={styles.section}>
@@ -177,42 +313,6 @@ function TeamPage({ view }: { view: TeamViewState }) {
             )}
           </div>
 
-          {/* 一括休養ボタン (Issue #5 2026-04-19) */}
-          <div style={{
-            display: 'flex',
-            gap: 8,
-            marginBottom: 10,
-            alignItems: 'center',
-            flexWrap: 'wrap',
-          }}>
-            <button
-              onClick={handleBulkRest}
-              style={{
-                padding: '6px 14px',
-                background: '#fff3e0',
-                color: '#e65100',
-                border: '1px solid #ffb74d',
-                borderRadius: 6,
-                fontSize: 12,
-                cursor: 'pointer',
-                fontWeight: 600,
-              }}
-              title="疲労50以上・負傷中の選手を1日休養に。翌日は通常練習に戻る"
-            >
-              🛌 けが人・けが注意を一括休養（1日）
-            </button>
-            {restToast && (
-              <span style={{
-                fontSize: 12,
-                color: '#2e7d32',
-                background: '#e8f5e9',
-                padding: '4px 10px',
-                borderRadius: 4,
-              }}>
-                {restToast}
-              </span>
-            )}
-          </div>
 
           {/* 個別練習一括クリア (Phase 11-A1 Issue #4) */}
           {individualMenuCount > 0 && (
