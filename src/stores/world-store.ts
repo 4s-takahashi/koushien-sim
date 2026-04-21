@@ -125,6 +125,8 @@ interface WorldStore {
   setIndividualMenu: (playerId: string, menuId: PracticeMenuId | null) => void;
   /** 全選手の個別メニューをクリアする */
   clearAllIndividualMenus: () => void;
+  /** チーム全体の練習メニューを設定する (Phase 11.5-A) */
+  setTeamPracticeMenu: (menuId: PracticeMenuId) => void;
 
   // --- 一時休養アクション (2026-04-19 Issue #5) ---
   /**
@@ -317,9 +319,13 @@ export const useWorldStore = create<WorldStore>()(
   // ----------------------------------------------------------------
   // 1日進行
   // ----------------------------------------------------------------
-  advanceDay: (menuId: PracticeMenuId = DEFAULT_MENU) => {
+  advanceDay: (menuId?: PracticeMenuId) => {
     const { worldState, recentResults, recentNews } = get();
     if (!worldState) return null;
+
+    // Phase 11.5-A: use playerSchool.practiceMenu as fallback, then DEFAULT_MENU
+    const playerSchool = worldState.schools.find((s) => s.id === worldState.playerSchoolId);
+    const resolvedMenu: PracticeMenuId = menuId ?? playerSchool?.practiceMenu ?? DEFAULT_MENU;
 
     let currentWorld = worldState;
 
@@ -352,7 +358,7 @@ export const useWorldStore = create<WorldStore>()(
 
     // Phase 10-C: インタラクティブモードを有効にして、
     // 自校の試合日は pendingInteractiveMatch を設定して日付を止める
-    const { nextWorld, result } = advanceWorldDay(currentWorld, menuId, rng, { interactive: true });
+    const { nextWorld, result } = advanceWorldDay(currentWorld, resolvedMenu, rng, { interactive: true });
 
     // ニュース蓄積（最新順）
     const allNews = [...result.worldNews, ...recentNews].slice(0, MAX_RECENT_NEWS);
@@ -580,6 +586,19 @@ export const useWorldStore = create<WorldStore>()(
     const newSchools = worldState.schools.map((school) => {
       if (school.id !== worldState.playerSchoolId) return school;
       return { ...school, individualPracticeMenus: undefined, _summary: null };
+    });
+    set({ worldState: { ...worldState, schools: newSchools } });
+  },
+
+  // ----------------------------------------------------------------
+  // チーム全体の練習メニュー (Phase 11.5-A)
+  // ----------------------------------------------------------------
+  setTeamPracticeMenu: (menuId: PracticeMenuId) => {
+    const { worldState } = get();
+    if (!worldState) return;
+    const newSchools = worldState.schools.map((school) => {
+      if (school.id !== worldState.playerSchoolId) return school;
+      return { ...school, practiceMenu: menuId, _summary: null };
     });
     set({ worldState: { ...worldState, schools: newSchools } });
   },

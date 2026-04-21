@@ -13,7 +13,9 @@ import type {
   HomeViewState, HomeTeamSummary, HomeNewsItem, HomeScheduleItem,
   HomeTodayTask, HomeFeaturedPlayer, DateView, AbilityRank,
   HomeTournamentInfo, HomeTournamentStartInfo,
+  TeamConditionSummary, InjuredPlayerBrief,
 } from './view-state-types';
+import { getMotivation } from '../../engine/growth/motivation';
 import { computePlayerOverall } from '../../engine/world/career/draft-system';
 
 // ============================================================
@@ -460,6 +462,60 @@ function buildTodayTask(
 // ============================================================
 
 /**
+ * チーム状態サマリーを構築する (Phase 11.5-A)
+ */
+export function buildTeamConditionSummary(
+  players: import('../../engine/types/player').Player[],
+): TeamConditionSummary {
+  let goodCount = 0;
+  let cautionCount = 0;
+  let dangerCount = 0;
+  let motivationSum = 0;
+
+  const injuredPlayers: InjuredPlayerBrief[] = [];
+  const warningPlayers: InjuredPlayerBrief[] = [];
+
+  for (const p of players) {
+    const fatigue = p.condition?.fatigue ?? 0;
+    const injury = p.condition?.injury ?? null;
+    motivationSum += getMotivation(p);
+
+    if (injury !== null) {
+      dangerCount++;
+      injuredPlayers.push({
+        id: p.id,
+        name: `${p.lastName}${p.firstName}`,
+        statusText: `${injury.type} 残${injury.remainingDays}日`,
+        severity: 'injury',
+      });
+    } else if (fatigue >= 50) {
+      cautionCount++;
+      warningPlayers.push({
+        id: p.id,
+        name: `${p.lastName}${p.firstName}`,
+        statusText: `疲労 ${Math.round(fatigue)}`,
+        severity: 'caution',
+      });
+    } else {
+      goodCount++;
+    }
+  }
+
+  const avgMotivation = players.length > 0
+    ? Math.round(motivationSum / players.length)
+    : 0;
+
+  return {
+    goodCount,
+    cautionCount,
+    dangerCount,
+    avgMotivation,
+    injuredPlayers,
+    warningPlayers,
+  };
+}
+
+/**
  * ホーム画面の ViewState を生成する。
  *
  * @param worldState  現在の WorldState
@@ -518,6 +574,9 @@ export function projectHome(
   // チーム状況 (Issue #3 2026-04-19)
   const teamPulse = buildTeamPulse(players);
 
+  // チーム状態サマリー (Phase 11.5-A)
+  const teamConditionSummary = buildTeamConditionSummary(players);
+
   // 最近のOB (Phase 11-A4 2026-04-19)
   const recentGraduates = buildRecentGraduates(worldState);
 
@@ -539,6 +598,7 @@ export function projectHome(
     todayTask,
     featuredPlayers,
     teamPulse,
+    teamConditionSummary,
     recentGraduates,
     isTournamentDay,
     isInTournamentSeason,

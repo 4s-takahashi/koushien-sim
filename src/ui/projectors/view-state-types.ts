@@ -132,6 +132,10 @@ export interface HomeViewState {
   featuredPlayers: HomeFeaturedPlayer[];
   /** チーム状況サマリー (Issue #3 2026-04-19) */
   teamPulse?: HomeTeamPulse;
+  /** チーム状態サマリー (Phase 11.5-A) */
+  teamConditionSummary?: TeamConditionSummary;
+  /** 評価者ハイライト (Phase 11.5-C) */
+  evaluatorHighlights?: EvaluatorHighlight[];
   /** 最近のOB (Phase 11-A4 2026-04-19) */
   recentGraduates?: HomeRecentGraduate[];
   /** 試合日フラグ */
@@ -142,6 +146,36 @@ export interface HomeViewState {
   tournament?: HomeTournamentInfo;
   /** 大会開始前の情報（大会期間前のみ設定） */
   tournamentStart?: HomeTournamentStartInfo;
+}
+
+/** チーム状態サマリー (Phase 11.5-A) */
+export interface TeamConditionSummary {
+  goodCount: number;
+  cautionCount: number;
+  dangerCount: number;
+  avgMotivation: number;
+  injuredPlayers: InjuredPlayerBrief[];
+  warningPlayers: InjuredPlayerBrief[];
+}
+
+export interface InjuredPlayerBrief {
+  id: string;
+  name: string;
+  statusText: string;
+  severity: 'injury' | 'caution';
+}
+
+/** 評価者ランク (Phase 11.5-C) */
+export type EvaluatorRank = 'SSS' | 'SS' | 'S' | 'A' | 'B' | 'C' | 'D' | 'E' | 'F';
+
+/** 評価者ハイライト (Phase 11.5-C) */
+export interface EvaluatorHighlight {
+  evaluatorName: string;
+  evaluatorType: 'media' | 'critic' | 'scout';
+  playerName: string;
+  playerId: string;
+  rank: EvaluatorRank;
+  comment?: string;
 }
 
 /** チーム状況サマリー (Issue #3) */

@@ -55,6 +55,12 @@ export interface HighSchool {
    */
   individualPracticeMenus?: Record<string, import('../types/calendar').PracticeMenuId>;
 
+  /**
+   * チーム全体の練習メニュー (Phase 11.5-A)。
+   * advanceDay() の引数省略時はこの値を使用する。
+   */
+  practiceMenu?: PracticeMenuId;
+
   // --- パフォーマンス用キャッシュ ---
   _summary: TeamSummary | null;
 }
