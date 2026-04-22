@@ -100,6 +100,29 @@ function getBatterName(mp: MatchPlayer): string {
   return `${mp.player.lastName}${mp.player.firstName}`;
 }
 
+/** 苗字のみ（Phase 12-F: Ballpark 選手ラベル用） */
+function getLastName(mp: MatchPlayer): string {
+  return mp.player.lastName;
+}
+
+/**
+ * 守備ラインナップを組み立てる（Phase 12-F）
+ * 各ポジション → 選手の苗字
+ */
+function buildDefenseLineup(state: MatchState): Record<string, string> {
+  const fieldingTeam = state.currentHalf === 'top' ? state.homeTeam : state.awayTeam;
+  const result: Record<string, string> = {};
+
+  fieldingTeam.fieldPositions.forEach((pos, playerId) => {
+    const mp = fieldingTeam.players.find((p) => p.player.id === playerId);
+    if (mp) {
+      result[pos] = getLastName(mp);
+    }
+  });
+
+  return result;
+}
+
 /** 今日の打席成績 文字列 ("安打数-打数" 形式) を生成する */
 function getTodayBattingAvg(state: MatchState, batterId: string): string {
   // log から当打席より前の打席を集計
@@ -423,5 +446,7 @@ export function projectMatch(
     currentInning: state.currentInning,
     pitcherHand: getPitcherHand(state),
     runnerTeams: buildRunnerTeams(state),
+    // Phase 12-F: 守備ラインナップ（Ballpark 選手ラベル用）
+    defenseLineup: buildDefenseLineup(state),
   };
 }

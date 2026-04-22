@@ -12,9 +12,16 @@
 import {
   fieldToCanvas,
   FIELD_POSITIONS,
-  FIELD_SCALE,
   type FieldPoint,
 } from './field-coordinates';
+
+/**
+ * Phase 12-F: feet → canvas px の動的スケール
+ * fieldToCanvas と整合（最小辺 / 800）
+ */
+function getPxPerFoot(w: number, h: number): number {
+  return Math.min(w, h) / 800;
+}
 import type { MatchViewState } from '../projectors/view-state-types';
 
 // ===== 描画用カラーパレット =====
@@ -56,6 +63,11 @@ export interface BallparkRenderState {
    * 0=エフェクトなし, 0<t<1=アニメーション中, 1=終了
    */
   homeRunProgress?: number;
+  /**
+   * Phase 12-F: 守備ラインナップ（ポジション → 苗字）
+   * 各マーカー下に苗字を描画する
+   */
+  defenseLineup?: Record<string, string>;
 }
 
 // ===== Phase 12-E: オフスクリーン Canvas キャッシュ =====
@@ -167,35 +179,39 @@ function drawStands(
   ctx.fillRect(0, 0, w, h);
 }
 
-/** 外野（扇形） */
+/** 外野（扇形、ホームから 45° 方向の左右ファウルラインに挟まれる 90° 扇形） */
 function drawOutfield(
   ctx: CanvasRenderingContext2D,
   w: number,
   h: number,
 ): void {
   const home = fieldToCanvas(FIELD_POSITIONS.home, w, h);
-  const radius = 280 * FIELD_SCALE;
+  const radius = 380 * getPxPerFoot(w, h);
 
+  // Canvas の arc は時計回り正。Y 軸が下向きなので field の +Y = canvas の -Y。
+  // 左翼ファウルライン方向 (-268, 268) → canvas では上-左方向 = 5π/4 rad
+  // 右翼ファウルライン方向 ( 268, 268) → canvas では上-右方向 = 7π/4 rad
+  // 上を通る弧（Canvas 座標で -π/2 中心）を時計回りに描く
   ctx.beginPath();
   ctx.moveTo(home.cx, home.cy);
-  // 角度: 左翼ファウルライン〜右翼ファウルライン
-  ctx.arc(home.cx, home.cy, radius, -Math.PI * 1.1, -Math.PI * 0.1);
+  ctx.arc(home.cx, home.cy, radius, (5 / 4) * Math.PI, (7 / 4) * Math.PI);
   ctx.closePath();
   ctx.fillStyle = COLORS.outfield;
   ctx.fill();
 }
 
-/** ファウルライン */
+/** ファウルライン（ホームから 45° 方向、外野フェンスまで） */
 function drawFoulLines(
   ctx: CanvasRenderingContext2D,
   w: number,
   h: number,
 ): void {
   const home = fieldToCanvas(FIELD_POSITIONS.home, w, h);
-  const leftFoul = fieldToCanvas({ x: -380, y: 0 }, w, h);
-  const rightFoul = fieldToCanvas({ x: 380, y: 0 }, w, h);
+  // 45° 方向、距離 380ft（フェンスまで）
+  const leftFoul = fieldToCanvas({ x: -268, y: 268 }, w, h);
+  const rightFoul = fieldToCanvas({ x: 268, y: 268 }, w, h);
 
-  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+  ctx.strokeStyle = 'rgba(255,255,255,0.5)';
   ctx.lineWidth = 1.5;
   ctx.setLineDash([5, 3]);
 
@@ -219,6 +235,7 @@ function drawInfield(
   h: number,
 ): void {
   const toC = (p: FieldPoint) => fieldToCanvas(p, w, h);
+  const scale = getPxPerFoot(w, h);
   const home = toC(FIELD_POSITIONS.home);
   const first = toC(FIELD_POSITIONS.first);
   const second = toC(FIELD_POSITIONS.second);
@@ -229,7 +246,7 @@ function drawInfield(
   ctx.arc(
     (home.cx + second.cx) / 2,
     (home.cy + second.cy) / 2,
-    72 * FIELD_SCALE,
+    95 * scale,
     0,
     Math.PI * 2,
   );
@@ -255,7 +272,7 @@ function drawPitcherMound(
 ): void {
   const mound = fieldToCanvas(FIELD_POSITIONS.pitcher, w, h);
   ctx.beginPath();
-  ctx.arc(mound.cx, mound.cy, 9 * FIELD_SCALE, 0, Math.PI * 2);
+  ctx.arc(mound.cx, mound.cy, 9 * getPxPerFoot(w, h), 0, Math.PI * 2);
   ctx.fillStyle = COLORS.pitcherMound;
   ctx.fill();
 }
@@ -294,7 +311,8 @@ function drawBases(
   h: number,
 ): void {
   const toC = (p: FieldPoint) => fieldToCanvas(p, w, h);
-  const baseSize = 7 * FIELD_SCALE;
+  const scale = getPxPerFoot(w, h);
+  const baseSize = Math.max(6, 10 * scale);
 
   const positions = [
     FIELD_POSITIONS.first,
@@ -314,7 +332,7 @@ function drawBases(
 
   // ホームプレート（五角形）
   const home = toC(FIELD_POSITIONS.home);
-  drawHomePlate(ctx, home.cx, home.cy, 7 * FIELD_SCALE);
+  drawHomePlate(ctx, home.cx, home.cy, Math.max(5, 9 * scale));
 }
 
 /** ホームプレート（五角形） */
@@ -335,14 +353,14 @@ function drawHomePlate(
   ctx.fill();
 }
 
-/** フェンスポール */
+/** フェンスポール（45° 方向の両翼ファウルポール） */
 function drawFoulPoles(
   ctx: CanvasRenderingContext2D,
   w: number,
   h: number,
 ): void {
-  const leftPole = fieldToCanvas({ x: -320, y: 5 }, w, h);
-  const rightPole = fieldToCanvas({ x: 320, y: 5 }, w, h);
+  const leftPole = fieldToCanvas({ x: -265, y: 265 }, w, h);
+  const rightPole = fieldToCanvas({ x: 265, y: 265 }, w, h);
 
   ctx.strokeStyle = COLORS.foulPole;
   ctx.lineWidth = 3;
@@ -360,42 +378,62 @@ function drawFoulPoles(
   ctx.stroke();
 }
 
-/** 9人の守備選手マーカー */
+/** 9人の守備選手マーカー + 苗字ラベル */
 function drawFielders(
   ctx: CanvasRenderingContext2D,
   state: BallparkRenderState,
   w: number,
   h: number,
 ): void {
-  const fielderPositions: [string, FieldPoint][] = [
+  // Phase 12-F: エンジン側のポジション名で反復（defenseLineup と整合）
+  const fielderEntries: [string, FieldPoint][] = [
     ['pitcher', FIELD_POSITIONS.pitcher],
     ['catcher', FIELD_POSITIONS.catcher],
-    ['firstBase', FIELD_POSITIONS.firstBase],
-    ['secondBase', FIELD_POSITIONS.secondBase],
+    ['first', FIELD_POSITIONS.firstBase],
+    ['second', FIELD_POSITIONS.secondBase],
     ['shortstop', FIELD_POSITIONS.shortstop],
-    ['thirdBase', FIELD_POSITIONS.thirdBase],
-    ['leftField', FIELD_POSITIONS.leftField],
-    ['centerField', FIELD_POSITIONS.centerField],
-    ['rightField', FIELD_POSITIONS.rightField],
+    ['third', FIELD_POSITIONS.thirdBase],
+    ['left', FIELD_POSITIONS.leftField],
+    ['center', FIELD_POSITIONS.centerField],
+    ['right', FIELD_POSITIONS.rightField],
   ];
 
   // ランナーがいるベース
   const runnerBases = new Set(state.runners.map((r) => r.base));
 
-  for (const [_key, fieldPt] of fielderPositions) {
-    const cp = fieldToCanvas(fieldPt, w, h);
-    const playerColor = state.isPlayerHome
-      ? COLORS.homeTeamPlayer
-      : COLORS.awayTeamPlayer;
+  // Phase 12-F: マーカーサイズを少し縮小（苗字を乗せるため）
+  const markerR = Math.max(4, 6 * getPxPerFoot(w, h) * 1.2);
+  const playerColor = state.isPlayerHome
+    ? COLORS.homeTeamPlayer
+    : COLORS.awayTeamPlayer;
 
-    // グロー効果（ランナー位置のベースのみ）
+  for (const [posKey, fieldPt] of fielderEntries) {
+    const cp = fieldToCanvas(fieldPt, w, h);
+
+    // マーカー本体
     ctx.beginPath();
-    ctx.arc(cp.cx, cp.cy, 8, 0, Math.PI * 2);
+    ctx.arc(cp.cx, cp.cy, markerR, 0, Math.PI * 2);
     ctx.fillStyle = playerColor;
     ctx.fill();
     ctx.strokeStyle = 'rgba(255,255,255,0.7)';
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = 1;
     ctx.stroke();
+
+    // Phase 12-F: 苗字ラベル（存在すれば）
+    const lastName = state.defenseLineup?.[posKey];
+    if (lastName) {
+      const fontSize = Math.max(8, Math.min(11, markerR * 1.4));
+      ctx.font = `${fontSize}px "Hiragino Sans", "Yu Gothic", sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      const textY = cp.cy + markerR + 1;
+      // 縁取りで視認性確保
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'rgba(0,0,0,0.75)';
+      ctx.strokeText(lastName, cp.cx, textY);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(lastName, cp.cx, textY);
+    }
   }
 
   // ランナーをオレンジでハイライト
@@ -504,6 +542,8 @@ export function buildBallparkRenderState(
     ballPosition,
     ballHeightNorm,
     homeRunProgress,
+    // Phase 12-F: 守備ラインナップを引き継ぎ
+    defenseLineup: view.defenseLineup,
   };
 }
 

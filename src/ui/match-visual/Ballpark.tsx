@@ -72,8 +72,10 @@ export function Ballpark({
     const handleResize = (entries: ResizeObserverEntry[]) => {
       const entry = entries[0];
       if (!entry) return;
+      // Phase 12-F: 実際の width/height 両方を取得し、短い方を採用して正方形を強制
       const w = Math.round(entry.contentRect.width);
-      const size = Math.max(200, w); // 最小 200px
+      const h = Math.round(entry.contentRect.height);
+      const size = Math.max(200, Math.min(w, h > 0 ? h : w));
       setCanvasSizeState({ w: size, h: size });
     };
 
@@ -81,9 +83,11 @@ export function Ballpark({
     observer.observe(container);
 
     // 初期サイズを即設定
-    const initialW = Math.round(container.getBoundingClientRect().width);
+    const rect = container.getBoundingClientRect();
+    const initialW = Math.round(rect.width);
+    const initialH = Math.round(rect.height);
     if (initialW > 0) {
-      const size = Math.max(200, initialW);
+      const size = Math.max(200, Math.min(initialW, initialH > 0 ? initialH : initialW));
       setCanvasSizeState({ w: size, h: size });
     }
 

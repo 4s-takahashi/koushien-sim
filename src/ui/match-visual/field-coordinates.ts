@@ -18,21 +18,31 @@ export interface CanvasPoint {
   cy: number; // Canvas y（下=正、フィールド Y と逆）
 }
 
-/** 1 フィート当たりのピクセル数（450px ÷ 450 feet） */
-export const FIELD_SCALE = 1.0; // px per foot
+/** 1 フィート当たりのピクセル数（動的スケーリング用ベース） */
+export const FIELD_SCALE = 1.0; // px per foot (450px canvas 基準)
+
+/** フィールド全体が収まるための最大半径 (feet)。外野フェンスまで 380ft */
+const FIELD_MAX_RADIUS_FT = 400;
+
+/** ホームプレートの canvas 上の相対位置（Y方向、下ほど 1 に近い） */
+const HOME_Y_RATIO = 0.92;
 
 /**
  * フィールド座標 → Canvas 座標への変換
  *
- * ホームプレートを canvas の中央下（85% の高さ）に配置
+ * Phase 12-F: Canvas の幅に応じて動的スケーリングし、
+ * どんなサイズでもフィールド全体が収まるように調整。
+ * ホームプレートは canvas の中央下（92% の高さ）に配置。
  */
 export function fieldToCanvas(
   p: FieldPoint,
   canvasWidth: number,
   canvasHeight: number,
 ): CanvasPoint {
-  const cx = canvasWidth / 2 + p.x * FIELD_SCALE;
-  const cy = canvasHeight * 0.85 - p.y * FIELD_SCALE;
+  // canvas サイズに応じたスケール（最小辺 / 最大フィールド半径の2倍）
+  const scale = Math.min(canvasWidth, canvasHeight) / (FIELD_MAX_RADIUS_FT * 2);
+  const cx = canvasWidth / 2 + p.x * scale;
+  const cy = canvasHeight * HOME_Y_RATIO - p.y * scale;
   return { cx, cy };
 }
 
@@ -44,8 +54,9 @@ export function canvasToField(
   canvasWidth: number,
   canvasHeight: number,
 ): FieldPoint {
-  const x = (cp.cx - canvasWidth / 2) / FIELD_SCALE;
-  const y = (canvasHeight * 0.85 - cp.cy) / FIELD_SCALE;
+  const scale = Math.min(canvasWidth, canvasHeight) / (FIELD_MAX_RADIUS_FT * 2);
+  const x = (cp.cx - canvasWidth / 2) / scale;
+  const y = (canvasHeight * HOME_Y_RATIO - cp.cy) / scale;
   return { x, y };
 }
 
@@ -53,24 +64,31 @@ export function canvasToField(
 // 主要ポジション座標（feet）
 // ============================================================
 
-/** 塁・ポジションの標準座標 */
+/**
+ * 塁・ポジションの標準座標
+ *
+ * Phase 12-F 修正 (2026-04-22):
+ * 実際の野球ダイヤモンドに合わせ、1塁・3塁を 45° 方向に配置し直す。
+ * 従来は 1st=(90,0), 3rd=(-90,0) でホームと水平に並んでいて「三角形」に見えていた。
+ * 本来のダイヤモンド: 1st と 3rd はそれぞれ 45° 前方、距離 90ft で (±63.64, 63.64)。
+ */
 export const FIELD_POSITIONS: Record<string, FieldPoint> = {
-  // 塁
+  // 塁（正方形 90ft を 45° 回転させたダイヤモンド）
   home: { x: 0, y: 0 },
-  first: { x: 90, y: 0 },
-  second: { x: 0, y: 127 },
-  third: { x: -90, y: 0 },
+  first: { x: 63.64, y: 63.64 },
+  second: { x: 0, y: 127.28 },
+  third: { x: -63.64, y: 63.64 },
 
-  // 守備ポジション
-  pitcher: { x: 0, y: 60 },
+  // 守備ポジション（ダイヤモンド修正に合わせて配置微調整）
+  pitcher: { x: 0, y: 60.5 },
   catcher: { x: 0, y: -8 },
-  firstBase: { x: 70, y: 30 },
-  secondBase: { x: 35, y: 85 },
-  shortstop: { x: -30, y: 85 },
-  thirdBase: { x: -70, y: 30 },
-  leftField: { x: -130, y: 200 },
-  centerField: { x: 0, y: 250 },
-  rightField: { x: 130, y: 200 },
+  firstBase: { x: 72, y: 78 },
+  secondBase: { x: 30, y: 120 },
+  shortstop: { x: -30, y: 120 },
+  thirdBase: { x: -72, y: 78 },
+  leftField: { x: -150, y: 230 },
+  centerField: { x: 0, y: 280 },
+  rightField: { x: 150, y: 230 },
 
   // フェンス参考点
   leftFoulPole: { x: -330, y: 5 },

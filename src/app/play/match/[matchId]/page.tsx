@@ -857,9 +857,10 @@ function NarrationPanel({ entries }: NarrationPanelProps) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [showAll, setShowAll] = useState(false);
 
+  // Phase 12-F: デフォルトは最新 2 件のみ表示（高橋さん指示 2026-04-22）
   const reversed = [...entries].reverse();
-  const recent = reversed.slice(0, 10);
-  const older = reversed.slice(10);
+  const recent = reversed.slice(0, 2);
+  const older = reversed.slice(2);
   const hasOlder = older.length > 0;
 
   const toggleExpand = (id: string) => {
@@ -899,7 +900,7 @@ function NarrationPanel({ entries }: NarrationPanelProps) {
   };
 
   return (
-    <div className={styles.narrationPanel}>
+    <div className={`${styles.narrationPanel} ${showAll ? styles.narrationPanelExpanded : ''}`}>
       <div className={styles.narrationTitle}>📻 実況ログ</div>
       {reversed.length === 0 ? (
         <div className={styles.narrationEmpty}>試合開始を待っています…</div>

@@ -802,6 +802,14 @@ export interface MatchViewState {
   fieldPositions?: Map<string, { x: number; y: number }>;
 
   /**
+   * 守備ラインナップ（Phase 12-F 2026-04-22）
+   * 各ポジションの選手苗字を Ballpark 上に表示するため
+   * key: 'pitcher' | 'catcher' | 'first' | 'second' | 'third' | 'shortstop' | 'left' | 'center' | 'right'
+   * value: 苗字（姓のみ）
+   */
+  defenseLineup?: Record<string, string>;
+
+  /**
    * ランナーのチーム所属
    * Phase 12-C: Ballpark でのランナー色分け用
    */
