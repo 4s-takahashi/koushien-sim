@@ -288,6 +288,57 @@ function toPitchSpeedKmh(velocity: number): number {
 }
 
 // ============================================================
+// Phase 12 追加ヘルパー
+// ============================================================
+
+/**
+ * Phase 12-B: 球種 → 変化方向ベクトル（右投げ基準）
+ */
+const PITCH_BREAK_DIRECTION_RHP: Record<string, { dx: number; dy: number } | null> = {
+  fastball: null,
+  curve: { dx: 0.3, dy: 1 },
+  curveball: { dx: 0.3, dy: 1 },
+  slider: { dx: 1, dy: 0.3 },
+  fork: { dx: 0, dy: 1.2 },
+  changeup: { dx: 0.2, dy: 0.8 },
+  cutter: { dx: -0.5, dy: 0.2 },
+  sinker: { dx: 0.3, dy: 1 },
+  splitter: { dx: 0, dy: 1.2 },
+};
+
+/**
+ * 球種と投手の利き手から変化方向ベクトルを計算する
+ * （左投げは dx を反転）
+ */
+function computeBreakDirection(
+  pitchType: string,
+  pitcherHand: 'left' | 'right',
+): { dx: number; dy: number } | null {
+  const dir = PITCH_BREAK_DIRECTION_RHP[pitchType.toLowerCase()];
+  if (!dir) return null;
+  return pitcherHand === 'left' ? { dx: -dir.dx, dy: dir.dy } : dir;
+}
+
+/**
+ * Phase 12-B: ピッチ位置 (5×5グリッド) → UV 座標 (0-1)
+ */
+function pitchLocationToUV(row: number, col: number): { x: number; y: number } {
+  const rowMap = [0.05, 0.2, 0.5, 0.8, 0.95];
+  const colMap = [0.05, 0.2, 0.5, 0.8, 0.95];
+  return {
+    x: colMap[col] ?? 0.5,
+    y: rowMap[row] ?? 0.5,
+  };
+}
+
+/**
+ * Phase 12-B: バッターのアクションがスイングかどうかを判定
+ */
+function isSwingAction(batterAction: string): boolean {
+  return batterAction === 'swing' || batterAction === 'bunt' || batterAction === 'check_swing';
+}
+
+// ============================================================
 // ヘルパー：ランナー状況を分類する（Phase 7-B）
 // ============================================================
 
@@ -623,6 +674,13 @@ export const useMatchStore = create<MatchStore>()(
       // Phase 7-E3: 直近モノローグIDを更新
       const newRecentIds = updateRecentMonologueIds(recentMonologueIds, monologues.pickedIds);
 
+      // Phase 12-B: 投手の利き手を取得（ブレイク方向計算用）
+      const pitchingTeamForHand = stateBefore.currentHalf === 'top' ? stateBefore.homeTeam : stateBefore.awayTeam;
+      const pitcherForHand = pitchingTeamForHand.players.find(
+        (mp) => mp.player.id === pitchingTeamForHand.currentPitcherId,
+      );
+      const pitcherHand: 'left' | 'right' = pitcherForHand?.player.throwingHand === 'left' ? 'left' : 'right';
+
       // 投球ログに追加
       const logEntry: PitchLogEntry = {
         inning: stateBefore.currentInning,
@@ -646,6 +704,24 @@ export const useMatchStore = create<MatchStore>()(
         pitchTypeLabel: toEnrichedPitchType(pitchResult.pitchSelection.type),
         // Phase 7-B: 心理モノローグ
         monologues: monologueEntries.length > 0 ? monologueEntries : undefined,
+        // Phase 12-B: 変化方向・スイング位置
+        breakDirection: computeBreakDirection(pitchResult.pitchSelection.type, pitcherHand),
+        swingLocation: isSwingAction(pitchResult.batterAction)
+          ? pitchLocationToUV(pitchResult.actualLocation.row, pitchResult.actualLocation.col)
+          : null,
+        // Phase 12-D: 打球詳細
+        batContact: pitchResult.batContact
+          ? {
+              contactType: pitchResult.batContact.contactType,
+              direction: pitchResult.batContact.direction,
+              speed: pitchResult.batContact.speed,
+              distance: pitchResult.batContact.distance,
+              fieldResult: {
+                type: pitchResult.batContact.fieldResult.type,
+                isError: pitchResult.batContact.fieldResult.isError,
+              },
+            }
+          : null,
       };
       const newLog = [...pitchLog, logEntry].slice(-50);
 
@@ -733,6 +809,13 @@ export const useMatchStore = create<MatchStore>()(
       const { atBatResult } = runner.stepOneAtBat(rng, overrides);
       const newState = runner.getState();
 
+      // Phase 12-B: 投手の利き手（打席単位で取得）
+      const pitchingTeamForHand2 = stateBefore.currentHalf === 'top' ? stateBefore.homeTeam : stateBefore.awayTeam;
+      const pitcherForHand2 = pitchingTeamForHand2.players.find(
+        (mp) => mp.player.id === pitchingTeamForHand2.currentPitcherId,
+      );
+      const pitcherHandAb: 'left' | 'right' = pitcherForHand2?.player.throwingHand === 'left' ? 'left' : 'right';
+
       // 打席内の全投球をログに追加
       const newEntries: PitchLogEntry[] = atBatResult.pitches.map((p, idx) => ({
         inning: stateBefore.currentInning,
@@ -750,6 +833,24 @@ export const useMatchStore = create<MatchStore>()(
         pitchTypeLabel: toEnrichedPitchType(p.pitchSelection.type),
         // Phase 7-B: 1球目にのみモノローグを付加
         monologues: idx === 0 && monologueEntries.length > 0 ? monologueEntries : undefined,
+        // Phase 12-B: 変化方向・スイング位置
+        breakDirection: computeBreakDirection(p.pitchSelection.type, pitcherHandAb),
+        swingLocation: isSwingAction(p.batterAction)
+          ? pitchLocationToUV(p.actualLocation.row, p.actualLocation.col)
+          : null,
+        // Phase 12-D: 打球詳細
+        batContact: p.batContact
+          ? {
+              contactType: p.batContact.contactType,
+              direction: p.batContact.direction,
+              speed: p.batContact.speed,
+              distance: p.batContact.distance,
+              fieldResult: {
+                type: p.batContact.fieldResult.type,
+                isError: p.batContact.fieldResult.isError,
+              },
+            }
+          : null,
       }));
       const newLog = [...pitchLog, ...newEntries].slice(-50);
 
