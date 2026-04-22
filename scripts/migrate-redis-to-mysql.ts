@@ -36,9 +36,25 @@ if (!DATABASE_URL) {
 
 import Redis from 'ioredis';
 import { PrismaClient } from '@prisma/client';
+import { PrismaMariaDb } from '@prisma/adapter-mariadb';
 
 const redis = new Redis(REDIS_URL);
-const prisma = new PrismaClient({ datasourceUrl: DATABASE_URL });
+
+// Prisma v7 は adapter 必須。DATABASE_URL をパースして MariaDB adapter を構築する。
+function parseDbUrl(url: string) {
+  const parsed = new URL(url);
+  return {
+    host: parsed.hostname,
+    port: parsed.port ? parseInt(parsed.port, 10) : 3306,
+    user: parsed.username,
+    password: parsed.password,
+    database: parsed.pathname.replace(/^\//, ''),
+  };
+}
+
+const prisma = new PrismaClient({
+  adapter: new PrismaMariaDb(parseDbUrl(DATABASE_URL)),
+});
 
 // ────────────────────────────────────────────────────────────────
 // 型定義（Redis に保存されていた旧データ構造）
