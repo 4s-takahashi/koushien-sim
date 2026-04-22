@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.24.1';
+export const VERSION = '0.25.0';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-22 01:54 UTC';
-export const GIT_SHA = 'd8f9984-dirty';
+export const BUILD_DATE = '2026-04-22 17:58 UTC';
+export const GIT_SHA = 'f6dc983';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,44 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.25.0',
+    date: '2026-04-22',
+    changes: [
+      '🎨 Phase 12-G: 試合画面ビジュアル リファイン',
+      '【G-1】グラウンド・ストライクゾーン 40% 縮小',
+      '  Ballpark.module.css: max-width 450px → 270px',
+      '  StrikeZone.module.css: max-width 300px → 180px',
+      '  match-visual.module.css: 2カラム → 3カラム（グラウンド・ゾーン・情報パネル）',
+      '  実況ログ・心理ウィンドウを右カラムへ移動、縮小分のスペースを有効活用',
+      '',
+      '【G-2a】ホームラン = 場外まで飛ぶアニメーション',
+      '  computeTrajectory: ホームラン(≥350ft)の endPos を 2.8 倍に拡大 → Canvas 外へ消える',
+      '',
+      '【G-2b】内野ゴロ = 守備→送球→走塁 プレイシーケンス',
+      '  useBallAnimation.ts に PlaySequence/PlayPhase/PlaySequenceState 型を追加',
+      '  buildGroundOutSequence(): ゴロ方向から守備位置を判定し5フェーズシーケンスを構築',
+      '  triggerPlaySequence(): RAF ループで各フェーズを順次アニメーション',
+      '  BallparkCanvas.ts: drawBatterRunner() / drawResultFlash() 追加',
+      '  フィールダーマーカーがボールに向かって移動 → キャッチ → 一塁送球',
+      '  同時にバッターが一塁へ走塁（黄色マーカー）',
+      '  一塁での判定「アウト！/セーフ！」フラッシュ表示',
+      '',
+      '【G-3】ストライクゾーン = 投球軌道アニメーション',
+      '  StrikeZone.tsx に computePitchTrajPos() 追加',
+      '  投球開始時に白い ◯ がゾーン上部に出現 → 着弾点まで 380ms で移動',
+      '  変化球: breakDirection に応じて軌道が曲がる（スライダー横・カーブ下・フォーク急落下）',
+      '  ストレート高速: わずかにホップ（上方向オフセット）',
+      '  アニメーション中は最新マーカーを非表示、着弾後にスケールインで表示',
+      '',
+      '【G-4】スイング位置マーカー = バット形状',
+      '  SwingMarkerSvg: 18×10 の小矩形 → バット形状（台形＋バレル端円、-25°アッパースイング）',
+      '  グリップ側細く・バレル側太い台形で視覚的にバットと認識できる形状',
+      '',
+      '  テスト: 22 件追加（buildGroundOutSequence・computePitchTrajPos・ホームラン距離）',
+      '  field-coordinates.test.ts: Phase 12-F 座標変更に合わせてテストを更新（3件修正）',
+    ],
+  },
   {
     version: '0.24.1',
     date: '2026-04-22',
