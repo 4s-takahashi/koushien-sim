@@ -1,0 +1,125 @@
+/**
+ * Phase 12-C: MatchHUD スタイル
+ * Ballpark Canvas の左上にオーバーレイ表示
+ */
+
+.hud {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: rgba(10, 22, 40, 0.82);
+  border: 1px solid rgba(42, 74, 110, 0.8);
+  border-radius: 6px;
+  padding: 6px 10px;
+  pointer-events: none;
+  user-select: none;
+  z-index: 10;
+  transition: opacity 0.3s;
+  min-width: 90px;
+}
+
+.hudDimmed {
+  opacity: 0.35;
+}
+
+/* ===== カウント ===== */
+.hudCount {
+  font-size: 12px;
+  color: #b0bec5;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 2px;
+}
+
+.hudBalls {
+  color: #66bb6a;
+  font-weight: bold;
+}
+
+.hudStrikes {
+  color: #ef5350;
+  font-weight: bold;
+}
+
+.hudSep {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.hudOuts {
+  display: flex;
+  gap: 3px;
+  margin-left: 2px;
+}
+
+.hudOutDotFilled {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ef5350;
+}
+
+.hudOutDotEmpty {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+/* ===== イニング ===== */
+.hudInning {
+  font-size: 11px;
+  color: #90a4ae;
+  margin-bottom: 2px;
+  letter-spacing: 0.03em;
+}
+
+/* ===== スコア ===== */
+.hudScore {
+  font-size: 13px;
+  font-weight: bold;
+  color: #e8eaf0;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-wrap: nowrap;
+}
+
+.hudTeamName {
+  font-size: 10px;
+  color: #78909c;
+  max-width: 30px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hudScoreNum {
+  color: #e8eaf0;
+  min-width: 14px;
+  text-align: center;
+}
+
+.hudScoreSep {
+  color: #546e7a;
+  font-size: 12px;
+}
+
+/* ===== レスポンシブ ===== */
+@media (max-width: 480px) {
+  .hud {
+    padding: 4px 7px;
+    min-width: 80px;
+  }
+
+  .hudCount {
+    font-size: 11px;
+  }
+
+  .hudScore {
+    font-size: 12px;
+  }
+}

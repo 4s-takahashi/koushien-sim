@@ -635,6 +635,32 @@ export interface PitchLogEntry {
   pitchTypeLabel?: EnrichedPitchType;
   /** 心理モノローグ — Phase 7-B 追加（optional: 旧セーブデータ互換） */
   monologues?: MonologueEntry[];
+  // ===== Phase 12 追加フィールド（すべて optional・後方互換） =====
+  /**
+   * 変化球の変化方向ベクトル（正規化）
+   * Phase 12-B: StrikeZone △マーカーの向き計算用
+   */
+  breakDirection?: { dx: number; dy: number } | null;
+  /**
+   * バットスイング位置（UV座標）
+   * Phase 12-B: ストライクゾーンのスイングマーカー表示用
+   * スイングなし (take) の場合は null
+   */
+  swingLocation?: { x: number; y: number } | null;
+  /**
+   * 打球詳細情報（インプレーの場合のみ）
+   * Phase 12-D: 打球軌跡アニメーション計算用
+   */
+  batContact?: {
+    contactType: 'ground_ball' | 'line_drive' | 'fly_ball' | 'popup' | 'bunt_ground';
+    direction: number;    // 角度（0=LF, 45=CF, 90=RF）
+    speed: 'weak' | 'normal' | 'hard' | 'bullet';
+    distance: number;     // feet
+    fieldResult: {
+      type: string;
+      isError: boolean;
+    };
+  } | null;
 }
 
 /** モノローグエントリ (Phase 7-B) */
@@ -745,6 +771,41 @@ export interface MatchViewState {
 
   // プレイヤーが攻撃中か
   isPlayerBatting: boolean;
+
+  // ===== Phase 12 追加フィールド（すべて optional・後方互換） =====
+
+  /**
+   * 現在のアウト数（Phase 12-A HUD 表示用）
+   * matchProjector から追加される
+   */
+  outs?: number;
+
+  /**
+   * 現在イニング番号（Phase 12-A スコアボード強調表示用）
+   */
+  currentInning?: number;
+
+  /**
+   * 投手の利き手（Phase 12-B 変化球方向反転用）
+   */
+  pitcherHand?: 'left' | 'right';
+
+  /**
+   * 守備側プレイヤーのフィールド上の位置
+   * Phase 12-C: Ballpark への選手マーカー表示用
+   * ない場合は固定ポジションを使用
+   */
+  fieldPositions?: Map<string, { x: number; y: number }>;
+
+  /**
+   * ランナーのチーム所属
+   * Phase 12-C: Ballpark でのランナー色分け用
+   */
+  runnerTeams?: {
+    first?: 'home' | 'away';
+    second?: 'home' | 'away';
+    third?: 'home' | 'away';
+  };
 }
 
 // ============================================================

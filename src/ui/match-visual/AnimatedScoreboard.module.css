@@ -1,0 +1,259 @@
+/**
+ * Phase 12-A/C: アニメーション付きスコアボードのスタイル
+ */
+
+/* ===== オーバーレイ基盤 ===== */
+.scoreboardOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  background: rgba(10, 22, 40, 0.97);
+  border-bottom: 2px solid #1a3a5c;
+  padding: 12px 16px 16px;
+  will-change: transform, opacity;
+  /* hidden 時はオフスクリーンへ */
+  transform: translateY(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.hidden {
+  transform: translateY(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.visible {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.slidingIn {
+  animation: scoreboardSlideIn 400ms cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+
+.slidingOut {
+  animation: scoreboardSlideOut 300ms cubic-bezier(0.55, 0.055, 0.675, 0.19) forwards;
+}
+
+@keyframes scoreboardSlideIn {
+  from {
+    transform: translateY(-100%);
+    opacity: 0.8;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes scoreboardSlideOut {
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scoreboardOverlay,
+  .slidingIn,
+  .slidingOut {
+    animation: none !important;
+    transition: none !important;
+  }
+  .visible {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  .hidden {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+}
+
+/* ===== イニングバッジ ===== */
+.inningBadge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.baseballEmoji {
+  font-size: 16px;
+}
+
+.inningText {
+  font-size: 15px;
+  font-weight: bold;
+  color: #e8eaf0;
+  letter-spacing: 0.05em;
+}
+
+.outsText {
+  display: flex;
+  gap: 3px;
+  font-size: 10px;
+  margin-left: 4px;
+}
+
+.outDotFilled {
+  color: #ef5350;
+}
+
+.outDotEmpty {
+  color: rgba(255, 255, 255, 0.25);
+}
+
+/* ===== スコア表示 ===== */
+.scoreRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.teamSection {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.teamLabel {
+  font-size: 13px;
+  color: #90a4ae;
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scoreNum {
+  font-size: 28px;
+  font-weight: bold;
+  color: #e8eaf0;
+  min-width: 32px;
+  text-align: center;
+  line-height: 1;
+}
+
+.scoreDivider {
+  font-size: 20px;
+  color: #546e7a;
+}
+
+/* ===== イニング別スコア表 ===== */
+.inningTable {
+  overflow-x: auto;
+  margin-bottom: 8px;
+}
+
+.scoreTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  color: #b0bec5;
+}
+
+.scoreTable th,
+.scoreTable td {
+  padding: 2px 5px;
+  text-align: center;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  min-width: 22px;
+}
+
+.teamNameCell {
+  text-align: left !important;
+  padding-left: 4px !important;
+  font-size: 10px;
+  color: #78909c;
+  min-width: 36px;
+}
+
+.inningNumCell {
+  font-weight: bold;
+  color: #78909c;
+}
+
+.scoreCell {
+  color: #e8eaf0;
+}
+
+.totalCell {
+  font-weight: bold;
+  color: #ffd54f;
+  border-left: 2px solid rgba(255, 213, 79, 0.4) !important;
+}
+
+.currentInning {
+  background: rgba(255, 213, 79, 0.1);
+  color: #ffd54f !important;
+}
+
+/* ===== カウント ===== */
+.countRow {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  font-size: 12px;
+}
+
+.countBalls {
+  color: #66bb6a;
+  font-weight: bold;
+}
+
+.countStrikes {
+  color: #ef5350;
+  font-weight: bold;
+}
+
+/* ===== スコアボード再表示ボタン ===== */
+.showScoreboardBtn {
+  position: fixed;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 49;
+  background: rgba(10, 22, 40, 0.7);
+  border: 1px solid rgba(42, 74, 110, 0.6);
+  border-radius: 4px;
+  padding: 3px 8px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #b0bec5;
+  transition: background 0.15s;
+}
+
+.showScoreboardBtn:hover {
+  background: rgba(26, 58, 92, 0.9);
+}
+
+/* ===== レスポンシブ ===== */
+@media (max-width: 480px) {
+  .scoreboardOverlay {
+    padding: 8px 10px 12px;
+  }
+
+  .scoreNum {
+    font-size: 22px;
+  }
+
+  .teamLabel {
+    font-size: 11px;
+    max-width: 60px;
+  }
+
+  .scoreTable {
+    font-size: 10px;
+  }
+}

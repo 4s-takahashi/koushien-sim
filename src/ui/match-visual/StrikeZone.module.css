@@ -1,0 +1,62 @@
+/**
+ * Phase 12-A/B: ストライクゾーン スタイル
+ */
+
+.strikeZoneContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.strikeZoneSvg {
+  width: 100%;
+  max-width: 300px;
+  height: auto;
+  display: block;
+}
+
+/* ===== マーカーアニメーション ===== */
+.markerScaleIn {
+  animation: markerAppear 200ms ease-out forwards;
+  transform-origin: center;
+}
+
+@keyframes markerAppear {
+  from {
+    transform: scale(0.3);
+    opacity: 0.5;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .markerScaleIn {
+    animation: none !important;
+  }
+}
+
+/* ===== 凡例 ===== */
+.legend {
+  display: flex;
+  gap: 8px;
+  font-size: 9px;
+  color: #607d8b;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.legendStrike {
+  color: #ef5350;
+}
+
+.legendBall {
+  color: #66bb6a;
+}
+
+.legendFoul {
+  color: #78909c;
+}
