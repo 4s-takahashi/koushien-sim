@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.23.0';
+export const VERSION = '0.24.0';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-21 17:28 UTC';
-export const GIT_SHA = '34e35e6-dirty';
+export const BUILD_DATE = '2026-04-22 00:42 UTC';
+export const GIT_SHA = 'dec3a70-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,45 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.24.0',
+    date: '2026-04-22',
+    changes: [
+      '⚾ Phase 12: 試合画面ビジュアル化 — 全5サブフェーズ実装',
+      '【12-A】アニメーション付きスコアボード: イニング開始時にスライドイン→2秒表示→スライドアウト',
+      '  AnimatedScoreboard.tsx + useScoreboardVisibility.ts フック',
+      '  イニング別スコア表・アウトカウント・チームスコアをオーバーレイ表示',
+      '  prefers-reduced-motion 対応（アニメーション省略）',
+      '  MatchHUD: 常時表示のコンパクトHUD (B/S/O・イニング・スコア)',
+      '  StrikeZone.tsx: SVG製ストライクゾーンの骨格',
+      '【12-B】ストライクゾーンマーカー: ◯（速球）/ △（変化球）マーカー表示',
+      '  pitch-marker-types.ts: PitchMarker / SwingMarker / AtBatMarkerHistory 型',
+      '  pitchLocationToUV(): 5×5エンジングリッド → UV座標',
+      '  getBreakDirection(): 変化方向ベクトル（左右投手で dx 反転）',
+      '  match-visual-store.ts: Zustandストア（打席間マーカー管理）',
+      '  CircleMarker / TriangleMarker / SwingMarkerSvg — CSS scale-in アニメーション',
+      '【12-C】グラウンド鳥瞰 Canvas: 球場・選手・ランナー描画',
+      '  field-coordinates.ts: フィールド座標系 ↔ Canvas座標系変換',
+      '  FIELD_POSITIONS: 全9ポジション + ベースの座標定義',
+      '  BallparkCanvas.ts: 純粋関数で Canvas 2D 描画（スタンド/外野/内野/ダイヤモンド/選手）',
+      '  Ballpark.tsx: ResizeObserver で正方形維持・devicePixelRatio 対応',
+      '  matchProjector.ts: outs / currentInning / pitcherHand / runnerTeams を追加出力',
+      '【12-D】ボール・打球アニメーション: requestAnimationFrame 60fps',
+      '  useBallAnimation.ts: triggerPitchAnimation / triggerHitAnimation フック',
+      '  bezier2(): 2次ベジェ曲線, pitchSpeedToDuration(): 球速→アニメーション時間',
+      '  computeTrajectory(): BatContactForAnimation → BallTrajectory',
+      '  打球影: 高さに応じてサイズ・透明度が変化 (drawBallWithShadow)',
+      '  match-store.ts: breakDirection / swingLocation / batContact を PitchLogEntry に追加',
+      '【12-E】ホームランエフェクト・FPS最適化',
+      '  パーティクルエフェクト: 32パーティクル + フラッシュ + 「ホームラン！」テキスト (1.4秒)',
+      '  オフスクリーン Canvas キャッシュ: 静的背景をキャッシュしてアニメーション時の描画コスト削減',
+      '  FPS 30 上限: requestAnimationFrame にフレームスキップを追加',
+      '  triggerHomeRunEffect(): ホームランパーティクルを起動するフック',
+      '【テスト】56件の新規ユニットテスト追加',
+      '  pitch-marker-types: 16テスト, field-coordinates: 20テスト, useBallAnimation: 20テスト',
+      '  合計: 971テスト (915 既存 + 56 新規)',
+    ],
+  },
   {
     version: '0.23.0',
     date: '2026-04-21',
