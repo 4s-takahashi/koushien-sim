@@ -1,52 +1,78 @@
 /**
  * Phase 12: 試合画面ビジュアル化 — レイアウトスタイル
+ * Phase 12-G: グラウンド・ストライクゾーン 40% 縮小
+ *             縮小分の余白を情報パネルに振り向ける 3カラム構成
  */
 
-/* ===== 2カラムグラウンドレイアウト ===== */
+/* ===== ビジュアルエリア（グラウンド + ストライクゾーン + 情報パネル縦並び） ===== */
 .visualArea {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* 左: グラウンド (縮小)、中: ストライクゾーン (縮小)、右: 情報パネル (拡大) */
+  grid-template-columns: auto auto 1fr;
   gap: 12px;
   max-width: 900px;
   margin: 0 auto;
   padding: 0 16px 12px;
   width: 100%;
   box-sizing: border-box;
+  align-items: start;
 }
 
 .ballparkColumn {
   position: relative;
-  min-height: 200px;
+  /* ballparkContainer の max-width=270px に合わせて自動サイズ */
+  flex-shrink: 0;
 }
 
 .strikeZoneColumn {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  flex-shrink: 0;
+}
+
+/* 情報パネル列（バッター・ピッチャー・実況ログ等） */
+.infoColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
 }
 
 .strikeZoneLabel {
-  font-size: 12px;
+  font-size: 11px;
   color: #78909c;
   text-align: center;
   margin-bottom: 2px;
 }
 
-/* ===== モバイルレイアウト ===== */
+/* ===== モバイルレイアウト（< 600px）: 縦並び ===== */
 @media (max-width: 600px) {
   .visualArea {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto;
     padding: 0 8px 8px;
   }
 
   .ballparkColumn {
-    min-height: 160px;
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .strikeZoneColumn {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .infoColumn {
+    grid-column: 1 / -1;
+    grid-row: 2;
   }
 }
 
-/* ===== タブレットレイアウト ===== */
+/* ===== タブレットレイアウト (601-900px) ===== */
 @media (min-width: 601px) and (max-width: 900px) {
   .visualArea {
-    grid-template-columns: 55% 1fr;
+    grid-template-columns: auto auto 1fr;
   }
 }

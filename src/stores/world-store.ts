@@ -1015,6 +1015,57 @@ export const useWorldStore = create<WorldStore>()(
                 parsed.state.worldState = deserialized;
               }
 
+              // 【セーブ移行 2026-04-22】大会期間内なのに activeTournament が null のセーブを救済。
+              // 「秋大会が起動しない」バグの本報告。世界進行の経路バグで 9/15 生成をスキップした
+              // 旧セーブを、ハイドレーション時に自動で大会生成して復旧する。
+              {
+                const ws = parsed.state.worldState as typeof deserialized;
+                if (ws && !ws.activeTournament && ws.currentDate && Array.isArray(ws.schools)) {
+                  const { month, day } = ws.currentDate;
+                  const isSummerWindow = month === 7 && day >= 10 && day <= 30;
+                  const isAutumnWindow =
+                    (month === 9 && day >= 15) || (month === 10 && day <= 14);
+
+                  if (isSummerWindow || isAutumnWindow) {
+                    const type: 'summer' | 'autumn' = isSummerWindow ? 'summer' : 'autumn';
+                    const id = `tournament-${type}-${ws.currentDate.year}-recovered`;
+                    // 既に履歴に同年度の同種大会がある場合は（通常ありえないが）生成しない
+                    const alreadyInHistory =
+                      (ws.tournamentHistory ?? []).some(
+                        (t: { type: string; id: string }) =>
+                          t.type === type && t.id.includes(`${type}-${ws.currentDate.year}`),
+                      );
+
+                    if (!alreadyInHistory) {
+                      const recoveryRng = createRNG(
+                        (ws.seed ?? 'default') + `:recover-${type}-${ws.currentDate.year}`,
+                      );
+                      const recovered = createTournamentBracket(
+                        id,
+                        type,
+                        ws.currentDate.year,
+                        ws.schools as WorldState['schools'],
+                        recoveryRng,
+                      );
+                      parsed.state.worldState = {
+                        ...ws,
+                        activeTournament: recovered,
+                        seasonState: {
+                          ...ws.seasonState,
+                          phase: isSummerWindow ? 'summer_tournament' : 'autumn_tournament',
+                          currentTournamentId: recovered.id,
+                        },
+                      };
+                      // eslint-disable-next-line no-console
+                      console.warn(
+                        `[SaveRecovery] ${type} tournament auto-generated for ` +
+                          `${ws.currentDate.year}年${month}月${day}日 (missing activeTournament)`,
+                      );
+                    }
+                  }
+                }
+              }
+
               // 【セーブ移行】Phase 7-F: shortName が未設定の学校に自動付与
               {
                 const ws = parsed.state.worldState as typeof deserialized;

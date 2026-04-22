@@ -765,51 +765,61 @@ export function advanceWorldDay(
     pendingInteractiveMatch: null, // 通常進行時はリセット
   };
 
-  // --- 新日付が大会開始日なら大会を自動作成 ---
-  // 夏大会: 7/10 開始
-  if (newDate.month === 7 && newDate.day === 10 && !nextWorld.activeTournament) {
-    const id = `tournament-summer-${newDate.year}`;
-    const newTournament = createTournamentBracket(
-      id,
-      'summer',
-      newDate.year,
-      nextWorld.schools,
-      rng.derive('create-summer-tournament'),
-    );
-    nextWorld = {
-      ...nextWorld,
-      activeTournament: newTournament,
-      seasonState: {
-        ...nextWorld.seasonState,
-        phase: 'summer_tournament',
-        currentTournamentId: newTournament.id,
-      },
-    };
-    // 遷移を記録
-    if (oldPhase !== 'summer_tournament') {
-      // seasonTransition は上で計算済み（summer_tournament になるはず）
-    }
-  }
+  // --- 新日付が大会期間内なら大会を自動作成 ---
+  //
+  // 【バグ修正 2026-04-22】以前は「ピンポイントの日付（=== 10 / === 15）」でのみ
+  // 生成していたため、何らかの経路でその日をスキップすると大会が永遠に生成されず
+  // 「秋の大会タブで読み込み中のまま」などの症状を引き起こしていた。
+  // 報告ケース: 1年目 9/19、post_summer → autumn_tournament 期間に入っているのに
+  // activeTournament=null のまま。
+  //
+  // 修正後: 大会期間の初日以降、activeTournament が無ければいつでも生成する。
+  //   夏大会: 7/10〜7/30
+  //   秋大会: 9/15〜10/14
+  if (!nextWorld.activeTournament) {
+    const isSummerWindow =
+      newDate.month === 7 && newDate.day >= 10 && newDate.day <= 30;
+    const isAutumnWindow =
+      (newDate.month === 9 && newDate.day >= 15) ||
+      (newDate.month === 10 && newDate.day <= 14);
 
-  // 秋大会: 9/15 開始
-  if (newDate.month === 9 && newDate.day === 15 && !nextWorld.activeTournament) {
-    const id = `tournament-autumn-${newDate.year}`;
-    const newTournament = createTournamentBracket(
-      id,
-      'autumn',
-      newDate.year,
-      nextWorld.schools,
-      rng.derive('create-autumn-tournament'),
-    );
-    nextWorld = {
-      ...nextWorld,
-      activeTournament: newTournament,
-      seasonState: {
-        ...nextWorld.seasonState,
-        phase: 'autumn_tournament',
-        currentTournamentId: newTournament.id,
-      },
-    };
+    if (isSummerWindow) {
+      const id = `tournament-summer-${newDate.year}`;
+      const newTournament = createTournamentBracket(
+        id,
+        'summer',
+        newDate.year,
+        nextWorld.schools,
+        rng.derive('create-summer-tournament'),
+      );
+      nextWorld = {
+        ...nextWorld,
+        activeTournament: newTournament,
+        seasonState: {
+          ...nextWorld.seasonState,
+          phase: 'summer_tournament',
+          currentTournamentId: newTournament.id,
+        },
+      };
+    } else if (isAutumnWindow) {
+      const id = `tournament-autumn-${newDate.year}`;
+      const newTournament = createTournamentBracket(
+        id,
+        'autumn',
+        newDate.year,
+        nextWorld.schools,
+        rng.derive('create-autumn-tournament'),
+      );
+      nextWorld = {
+        ...nextWorld,
+        activeTournament: newTournament,
+        seasonState: {
+          ...nextWorld.seasonState,
+          phase: 'autumn_tournament',
+          currentTournamentId: newTournament.id,
+        },
+      };
+    }
   }
 
   // --- 年度替わり（3/31 から 4/1 への遷移） ---
@@ -1093,7 +1103,7 @@ export function completeInteractiveMatch(
   });
   void playerSchool;
 
-  const nextWorld: WorldState = {
+  let nextWorld: WorldState = {
     ...world,
     currentDate: newDate,
     seasonState: updatedSeasonState,
@@ -1102,6 +1112,39 @@ export function completeInteractiveMatch(
     pendingInteractiveMatch: null,
     schools: updatedSchoolsWithCareer,
   };
+
+  // 【バグ修正 2026-04-22】advanceWorldDay と対称に、完了直後の newDate が大会期間内で
+  // activeTournament が null の場合はここでも大会を自動生成する。
+  // これにより、インタラクティブ試合で日付が進んだ結果 7/10〜7/30 / 9/15〜10/14 に
+  // 突入した場合でも、次の advanceDay を待たずに大会が作られる。
+  if (!nextWorld.activeTournament) {
+    const isSummerWindow =
+      newDate.month === 7 && newDate.day >= 10 && newDate.day <= 30;
+    const isAutumnWindow =
+      (newDate.month === 9 && newDate.day >= 15) ||
+      (newDate.month === 10 && newDate.day <= 14);
+
+    if (isSummerWindow || isAutumnWindow) {
+      const type: 'summer' | 'autumn' = isSummerWindow ? 'summer' : 'autumn';
+      const id = `tournament-${type}-${newDate.year}`;
+      const newTournament = createTournamentBracket(
+        id,
+        type,
+        newDate.year,
+        nextWorld.schools,
+        rng.derive(`create-${type}-tournament`),
+      );
+      nextWorld = {
+        ...nextWorld,
+        activeTournament: newTournament,
+        seasonState: {
+          ...nextWorld.seasonState,
+          phase: isSummerWindow ? 'summer_tournament' : 'autumn_tournament',
+          currentTournamentId: newTournament.id,
+        },
+      };
+    }
+  }
 
   const finalSeasonTransition: SeasonPhase | null =
     nextWorld.seasonState.phase !== oldPhase ? nextWorld.seasonState.phase : null;

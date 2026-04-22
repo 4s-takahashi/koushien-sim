@@ -14,6 +14,7 @@ import {
   FIELD_POSITIONS,
   type FieldPoint,
 } from './field-coordinates';
+import type { PlaySequenceState } from './useBallAnimation';
 
 /**
  * Phase 12-F: feet → canvas px の動的スケール
@@ -68,6 +69,10 @@ export interface BallparkRenderState {
    * 各マーカー下に苗字を描画する
    */
   defenseLineup?: Record<string, string>;
+  /**
+   * Phase 12-G: プレイシーケンス状態（内野ゴロ等）
+   */
+  playSequenceState?: PlaySequenceState;
 }
 
 // ===== Phase 12-E: オフスクリーン Canvas キャッシュ =====
@@ -150,11 +155,18 @@ export function renderBallpark(
   // 動的レイヤー（ランナー・選手マーカー）
   drawFielders(ctx, state, canvasWidth, canvasHeight);
 
+  // Phase 12-G: バッター走者のアニメーション（プレイシーケンス）
+  if (state.playSequenceState?.batterRunnerPos) {
+    drawBatterRunner(ctx, state.playSequenceState.batterRunnerPos, canvasWidth, canvasHeight);
+  }
+
   // ボール描画（アニメーション中のみ）
-  if (state.ballPosition) {
+  // Phase 12-G: プレイシーケンスのボール位置を優先
+  const ballPos = state.playSequenceState?.ballPosition ?? state.ballPosition;
+  if (ballPos) {
     drawBallWithShadow(
       ctx,
-      state.ballPosition,
+      ballPos,
       state.ballHeightNorm ?? 0,
       canvasWidth,
       canvasHeight,
@@ -164,6 +176,12 @@ export function renderBallpark(
   // Phase 12-E: ホームランエフェクト
   if (state.homeRunProgress !== undefined && state.homeRunProgress > 0) {
     drawHomeRunEffect(ctx, state.homeRunProgress, canvasWidth, canvasHeight);
+  }
+
+  // Phase 12-G: 判定テキストフラッシュ
+  if (state.playSequenceState?.resultText) {
+    const { text, isOut } = state.playSequenceState.resultText;
+    drawResultFlash(ctx, text, isOut, canvasWidth, canvasHeight);
   }
 }
 
@@ -378,6 +396,71 @@ function drawFoulPoles(
   ctx.stroke();
 }
 
+/**
+ * Phase 12-G: バッター走者を描画（ホーム→一塁方向へのアニメーション用）
+ * 特別なマーカー（白い星形/◉）で表示
+ */
+function drawBatterRunner(
+  ctx: CanvasRenderingContext2D,
+  pos: FieldPoint,
+  w: number,
+  h: number,
+): void {
+  const cp = fieldToCanvas(pos, w, h);
+  const r = Math.max(5, 7 * getPxPerFoot(w, h) * 1.5);
+
+  // 走者グロー
+  ctx.beginPath();
+  ctx.arc(cp.cx, cp.cy, r + 4, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255,200,50,0.3)';
+  ctx.fill();
+
+  // 走者マーカー（黄色）
+  ctx.beginPath();
+  ctx.arc(cp.cx, cp.cy, r, 0, Math.PI * 2);
+  ctx.fillStyle = '#ffd700';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+}
+
+/**
+ * Phase 12-G: 判定テキストフラッシュ（アウト / セーフ）
+ */
+function drawResultFlash(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  isOut: boolean,
+  w: number,
+  h: number,
+): void {
+  // 一塁付近に表示
+  const first = fieldToCanvas(FIELD_POSITIONS.first, w, h);
+  const cx = first.cx + 20;
+  const cy = first.cy - 20;
+
+  const color = isOut ? '#ef5350' : '#66bb6a';
+  const fontSize = Math.max(12, Math.min(20, w * 0.045));
+
+  ctx.save();
+  ctx.font = `bold ${fontSize}px sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  // 背景
+  const metrics = ctx.measureText(text);
+  const bw = metrics.width + 10;
+  const bh = fontSize + 6;
+  ctx.fillStyle = 'rgba(0,0,0,0.7)';
+  ctx.fillRect(cx - bw / 2, cy - bh / 2, bw, bh);
+
+  // テキスト
+  ctx.fillStyle = color;
+  ctx.fillText(text, cx, cy);
+  ctx.restore();
+}
+
 /** 9人の守備選手マーカー + 苗字ラベル */
 function drawFielders(
   ctx: CanvasRenderingContext2D,
@@ -407,8 +490,16 @@ function drawFielders(
     ? COLORS.homeTeamPlayer
     : COLORS.awayTeamPlayer;
 
+  // Phase 12-G: プレイシーケンスで動くフィールダーの位置を上書き
+  const seqFielder = state.playSequenceState?.animatedFielder;
+
   for (const [posKey, fieldPt] of fielderEntries) {
-    const cp = fieldToCanvas(fieldPt, w, h);
+    // アニメーション中のフィールダーは動的位置を使う
+    const actualFieldPt =
+      seqFielder && posKey === seqFielder.posKey
+        ? seqFielder.pos
+        : fieldPt;
+    const cp = fieldToCanvas(actualFieldPt, w, h);
 
     // マーカー本体
     ctx.beginPath();
@@ -520,6 +611,7 @@ export function buildBallparkRenderState(
   ballPosition?: FieldPoint,
   ballHeightNorm?: number,
   homeRunProgress?: number,
+  playSequenceState?: PlaySequenceState,
 ): BallparkRenderState {
   const isPlayerHome = view.homeSchoolId === playerSchoolId;
 
@@ -544,6 +636,8 @@ export function buildBallparkRenderState(
     homeRunProgress,
     // Phase 12-F: 守備ラインナップを引き継ぎ
     defenseLineup: view.defenseLineup,
+    // Phase 12-G: プレイシーケンス状態
+    playSequenceState,
   };
 }
 

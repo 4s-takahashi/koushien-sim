@@ -34,6 +34,11 @@ export interface BallAnimationState {
    * undefined/0 = エフェクトなし
    */
   homeRunProgress?: number;
+  /**
+   * Phase 12-G: プレイシーケンス（内野ゴロ等の複合アニメーション）
+   * undefined = シーケンスなし
+   */
+  playSequenceState?: PlaySequenceState;
 }
 
 /** 打球軌跡 */
@@ -63,6 +68,167 @@ export interface BatContactForAnimation {
   direction: number;    // 角度（0=LF, 45=CF, 90=RF）
   speed: 'weak' | 'normal' | 'hard' | 'bullet';
   distance: number;     // feet
+}
+
+// ===== Phase 12-G: プレイシーケンス（内野ゴロ等の複合アニメーション）=====
+
+/**
+ * アニメーションフェーズの種類
+ *
+ * 各フェーズは t=0..1 の進行度で制御する
+ */
+export type PlayPhaseKind =
+  | 'groundRoll'   // ボールがゴロで内野に転がる
+  | 'fielderMove'  // 内野手がボールに向かって移動
+  | 'throw'        // 内野手から一塁へ送球
+  | 'batterRun'    // バッターが本塁→一塁へ走塁
+  | 'result';      // アウト/セーフ判定フラッシュ
+
+export interface PlayPhase {
+  kind: PlayPhaseKind;
+  /** フェーズ開始時刻（ms、シーケンス内相対時刻） */
+  startMs: number;
+  /** フェーズ終了時刻（ms、シーケンス内相対時刻） */
+  endMs: number;
+  /** フェーズ固有データ */
+  data: PlayPhaseData;
+}
+
+export type PlayPhaseData =
+  | { kind: 'groundRoll';  from: FieldPoint; to: FieldPoint }
+  | { kind: 'fielderMove'; from: FieldPoint; to: FieldPoint; fielderPosKey: string }
+  | { kind: 'throw';       from: FieldPoint; to: FieldPoint }
+  | { kind: 'batterRun';   from: FieldPoint; to: FieldPoint }
+  | { kind: 'result';      text: string; isOut: boolean };
+
+/** プレイシーケンス定義 */
+export interface PlaySequence {
+  phases: PlayPhase[];
+  totalMs: number;
+}
+
+/** プレイシーケンスの現在状態（描画用） */
+export interface PlaySequenceState {
+  /** 現在アクティブなフェーズとその進行度 */
+  activePhases: {
+    phase: PlayPhase;
+    /** フェーズ内の進行度 (0-1) */
+    t: number;
+  }[];
+  /** 現在のボール位置 */
+  ballPosition?: FieldPoint;
+  /** 動的フィールダー位置（posKey=ポジション名, pos=現在位置） */
+  animatedFielder?: { posKey: string; pos: FieldPoint };
+  /** バッター走者位置 */
+  batterRunnerPos?: FieldPoint;
+  /** 判定テキスト */
+  resultText?: { text: string; isOut: boolean };
+  /** シーケンス全体の進行度 (0-1) */
+  totalProgress: number;
+}
+
+/**
+ * Phase 12-G: 打球の着弾方向からどのポジションの選手が捕球するか判定
+ */
+function getFielderForGroundBall(direction: number): {
+  posKey: string;
+  fieldPos: FieldPoint;
+} {
+  // direction: 0=LF, 45=CF, 90=RF
+  // 内野ゴロの場合は 3B/SS/2B/1B のいずれか
+  if (direction < 25) {
+    return { posKey: 'third', fieldPos: FIELD_POSITIONS.thirdBase };
+  } else if (direction < 45) {
+    return { posKey: 'shortstop', fieldPos: FIELD_POSITIONS.shortstop };
+  } else if (direction < 70) {
+    return { posKey: 'second', fieldPos: FIELD_POSITIONS.secondBase };
+  } else {
+    return { posKey: 'first', fieldPos: FIELD_POSITIONS.firstBase };
+  }
+}
+
+/**
+ * Phase 12-G: 内野ゴロのプレイシーケンスを構築
+ *
+ * @param contact バットコンタクト情報
+ * @param isOut アウトかどうか
+ */
+export function buildGroundOutSequence(
+  contact: BatContactForAnimation,
+  isOut: boolean,
+): PlaySequence {
+  const { direction } = contact;
+
+  // ゴロの着弾位置（短距離）
+  const adjustedDeg = direction - 45;
+  const rad = (adjustedDeg * Math.PI) / 180;
+  const groundDist = 60; // 内野手の前で止まる
+  const ballLandPos: FieldPoint = {
+    x: Math.sin(rad) * groundDist,
+    y: Math.cos(rad) * groundDist,
+  };
+
+  // 捕球する内野手
+  const { posKey, fieldPos } = getFielderForGroundBall(direction);
+
+  // 一塁手の位置
+  const firstBase: FieldPoint = FIELD_POSITIONS.first;
+  const firstBasePlayer: FieldPoint = FIELD_POSITIONS.firstBase;
+
+  // バッター走者の開始位置（ホームプレート）
+  const home: FieldPoint = FIELD_POSITIONS.home;
+
+  // タイムライン（ms）
+  const T = {
+    rollStart:     0,
+    rollEnd:       400,
+    fielderStart:  100,   // ゴロと同時に動き出す
+    fielderEnd:    500,
+    throwStart:    550,
+    throwEnd:      900,
+    batterStart:   400,   // ゴロが転がり始めたら走る
+    batterEnd:    1300,
+    resultStart:   950,
+    resultEnd:    1500,
+  };
+
+  const phases: PlayPhase[] = [
+    {
+      kind: 'groundRoll',
+      startMs: T.rollStart,
+      endMs: T.rollEnd,
+      data: { kind: 'groundRoll', from: home, to: ballLandPos },
+    },
+    {
+      kind: 'fielderMove',
+      startMs: T.fielderStart,
+      endMs: T.fielderEnd,
+      data: { kind: 'fielderMove', from: fieldPos, to: ballLandPos, fielderPosKey: posKey },
+    },
+    {
+      kind: 'throw',
+      startMs: T.throwStart,
+      endMs: T.throwEnd,
+      data: { kind: 'throw', from: ballLandPos, to: firstBasePlayer },
+    },
+    {
+      kind: 'batterRun',
+      startMs: T.batterStart,
+      endMs: T.batterEnd,
+      data: { kind: 'batterRun', from: home, to: firstBase },
+    },
+    {
+      kind: 'result',
+      startMs: T.resultStart,
+      endMs: T.resultEnd,
+      data: { kind: 'result', text: isOut ? 'アウト！' : 'セーフ！', isOut },
+    },
+  ];
+
+  return {
+    phases,
+    totalMs: T.resultEnd,
+  };
 }
 
 // ===== ユーティリティ関数 =====
@@ -142,7 +308,11 @@ export function computeTrajectory(contact: BatContactForAnimation): BallTrajecto
   const rad = (adjustedDeg * Math.PI) / 180;
 
   // 着弾点（実際の距離の 80% で簡略化）
-  const scaledDist = distance * 0.8;
+  // Phase 12-G: ホームランは場外（フェンス外）まで飛ぶよう距離を大幅に伸ばす
+  const isHomeRun = contactType === 'fly_ball' && distance >= 350;
+  const scaledDist = isHomeRun
+    ? distance * 2.8   // フェンスを超えてキャンバス外まで
+    : distance * 0.8;
   const endPos: FieldPoint = {
     x: Math.sin(rad) * scaledDist,
     y: Math.cos(rad) * scaledDist,
@@ -171,8 +341,9 @@ export function computeTrajectory(contact: BatContactForAnimation): BallTrajecto
     1200;
 
   // ホームランの場合はタイプを変更
+  const isHomeRunType = contactType === 'fly_ball' && distance >= 350;
   const trajType: BallTrajectory['type'] =
-    contactType === 'fly_ball' && distance >= 350 ? 'home_run' :
+    isHomeRunType ? 'home_run' :
     contactType === 'fly_ball' ? 'fly' :
     contactType === 'ground_ball' || contactType === 'bunt_ground' ? 'grounder' :
     contactType === 'line_drive' ? 'line_drive' :
@@ -199,6 +370,10 @@ export interface UseBallAnimationReturn {
    * （triggerHitAnimation の後、type='home_run' のときに呼び出す）
    */
   triggerHomeRunEffect: () => void;
+  /**
+   * Phase 12-G: プレイシーケンス（内野ゴロ等）を起動する
+   */
+  triggerPlaySequence: (sequence: PlaySequence) => void;
   resetBall: () => void;
 }
 
@@ -206,6 +381,7 @@ export function useBallAnimation(): UseBallAnimationReturn {
   const [ballState, setBallState] = useState<BallAnimationState | null>(null);
   const rafRef = useRef<number | null>(null);
   const homeRunRafRef = useRef<number | null>(null);
+  const seqRafRef = useRef<number | null>(null);
 
   // アニメーションループを停止
   const stopAnimation = useCallback(() => {
@@ -220,6 +396,14 @@ export function useBallAnimation(): UseBallAnimationReturn {
     if (homeRunRafRef.current !== null) {
       cancelAnimationFrame(homeRunRafRef.current);
       homeRunRafRef.current = null;
+    }
+  }, []);
+
+  // プレイシーケンスを停止
+  const stopPlaySequence = useCallback(() => {
+    if (seqRafRef.current !== null) {
+      cancelAnimationFrame(seqRafRef.current);
+      seqRafRef.current = null;
     }
   }, []);
 
@@ -326,11 +510,135 @@ export function useBallAnimation(): UseBallAnimationReturn {
     [stopAnimation],
   );
 
+  /**
+   * Phase 12-G: プレイシーケンスアニメーション（内野ゴロ等）
+   */
+  const triggerPlaySequence = useCallback(
+    (sequence: PlaySequence) => {
+      stopPlaySequence();
+      if (shouldReduceMotion()) return;
+
+      const startMs = performance.now();
+
+      const animateSeq = (now: number) => {
+        const elapsed = now - startMs;
+        const totalProgress = Math.min(elapsed / sequence.totalMs, 1);
+
+        // 各フェーズの進行度を計算
+        const activePhases: PlaySequenceState['activePhases'] = [];
+        let ballPos: FieldPoint | undefined;
+        let animatedFielder: PlaySequenceState['animatedFielder'];
+        let batterRunnerPos: FieldPoint | undefined;
+        let resultText: PlaySequenceState['resultText'];
+
+        for (const phase of sequence.phases) {
+          if (elapsed < phase.startMs) continue;
+          const phaseElapsed = elapsed - phase.startMs;
+          const phaseDur = phase.endMs - phase.startMs;
+          const t = Math.min(phaseElapsed / phaseDur, 1);
+
+          activePhases.push({ phase, t });
+
+          const d = phase.data;
+          switch (d.kind) {
+            case 'groundRoll': {
+              // ゴロ: ホーム → 内野手方向 (低弧線)
+              const et = easeOut(t);
+              ballPos = {
+                x: lerp(d.from.x, d.to.x, et),
+                y: lerp(d.from.y, d.to.y, et),
+              };
+              break;
+            }
+            case 'fielderMove': {
+              // 内野手移動
+              const et = easeOut(t);
+              const fielderPos: FieldPoint = {
+                x: lerp(d.from.x, d.to.x, et),
+                y: lerp(d.from.y, d.to.y, et),
+              };
+              animatedFielder = { posKey: d.fielderPosKey, pos: fielderPos };
+              // t=0.9 以降はボールをキャッチ
+              if (t >= 0.9) {
+                ballPos = fielderPos;
+              }
+              break;
+            }
+            case 'throw': {
+              // 送球: 軽い放物線
+              const et = easeOut(t);
+              const bx = lerp(d.from.x, d.to.x, et);
+              const by = lerp(d.from.y, d.to.y, et);
+              // 軽い弧
+              const arc = Math.sin(Math.PI * t) * 20;
+              ballPos = { x: bx, y: by + arc };
+              break;
+            }
+            case 'batterRun': {
+              // バッター走塁: ホーム → 一塁
+              const et = easeOut(t);
+              batterRunnerPos = {
+                x: lerp(d.from.x, d.to.x, et),
+                y: lerp(d.from.y, d.to.y, et),
+              };
+              break;
+            }
+            case 'result': {
+              resultText = { text: d.text, isOut: d.isOut };
+              break;
+            }
+          }
+        }
+
+        // ballState を更新
+        const seqState: PlaySequenceState = {
+          activePhases,
+          ballPosition: ballPos,
+          animatedFielder,
+          batterRunnerPos,
+          resultText,
+          totalProgress,
+        };
+
+        setBallState((prev) => {
+          const base = prev ?? {
+            currentPosition: { x: 0, y: 0 },
+            heightNorm: 0,
+            isAnimating: totalProgress < 1,
+          };
+          return {
+            ...base,
+            currentPosition: ballPos ?? base.currentPosition,
+            heightNorm: 0,
+            isAnimating: totalProgress < 1,
+            playSequenceState: seqState,
+          };
+        });
+
+        if (totalProgress < 1) {
+          seqRafRef.current = requestAnimationFrame(animateSeq);
+        } else {
+          seqRafRef.current = null;
+          // シーケンス終了後に状態をクリア
+          setTimeout(() => {
+            setBallState((prev) =>
+              prev ? { ...prev, playSequenceState: undefined, isAnimating: false } : null,
+            );
+          }, 300);
+        }
+      };
+
+      seqRafRef.current = requestAnimationFrame(animateSeq);
+    },
+    [stopPlaySequence],
+  );
+
   const resetBall = useCallback(() => {
     stopAnimation();
     stopHomeRunEffect();
+    stopPlaySequence();
     setBallState(null);
-  }, [stopAnimation, stopHomeRunEffect]);
+  }, [stopAnimation, stopHomeRunEffect, stopPlaySequence]);
 
   /**
    * Phase 12-E: ホームランパーティクルエフェクト（1.4秒）
@@ -366,8 +674,16 @@ export function useBallAnimation(): UseBallAnimationReturn {
     return () => {
       stopAnimation();
       stopHomeRunEffect();
+      stopPlaySequence();
     };
-  }, [stopAnimation, stopHomeRunEffect]);
+  }, [stopAnimation, stopHomeRunEffect, stopPlaySequence]);
 
-  return { ballState, triggerPitchAnimation, triggerHitAnimation, triggerHomeRunEffect, resetBall };
+  return {
+    ballState,
+    triggerPitchAnimation,
+    triggerHitAnimation,
+    triggerHomeRunEffect,
+    triggerPlaySequence,
+    resetBall,
+  };
 }

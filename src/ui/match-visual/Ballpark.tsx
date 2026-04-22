@@ -116,6 +116,7 @@ export function Ballpark({
       ballAnimState?.currentPosition,
       ballAnimState?.heightNorm,
       ballAnimState?.homeRunProgress,
+      ballAnimState?.playSequenceState,
     );
 
     renderBallpark(ctx, renderState, canvasSize.w, canvasSize.h);
@@ -128,7 +129,10 @@ export function Ballpark({
       ballAnimState?.isAnimating ||
       (ballAnimState?.homeRunProgress !== undefined &&
         ballAnimState.homeRunProgress > 0 &&
-        ballAnimState.homeRunProgress < 1);
+        ballAnimState.homeRunProgress < 1) ||
+      (ballAnimState?.playSequenceState !== undefined &&
+        ballAnimState.playSequenceState.totalProgress > 0 &&
+        ballAnimState.playSequenceState.totalProgress < 1);
 
     if (isAnimating) {
       const loop = (now: number) => {

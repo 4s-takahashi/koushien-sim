@@ -29,7 +29,7 @@ import { AnimatedScoreboard } from '../../../../ui/match-visual/AnimatedScoreboa
 import { Ballpark } from '../../../../ui/match-visual/Ballpark';
 import { StrikeZone } from '../../../../ui/match-visual/StrikeZone';
 import { useBallAnimation } from '../../../../ui/match-visual/useBallAnimation';
-import { computeTrajectory } from '../../../../ui/match-visual/useBallAnimation';
+import { computeTrajectory, buildGroundOutSequence } from '../../../../ui/match-visual/useBallAnimation';
 import { pitchLocationToUV, getBreakDirection, isFastballClass } from '../../../../ui/match-visual/pitch-marker-types';
 import type { AtBatMarkerHistory } from '../../../../ui/match-visual/pitch-marker-types';
 import visualStyles from './match-visual.module.css';
@@ -1323,7 +1323,7 @@ function MatchPageInner({
   const matchResult = useMatchStore((s) => s.matchResult);
 
   // ===== Phase 12: ボールアニメーション =====
-  const { ballState, triggerPitchAnimation, triggerHitAnimation, triggerHomeRunEffect, resetBall } = useBallAnimation();
+  const { ballState, triggerPitchAnimation, triggerHitAnimation, triggerHomeRunEffect, triggerPlaySequence, resetBall } = useBallAnimation();
 
   // ===== Phase 12: マーカーストア =====
   const addPitchMarker = useMatchVisualStore((s) => s.addPitchMarker);
@@ -1388,19 +1388,41 @@ function MatchPageInner({
     }
 
     // 打球アニメーション
-    if (latest.batContact) {
+    const batContact = latest.batContact;
+    if (batContact) {
       const trajectory = computeTrajectory({
-        contactType: latest.batContact.contactType,
-        direction: latest.batContact.direction,
-        speed: latest.batContact.speed,
-        distance: latest.batContact.distance,
+        contactType: batContact.contactType,
+        direction: batContact.direction,
+        speed: batContact.speed,
+        distance: batContact.distance,
       });
       const delay = latest.pitchSpeed ? Math.min(300, 100000 / latest.pitchSpeed) : 300;
+      const isGroundBall =
+        batContact.contactType === 'ground_ball' ||
+        batContact.contactType === 'bunt_ground';
       const timer = setTimeout(() => {
-        triggerHitAnimation(trajectory);
-        // Phase 12-E: ホームランの場合はエフェクトを起動
-        if (trajectory.type === 'home_run') {
-          setTimeout(() => triggerHomeRunEffect(), trajectory.durationMs * 0.6);
+        if (isGroundBall) {
+          // Phase 12-G: 内野ゴロ → プレイシーケンスアニメーション
+          // outcome が in_play でも out にはなる場合があるが、
+          // ログに groundOut 的な情報がなければ便宜的にアウト扱い
+          const isOut = latest.outcome === 'in_play';
+          triggerPlaySequence(
+            buildGroundOutSequence(
+              {
+                contactType: batContact.contactType,
+                direction: batContact.direction,
+                speed: batContact.speed,
+                distance: batContact.distance,
+              },
+              isOut,
+            ),
+          );
+        } else {
+          triggerHitAnimation(trajectory);
+          // Phase 12-E: ホームランの場合はエフェクトを起動
+          if (trajectory.type === 'home_run') {
+            setTimeout(() => triggerHomeRunEffect(), trajectory.durationMs * 0.6);
+          }
         }
       }, delay);
       return () => clearTimeout(timer);
@@ -1444,9 +1466,9 @@ function MatchPageInner({
         </button>
       </div>
 
-      {/* Phase 12: グラウンド + ストライクゾーン 2カラム */}
+      {/* Phase 12-G: グラウンド(縮小) + ストライクゾーン(縮小) + 情報パネル 3カラム */}
       <div className={visualStyles.visualArea}>
-        {/* 左カラム: グラウンド鳥瞰 */}
+        {/* 左カラム: グラウンド鳥瞰 (40%縮小) */}
         <div className={visualStyles.ballparkColumn}>
           <Ballpark
             view={view}
@@ -1456,32 +1478,28 @@ function MatchPageInner({
           />
         </div>
 
-        {/* 右カラム: ストライクゾーン */}
+        {/* 中カラム: ストライクゾーン (40%縮小) */}
         <div className={visualStyles.strikeZoneColumn}>
           <div className={visualStyles.strikeZoneLabel}>
-            📍 ストライクゾーン（{view.pitcher.name} vs {view.batter.name}）
+            📍 {view.pitcher.name} vs {view.batter.name}
           </div>
           <StrikeZone history={markerHistory} />
         </div>
-      </div>
 
-      {/* 実況ログ */}
-      <div style={{ maxWidth: 900, margin: '0 auto', padding: '0 16px 12px', width: '100%', boxSizing: 'border-box' }}>
-        <NarrationPanel entries={narration} />
-      </div>
-
-      {/* 心理ウィンドウ (Phase 7-B) */}
-      {pitchLog.length > 0 && pitchLog[pitchLog.length - 1].monologues && (
-        <div style={{ maxWidth: 900, margin: '0 auto', padding: '0 16px 8px', width: '100%', boxSizing: 'border-box' }}>
-          <PsycheWindow
-            monologues={pitchLog[pitchLog.length - 1].monologues}
-            batterName={pitchLog[pitchLog.length - 1].batterName}
-            batterSchoolShortName={pitchLog[pitchLog.length - 1].batterSchoolShortName}
-            pitcherName={view.pitcher.name}
-            pitcherSchoolShortName={view.pitcher.schoolShortName}
-          />
+        {/* 右カラム: 情報パネル（縮小分の余白を活用） */}
+        <div className={visualStyles.infoColumn}>
+          <NarrationPanel entries={narration} />
+          {pitchLog.length > 0 && pitchLog[pitchLog.length - 1].monologues && (
+            <PsycheWindow
+              monologues={pitchLog[pitchLog.length - 1].monologues}
+              batterName={pitchLog[pitchLog.length - 1].batterName}
+              batterSchoolShortName={pitchLog[pitchLog.length - 1].batterSchoolShortName}
+              pitcherName={view.pitcher.name}
+              pitcherSchoolShortName={view.pitcher.schoolShortName}
+            />
+          )}
         </div>
-      )}
+      </div>
 
       {/* コントロールバー */}
       <AutoPlayBar

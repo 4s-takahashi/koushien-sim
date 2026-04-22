@@ -15,17 +15,19 @@ describe('fieldToCanvas', () => {
   const W = 450;
   const H = 450;
 
-  it('ホームプレート (0, 0) → Canvas 中央下（85%の高さ）', () => {
+  it('ホームプレート (0, 0) → Canvas 中央下（92%の高さ）', () => {
+    // Phase 12-F: HOME_Y_RATIO = 0.92 に変更
     const result = fieldToCanvas(FIELD_POSITIONS.home, W, H);
     expect(result.cx).toBeCloseTo(W / 2);
-    expect(result.cy).toBeCloseTo(H * 0.85);
+    expect(result.cy).toBeCloseTo(H * 0.92);
   });
 
-  it('一塁 (90, 0) → ホームより右', () => {
+  it('一塁 (63.64, 63.64) → ホームより右かつ前（45°方向）', () => {
+    // Phase 12-F: 一塁は 45° 方向に配置 (63.64, 63.64)
     const home = fieldToCanvas(FIELD_POSITIONS.home, W, H);
     const first = fieldToCanvas(FIELD_POSITIONS.first, W, H);
     expect(first.cx).toBeGreaterThan(home.cx);
-    expect(first.cy).toBeCloseTo(home.cy); // 同じ高さ（Y=0）
+    expect(first.cy).toBeLessThan(home.cy); // 一塁は前方（Canvas では cy が小さい）
   });
 
   it('三塁 (-90, 0) → ホームより左', () => {
@@ -49,10 +51,13 @@ describe('fieldToCanvas', () => {
     expect(diffFirst).toBeCloseTo(diffThird, 1);
   });
 
-  it('FIELD_SCALE * 90 = 90px（一塁までの距離）', () => {
+  it('一塁のX距離はフィールドスケールで計算できる', () => {
+    // Phase 12-F: 一塁は (63.64, 63.64) に変更。スケール = min(W,H) / 800
     const home = fieldToCanvas(FIELD_POSITIONS.home, W, H);
     const first = fieldToCanvas(FIELD_POSITIONS.first, W, H);
-    expect(first.cx - home.cx).toBeCloseTo(90 * FIELD_SCALE, 1);
+    const scale = Math.min(W, H) / 800;
+    // 一塁の x 座標: 63.64 feet * scale
+    expect(first.cx - home.cx).toBeCloseTo(FIELD_POSITIONS.first.x * scale, 1);
   });
 });
 
