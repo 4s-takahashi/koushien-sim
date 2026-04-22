@@ -1,0 +1,20 @@
+/**
+ * Phase 12-C: Ballpark コンポーネントスタイル
+ */
+
+.ballparkContainer {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  max-width: 450px;
+  overflow: hidden;
+  border-radius: 6px;
+  background: #757575;
+}
+
+/* レスポンシブ */
+@media (max-width: 600px) {
+  .ballparkContainer {
+    max-width: 100%;
+  }
+}

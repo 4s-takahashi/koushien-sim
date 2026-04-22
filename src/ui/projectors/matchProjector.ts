@@ -317,6 +317,54 @@ function buildCanChangePitcher(state: MatchState, playerSchoolId: string): boole
 }
 
 // ============================================================
+// Phase 12 追加ヘルパー関数
+// ============================================================
+
+/**
+ * Phase 12-B: 現在の投手の利き手を返す
+ */
+function getPitcherHand(state: MatchState): 'left' | 'right' {
+  const fieldingTeam = state.currentHalf === 'top' ? state.homeTeam : state.awayTeam;
+  const pitcherMP = fieldingTeam.players.find(
+    (mp) => mp.player.id === fieldingTeam.currentPitcherId,
+  );
+  return (pitcherMP?.player.throwingHand === 'left') ? 'left' : 'right';
+}
+
+/**
+ * Phase 12-C: ランナーのチーム所属を返す
+ */
+function buildRunnerTeams(
+  state: MatchState,
+): { first?: 'home' | 'away'; second?: 'home' | 'away'; third?: 'home' | 'away' } {
+  const battingTeam = state.currentHalf === 'top' ? state.awayTeam : state.homeTeam;
+  const battingTeamSide: 'home' | 'away' = state.currentHalf === 'top' ? 'away' : 'home';
+
+  const result: { first?: 'home' | 'away'; second?: 'home' | 'away'; third?: 'home' | 'away' } = {};
+
+  if (state.bases.first) {
+    const isInBattingTeam = battingTeam.players.some(
+      (mp) => mp.player.id === state.bases.first?.playerId,
+    );
+    result.first = isInBattingTeam ? battingTeamSide : (battingTeamSide === 'home' ? 'away' : 'home');
+  }
+  if (state.bases.second) {
+    const isInBattingTeam = battingTeam.players.some(
+      (mp) => mp.player.id === state.bases.second?.playerId,
+    );
+    result.second = isInBattingTeam ? battingTeamSide : (battingTeamSide === 'home' ? 'away' : 'home');
+  }
+  if (state.bases.third) {
+    const isInBattingTeam = battingTeam.players.some(
+      (mp) => mp.player.id === state.bases.third?.playerId,
+    );
+    result.third = isInBattingTeam ? battingTeamSide : (battingTeamSide === 'home' ? 'away' : 'home');
+  }
+
+  return result;
+}
+
+// ============================================================
 // メインの projectMatch 関数
 // ============================================================
 
@@ -371,5 +419,10 @@ export function projectMatch(
     pauseReason,
     runnerMode,
     isPlayerBatting: playerBatting,
+    // ===== Phase 12 追加フィールド =====
+    outs: state.outs,
+    currentInning: state.currentInning,
+    pitcherHand: getPitcherHand(state),
+    runnerTeams: buildRunnerTeams(state),
   };
 }

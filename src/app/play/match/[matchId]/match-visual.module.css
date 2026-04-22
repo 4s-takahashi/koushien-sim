@@ -1,0 +1,52 @@
+/**
+ * Phase 12: 試合画面ビジュアル化 — レイアウトスタイル
+ */
+
+/* ===== 2カラムグラウンドレイアウト ===== */
+.visualArea {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0 16px 12px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.ballparkColumn {
+  position: relative;
+  min-height: 200px;
+}
+
+.strikeZoneColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.strikeZoneLabel {
+  font-size: 12px;
+  color: #78909c;
+  text-align: center;
+  margin-bottom: 2px;
+}
+
+/* ===== モバイルレイアウト ===== */
+@media (max-width: 600px) {
+  .visualArea {
+    grid-template-columns: 1fr;
+    padding: 0 8px 8px;
+  }
+
+  .ballparkColumn {
+    min-height: 160px;
+  }
+}
+
+/* ===== タブレットレイアウト ===== */
+@media (min-width: 601px) and (max-width: 900px) {
+  .visualArea {
+    grid-template-columns: 55% 1fr;
+  }
+}
