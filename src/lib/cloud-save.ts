@@ -1,23 +1,21 @@
 /**
  * src/lib/cloud-save.ts — クラウドセーブ操作（サーバーサイド専用）
  *
- * ⚠️ このファイルは db (Redis/KV) を読むためサーバー専用。
- * Client Component から import すると ioredis がクライアントバンドルに
+ * ⚠️ このファイルはサーバー専用。
+ * Client Component から import すると Prisma がクライアントバンドルに
  * 混入してビルドエラーになる。型と定数が欲しいだけなら
  * `./cloud-save-types` を import すること。
  *
- * KV キー設計:
- *   save:{userId}:cloud_1  → CloudSaveEntry
- *   save:{userId}:cloud_2  → CloudSaveEntry
- *   save:{userId}:cloud_3  → CloudSaveEntry
- *   save_meta:{userId}     → CloudSaveSlotMeta[] (一覧キャッシュ)
+ * Prisma SaveData テーブル設計:
+ *   SaveData { userId, slot, data (JSON), updatedAt, createdAt }
+ *   ユニーク制約: (userId, slot)
  */
 
 // テスト環境では server-only をスキップ
 if (typeof process !== 'undefined' && !process.env.VITEST) {
   require('server-only');
 }
-import { db } from './kv';
+import { prisma } from './prisma';
 
 // ============================================================
 // 型定義（再エクスポート: 既存コードとの互換維持）
@@ -42,15 +40,6 @@ import type {
 import { CLOUD_SAVE_SLOTS } from './cloud-save-types';
 
 // ============================================================
-// KV キー
-// ============================================================
-
-const kvKey = {
-  save: (userId: string, slotId: CloudSlotId) => `save:${userId}:${slotId}`,
-  meta: (userId: string) => `save_meta:${userId}`,
-};
-
-// ============================================================
 // 操作
 // ============================================================
 
@@ -62,16 +51,17 @@ export async function cloudSave(
   slotId: CloudSlotId,
   entry: CloudSaveEntry,
 ): Promise<void> {
-  await db.set(kvKey.save(userId, slotId), entry);
-  // メタキャッシュ更新
-  const metas = await listCloudSavesMeta(userId);
-  const idx = metas.findIndex((m) => m.slotId === slotId);
-  if (idx >= 0) {
-    metas[idx] = entry.meta;
-  } else {
-    metas.push(entry.meta);
-  }
-  await db.set(kvKey.meta(userId), metas);
+  await prisma.saveData.upsert({
+    where: { userId_slot: { userId, slot: slotId } },
+    create: {
+      userId,
+      slot: slotId,
+      data: entry as unknown as import('@prisma/client').Prisma.InputJsonValue,
+    },
+    update: {
+      data: entry as unknown as import('@prisma/client').Prisma.InputJsonValue,
+    },
+  });
 }
 
 /**
@@ -81,7 +71,11 @@ export async function cloudLoad(
   userId: string,
   slotId: CloudSlotId,
 ): Promise<CloudSaveEntry | null> {
-  return db.get<CloudSaveEntry>(kvKey.save(userId, slotId));
+  const row = await prisma.saveData.findUnique({
+    where: { userId_slot: { userId, slot: slotId } },
+  });
+  if (!row) return null;
+  return row.data as unknown as CloudSaveEntry;
 }
 
 /**
@@ -91,17 +85,31 @@ export async function cloudDelete(
   userId: string,
   slotId: CloudSlotId,
 ): Promise<void> {
-  await db.del(kvKey.save(userId, slotId));
-  const metas = await listCloudSavesMeta(userId);
-  await db.set(
-    kvKey.meta(userId),
-    metas.filter((m) => m.slotId !== slotId),
-  );
+  try {
+    await prisma.saveData.delete({
+      where: { userId_slot: { userId, slot: slotId } },
+    });
+  } catch {
+    // 存在しない場合は無視
+  }
 }
 
 /**
  * クラウドセーブ一覧（メタのみ）
  */
 export async function listCloudSavesMeta(userId: string): Promise<CloudSaveSlotMeta[]> {
-  return (await db.get<CloudSaveSlotMeta[]>(kvKey.meta(userId))) ?? [];
+  const rows = await prisma.saveData.findMany({
+    where: { userId },
+    orderBy: { slot: 'asc' },
+  });
+
+  const metas: CloudSaveSlotMeta[] = [];
+  for (const row of rows) {
+    const entry = row.data as unknown as CloudSaveEntry;
+    // slot が有効なスロット ID かを確認
+    if ((CLOUD_SAVE_SLOTS as readonly string[]).includes(row.slot) && entry?.meta) {
+      metas.push(entry.meta);
+    }
+  }
+  return metas;
 }

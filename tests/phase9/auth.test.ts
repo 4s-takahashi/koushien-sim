@@ -1,26 +1,73 @@
 /**
  * Phase 9 — 認証ユーティリティ テスト
+ *
+ * Prisma クライアントを vi.mock でモックして、DB 不要でテストする。
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-// vi.mock はファイルのトップに巻き上げられるため、vi.hoisted() でモック変数を作る
-const mockDb = vi.hoisted(() => ({
-  store: new Map<string, unknown>(),
-  async get<T>(key: string): Promise<T | null> {
-    return (this.store.get(key) as T) ?? null;
-  },
-  async set(key: string, value: unknown): Promise<void> {
-    this.store.set(key, value);
-  },
-  async del(key: string): Promise<void> {
-    this.store.delete(key);
-  },
+// ────────────────────────────────────────────────────────────────
+// Prisma クライアントのモック
+// vi.mock はファイルのトップに巻き上げられるため、
+// vi.hoisted() でモック変数を先に宣言する。
+// ────────────────────────────────────────────────────────────────
+const mockPrisma = vi.hoisted(() => {
+  // インメモリストレージ
+  const users = new Map<string, {
+    id: string; email: string; displayName: string; passwordHash: string; createdAt: Date;
+  }>();
+  const sessions = new Map<string, {
+    token: string; userId: string; expiresAt: Date; createdAt: Date;
+  }>();
+
+  return {
+    _users: users,
+    _sessions: sessions,
+    user: {
+      findUnique: vi.fn(async ({ where }: { where: { email?: string; id?: string } }) => {
+        if (where.email) return users.get(where.email) ?? null;
+        if (where.id) {
+          for (const u of users.values()) {
+            if (u.id === where.id) return u;
+          }
+        }
+        return null;
+      }),
+      create: vi.fn(async ({ data }: { data: { id: string; email: string; displayName: string; passwordHash: string } }) => {
+        const record = { ...data, createdAt: new Date() };
+        users.set(data.email, record);
+        return record;
+      }),
+    },
+    session: {
+      findUnique: vi.fn(async ({ where, include }: { where: { token: string }; include?: { user?: boolean } }) => {
+        const s = sessions.get(where.token);
+        if (!s) return null;
+        if (include?.user) {
+          const u = [...users.values()].find(u => u.id === s.userId);
+          if (!u) return null;
+          return { ...s, user: u };
+        }
+        return s;
+      }),
+      create: vi.fn(async ({ data }: { data: { token: string; userId: string; expiresAt: Date } }) => {
+        const record = { ...data, createdAt: new Date() };
+        sessions.set(data.token, record);
+        return record;
+      }),
+      delete: vi.fn(async ({ where }: { where: { token: string } }) => {
+        sessions.delete(where.token);
+      }),
+    },
+  };
+});
+
+vi.mock('../../src/lib/prisma', () => ({
+  prisma: mockPrisma,
 }));
 
-vi.mock('../../src/lib/kv', () => ({
-  db: mockDb,
-}));
+// prisma.ts の fail-fast チェックをスキップするため DATABASE_URL を設定
+process.env.DATABASE_URL = 'mysql://test:test@localhost:3306/test';
 
 import {
   registerUser,
@@ -80,7 +127,11 @@ describe('buildClearCookie', () => {
 
 describe('registerUser / verifyLogin', () => {
   beforeEach(() => {
-    mockDb.store.clear();
+    mockPrisma._users.clear();
+    mockPrisma._sessions.clear();
+    // モック関数の実装をリセット（vi.fn() の呼び出し回数だけクリア）
+    vi.clearAllMocks();
+    // モック実装を再設定（clearAllMocks で実装は消えない）
   });
 
   it('新規ユーザーを登録できる', async () => {
@@ -129,7 +180,9 @@ describe('registerUser / verifyLogin', () => {
 
 describe('createSession / validateSession / deleteSession', () => {
   beforeEach(() => {
-    mockDb.store.clear();
+    mockPrisma._users.clear();
+    mockPrisma._sessions.clear();
+    vi.clearAllMocks();
   });
 
   it('セッションを作成・検証できる', async () => {
@@ -168,5 +221,16 @@ describe('createSession / validateSession / deleteSession', () => {
   it('空文字列トークンは null を返す', async () => {
     const session = await validateSession('');
     expect(session).toBeNull();
+  });
+
+  it('ゲストセッションを作成・検証できる', async () => {
+    const { createGuestSession } = await import('../../src/lib/auth');
+    const token = await createGuestSession();
+    expect(token.startsWith('guest:')).toBe(true);
+
+    const session = await validateSession(token);
+    expect(session).not.toBeNull();
+    expect(session?.isGuest).toBe(true);
+    expect(session?.displayName).toBe('ゲスト');
   });
 });

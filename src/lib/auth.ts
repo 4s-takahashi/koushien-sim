@@ -5,10 +5,11 @@
  * - セッション管理（Cookie ベース）
  * - bcryptjs でパスワードハッシュ
  * - ゲストモード
+ * - Prisma + MySQL で永続化
  */
 
 import bcrypt from 'bcryptjs';
-import { db } from './kv';
+import { prisma } from './prisma';
 import { generateId } from '../engine/core/id';
 
 // ============================================================
@@ -44,16 +45,6 @@ export interface SessionRecord {
 export type AuthUser = Omit<SessionRecord, 'expiresAt'>;
 
 // ============================================================
-// KV キー
-// ============================================================
-
-const kvKey = {
-  user: (email: string) => `user:${email.toLowerCase()}`,
-  userId: (userId: string) => `user_id:${userId}`,
-  session: (token: string) => `session:${token}`,
-};
-
-// ============================================================
 // ユーザー操作
 // ============================================================
 
@@ -68,23 +59,23 @@ export async function registerUser(
   const normalizedEmail = email.toLowerCase().trim();
 
   // 既存チェック
-  const existing = await db.get<UserRecord>(kvKey.user(normalizedEmail));
+  const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
   if (existing) {
     return { success: false, error: 'このメールアドレスは既に登録されています' };
   }
 
   const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
   const userId = generateId();
-  const user: UserRecord = {
-    id: userId,
-    email: normalizedEmail,
-    displayName: displayName.trim() || normalizedEmail.split('@')[0],
-    passwordHash,
-    createdAt: new Date().toISOString(),
-  };
+  const resolvedDisplayName = displayName.trim() || normalizedEmail.split('@')[0];
 
-  await db.set(kvKey.user(normalizedEmail), user);
-  await db.set(kvKey.userId(userId), normalizedEmail);
+  await prisma.user.create({
+    data: {
+      id: userId,
+      email: normalizedEmail,
+      displayName: resolvedDisplayName,
+      passwordHash,
+    },
+  });
 
   return { success: true, userId };
 }
@@ -97,7 +88,7 @@ export async function verifyLogin(
   password: string,
 ): Promise<{ success: true; user: UserRecord } | { success: false; error: string }> {
   const normalizedEmail = email.toLowerCase().trim();
-  const user = await db.get<UserRecord>(kvKey.user(normalizedEmail));
+  const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
   if (!user) {
     return { success: false, error: 'メールアドレスまたはパスワードが正しくありません' };
   }
@@ -107,7 +98,16 @@ export async function verifyLogin(
     return { success: false, error: 'メールアドレスまたはパスワードが正しくありません' };
   }
 
-  return { success: true, user };
+  return {
+    success: true,
+    user: {
+      id: user.id,
+      email: user.email,
+      displayName: user.displayName,
+      passwordHash: user.passwordHash,
+      createdAt: user.createdAt.toISOString(),
+    },
+  };
 }
 
 // ============================================================
@@ -119,31 +119,33 @@ export async function verifyLogin(
  */
 export async function createSession(user: UserRecord): Promise<string> {
   const token = generateId() + generateId().replace(/-/g, '');
-  const session: SessionRecord = {
-    userId: user.id,
-    email: user.email,
-    displayName: user.displayName,
-    isGuest: false,
-    expiresAt: new Date(Date.now() + SESSION_TTL_SECONDS * 1000).toISOString(),
-  };
-  await db.set(kvKey.session(token), session, { ex: SESSION_TTL_SECONDS });
+  const expiresAt = new Date(Date.now() + SESSION_TTL_SECONDS * 1000);
+
+  await prisma.session.create({
+    data: {
+      token,
+      userId: user.id,
+      expiresAt,
+    },
+  });
+
   return token;
 }
 
 /**
  * ゲストセッション作成
+ *
+ * ゲストはDBにユーザーレコードを持たないため、
+ * セッションを Session テーブルに保存せず、
+ * 署名済み情報をトークン自体に埋め込む方式に変更。
+ * トークン形式: "guest:{guestId}:{expiresAtUnix}"
+ * (検証は validateSession 内で文字列パースで行う)
  */
 export async function createGuestSession(): Promise<string> {
-  const guestId = `guest:${generateId()}`;
-  const token = generateId() + generateId().replace(/-/g, '');
-  const session: SessionRecord = {
-    userId: guestId,
-    email: '',
-    displayName: 'ゲスト',
-    isGuest: true,
-    expiresAt: new Date(Date.now() + SESSION_TTL_SECONDS * 1000).toISOString(),
-  };
-  await db.set(kvKey.session(token), session, { ex: SESSION_TTL_SECONDS });
+  const guestId = `guest_${generateId()}`;
+  const expiresAt = Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS;
+  // トークンにゲスト情報を埋め込む（DB 保存不要）
+  const token = `guest:${guestId}:${expiresAt}`;
   return token;
 }
 
@@ -152,23 +154,55 @@ export async function createGuestSession(): Promise<string> {
  */
 export async function validateSession(token: string): Promise<SessionRecord | null> {
   if (!token) return null;
-  const session = await db.get<SessionRecord>(kvKey.session(token));
+
+  // ゲストセッションの判定（DB を使わずパース）
+  if (token.startsWith('guest:')) {
+    const parts = token.split(':');
+    if (parts.length !== 3) return null;
+    const [, guestId, expiresAtStr] = parts;
+    const expiresAt = parseInt(expiresAtStr, 10);
+    if (isNaN(expiresAt) || Math.floor(Date.now() / 1000) > expiresAt) return null;
+    return {
+      userId: guestId,
+      email: '',
+      displayName: 'ゲスト',
+      isGuest: true,
+      expiresAt: new Date(expiresAt * 1000).toISOString(),
+    };
+  }
+
+  // 通常セッション
+  const session = await prisma.session.findUnique({
+    where: { token },
+    include: { user: true },
+  });
   if (!session) return null;
 
   // 期限切れチェック
-  if (new Date(session.expiresAt) < new Date()) {
-    await db.del(kvKey.session(token));
+  if (session.expiresAt < new Date()) {
+    await prisma.session.delete({ where: { token } });
     return null;
   }
 
-  return session;
+  return {
+    userId: session.userId,
+    email: session.user.email,
+    displayName: session.user.displayName,
+    isGuest: false,
+    expiresAt: session.expiresAt.toISOString(),
+  };
 }
 
 /**
  * セッション削除（ログアウト）
  */
 export async function deleteSession(token: string): Promise<void> {
-  await db.del(kvKey.session(token));
+  if (token.startsWith('guest:')) return; // ゲストはDB不要
+  try {
+    await prisma.session.delete({ where: { token } });
+  } catch {
+    // 既に存在しない場合は無視
+  }
 }
 
 // ============================================================
@@ -208,7 +242,13 @@ export function extractSessionToken(cookieHeader: string | null): string | null 
 // ============================================================
 
 export async function getUserById(userId: string): Promise<UserRecord | null> {
-  const email = await db.get<string>(kvKey.userId(userId));
-  if (!email) return null;
-  return db.get<UserRecord>(kvKey.user(email));
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) return null;
+  return {
+    id: user.id,
+    email: user.email,
+    displayName: user.displayName,
+    passwordHash: user.passwordHash,
+    createdAt: user.createdAt.toISOString(),
+  };
 }

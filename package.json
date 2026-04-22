@@ -4,22 +4,27 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "npm run bump && next build",
+    "build": "npm run bump && prisma generate && next build",
+    "postinstall": "prisma generate",
     "start": "next start",
     "bump": "node scripts/bump-version.mjs meta",
     "bump:patch": "node scripts/bump-version.mjs patch",
     "bump:minor": "node scripts/bump-version.mjs minor",
-    "bump:major": "node scripts/bump-version.mjs major"
+    "bump:major": "node scripts/bump-version.mjs major",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate deploy",
+    "prisma:migrate:dev": "prisma migrate dev",
+    "prisma:studio": "prisma studio"
   },
   "dependencies": {
+    "@prisma/adapter-mariadb": "^7.7.0",
+    "@prisma/client": "^7.7.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/uuid": "^10.0.0",
-    "@vercel/kv": "^3.0.0",
     "@vitest/ui": "^4.1.4",
     "bcryptjs": "^3.0.3",
     "dexie": "^4.4.2",
     "happy-dom": "^20.8.9",
-    "ioredis": "^5.10.1",
     "next": "16.2.3",
     "react": "19.2.4",
     "react-dom": "19.2.4",
@@ -34,6 +39,8 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/seedrandom": "^3.0.8",
+    "ioredis": "^5.10.1",
+    "prisma": "^7.7.0",
     "typescript": "^5"
   }
 }

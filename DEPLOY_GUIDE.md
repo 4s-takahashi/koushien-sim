@@ -1,6 +1,6 @@
 # デプロイ手順書
 
-「高校野球デイズ」を Vercel に本番デプロイする手順です。
+「高校野球デイズ」の本番デプロイ・MySQL 移行手順です。
 
 ---
 
@@ -124,11 +124,105 @@ npm start
 デプロイ完了後、以下に URL を記録してください：
 
 ```
-本番URL: https://_____.vercel.app
+本番URL: https://kokoyakyu-days.jp
 デプロイ日時: ____年__月__日
-最新コミット: 1b14874
+最新コミット: (最新コミットハッシュ)
 ```
 
 ---
 
-最終更新: 2026-04-16
+## MySQL 移行手順（v0.25.0）
+
+v0.25.0 から Redis の代わりに MySQL + Prisma で認証・セッション・セーブデータを管理します。
+**VPS（162.43.92.107）** で以下の手順を実行してください。
+
+### 前提
+
+- VPS に MySQL が稼働中（DB: `koushien_sim`, user: `koushien`）
+- Node.js 22 + pm2 環境
+- プロジェクトが `/path/to/koushien-sim` にあること
+
+### 手順
+
+#### 1. Redis データをダンプして保全
+
+```bash
+cd /path/to/koushien-sim
+
+# Redis の全データを JSON にダンプ（バックアップ）
+REDIS_URL="redis://localhost:6379" bash scripts/dump-redis.sh
+# → redis-dump-YYYYMMDD-HHMMSS.json が作成される
+```
+
+#### 2. .env に DATABASE_URL を追加
+
+```bash
+# .env を編集（存在しない場合は新規作成）
+echo 'DATABASE_URL="mysql://koushien:QemCjuLI1eIpV5FgSoM8@localhost:3306/koushien_sim"' >> .env
+```
+
+#### 3. 最新コードを取得
+
+```bash
+git pull origin main
+npm install
+```
+
+#### 4. Prisma マイグレーションを適用
+
+```bash
+npx prisma migrate deploy
+# → User / Session / SaveData テーブルが作成される
+```
+
+#### 5. Redis データを MySQL に移行
+
+```bash
+DATABASE_URL="mysql://koushien:QemCjuLI1eIpV5FgSoM8@localhost:3306/koushien_sim" \
+REDIS_URL="redis://localhost:6379" \
+npx tsx scripts/migrate-redis-to-mysql.ts
+```
+
+出力例：
+```
+[migrate] === 完了 ===
+  ユーザー  : 移行 1 件 / スキップ 0 件
+  セッション: 移行 3 件 / スキップ 1 件（ゲスト or 期限切れ）
+  セーブ    : 移行 1 件 / スキップ 0 件
+```
+
+#### 6. アプリを再起動
+
+```bash
+pm2 restart koushien-sim
+pm2 logs koushien-sim --lines 50
+# → エラーが出ないことを確認
+```
+
+#### 7. 動作確認
+
+1. `https://kokoyakyu-days.jp` にアクセス
+2. ログイン → セーブデータが引き継がれていることを確認
+
+#### 8. Redis の停止（任意・確認後）
+
+移行が正常に完了し数日問題なければ Redis を停止できます：
+
+```bash
+# Redis を停止（データは消えるが、MySQL に移行済み）
+sudo systemctl stop redis
+# sudo systemctl disable redis  # 自動起動も無効化する場合
+```
+
+### トラブルシューティング
+
+| 症状 | 対処法 |
+|------|--------|
+| `P1001: Can't reach database server` | MySQL が起動しているか確認: `sudo systemctl status mysql` |
+| `DATABASE_URL が設定されていません` | `.env` に `DATABASE_URL` を追加 |
+| 移行後にログインできない | `prisma migrate deploy` が完了しているか確認 |
+| セーブデータが消えた | `redis-dump-*.json` から手動で復元（スクリプト参照）|
+
+---
+
+最終更新: 2026-04-22

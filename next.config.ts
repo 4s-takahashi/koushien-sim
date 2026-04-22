@@ -6,11 +6,11 @@ const nextConfig: NextConfig = {
     // pre-existing broken engine/match stubs (not used in production paths)
     tsconfigPath: 'tsconfig.build.json',
   },
-  // ioredis は Node.js 専用（net/tls/dns 使用）のため、
-  // クライアントバンドル対象から外す（サーバー側では require で読み込む）。
-  // Next.js 16 の Turbopack でも serverExternalPackages は有効。
-  serverExternalPackages: ['ioredis'],
-  // Turbopack 側でも ioredis の Node.js コアモジュール依存を許容
+  // @prisma/client と prisma は Next.js のデフォルト serverExternalPackages リストに
+  // 含まれているが、明示的に追記して意図を明確にする。
+  // ioredis 依存は削除済み。
+  serverExternalPackages: ['@prisma/client', 'prisma'],
+  // Turbopack 設定
   turbopack: {},
 };
 
