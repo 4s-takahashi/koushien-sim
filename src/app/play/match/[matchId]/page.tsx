@@ -14,6 +14,7 @@ import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useWorldStore } from '../../../../stores/world-store';
 import { useMatchStore } from '../../../../stores/match-store';
+import { useMatchVisualStore } from '../../../../stores/match-visual-store';
 import { buildMatchTeam } from '../../../../engine/world/match-team-builder';
 import type { MatchState } from '../../../../engine/match/types';
 import { EMPTY_BASES } from '../../../../engine/match/types';
@@ -23,6 +24,15 @@ import { PITCH_LABELS } from '../../../../ui/labels/pitch-labels';
 import styles from './match.module.css';
 import { PsycheWindow } from './PsycheWindow';
 import { DetailedOrderModal } from './DetailedOrderModal';
+// Phase 12: ビジュアルコンポーネント
+import { AnimatedScoreboard } from '../../../../ui/match-visual/AnimatedScoreboard';
+import { Ballpark } from '../../../../ui/match-visual/Ballpark';
+import { StrikeZone } from '../../../../ui/match-visual/StrikeZone';
+import { useBallAnimation } from '../../../../ui/match-visual/useBallAnimation';
+import { computeTrajectory } from '../../../../ui/match-visual/useBallAnimation';
+import { pitchLocationToUV, getBreakDirection, isFastballClass } from '../../../../ui/match-visual/pitch-marker-types';
+import type { AtBatMarkerHistory } from '../../../../ui/match-visual/pitch-marker-types';
+import visualStyles from './match-visual.module.css';
 
 // ============================================================
 // 型
@@ -1214,11 +1224,197 @@ export default function MatchPage() {
   const matchId = typeof _matchId === 'string' ? _matchId : 'current';
 
   return (
-    <div className={styles.page}>
-      {/* スコアボード */}
-      <Scoreboard view={view} matchId={matchId} />
+    <MatchPageInner
+      view={view}
+      matchId={matchId}
+      playerSchoolId={worldState.playerSchoolId}
+      pitchLog={pitchLog}
+      narration={narration}
+      autoPlayEnabled={autoPlayEnabled}
+      autoPlaySpeed={autoPlaySpeed}
+      toggleAutoPlay={toggleAutoPlay}
+      setAutoPlaySpeed={setAutoPlaySpeed}
+      runnerMode={runnerMode}
+      setTimeMode={setTimeMode}
+      setPitchMode={setPitchMode}
+      isPaused={isPaused}
+      isMatchOver={isMatchOver}
+      canProgress={canProgress}
+      isProcessing={isProcessing}
+      lastOrder={lastOrder}
+      handleGoHome={handleGoHome}
+      handleGoTournament={handleGoTournament}
+      handleOrder={handleOrder}
+      handleStepOnePitch={handleStepOnePitch}
+      handleStepOneAtBat={handleStepOneAtBat}
+      handleStepOneInning={handleStepOneInning}
+      handleRunToEnd={handleRunToEnd}
+      handlePauseToHome={handlePauseToHome}
+    />
+  );
+}
 
-      {/* 中断ボタン (Issue #8 2026-04-19) */}
+// ============================================================
+// MatchPageInner — Phase 12 ビジュアル統合コンポーネント
+// ============================================================
+
+interface MatchPageInnerProps {
+  view: MatchViewState;
+  matchId: string;
+  playerSchoolId: string;
+  pitchLog: PitchLogEntry[];
+  narration: import('../../../../ui/narration/buildNarration').NarrationEntry[];
+  autoPlayEnabled: boolean;
+  autoPlaySpeed: 'slow' | 'normal' | 'fast';
+  toggleAutoPlay: () => void;
+  setAutoPlaySpeed: (s: 'slow' | 'normal' | 'fast') => void;
+  runnerMode: import('../../../../engine/match/runner-types').RunnerMode;
+  setTimeMode: (t: 'short' | 'standard') => void;
+  setPitchMode: (p: 'on' | 'off') => void;
+  isPaused: boolean;
+  isMatchOver: boolean;
+  canProgress: boolean;
+  isProcessing: boolean;
+  lastOrder: TacticalOrder | null;
+  handleGoHome: () => void;
+  handleGoTournament: () => void;
+  handleOrder: (o: TacticalOrder) => void;
+  handleStepOnePitch: () => void;
+  handleStepOneAtBat: () => void;
+  handleStepOneInning: () => void;
+  handleRunToEnd: () => void;
+  handlePauseToHome: () => void;
+}
+
+function MatchPageInner({
+  view,
+  matchId,
+  playerSchoolId,
+  pitchLog,
+  narration,
+  autoPlayEnabled,
+  autoPlaySpeed,
+  toggleAutoPlay,
+  setAutoPlaySpeed,
+  runnerMode,
+  setTimeMode,
+  setPitchMode,
+  isPaused,
+  isMatchOver,
+  canProgress,
+  isProcessing,
+  lastOrder,
+  handleGoHome,
+  handleGoTournament,
+  handleOrder,
+  handleStepOnePitch,
+  handleStepOneAtBat,
+  handleStepOneInning,
+  handleRunToEnd,
+  handlePauseToHome,
+}: MatchPageInnerProps) {
+  const [selectMode, setSelectMode] = useState<SelectMode>({ type: 'none' });
+  const matchResult = useMatchStore((s) => s.matchResult);
+
+  // ===== Phase 12: ボールアニメーション =====
+  const { ballState, triggerPitchAnimation, triggerHitAnimation, triggerHomeRunEffect, resetBall } = useBallAnimation();
+
+  // ===== Phase 12: マーカーストア =====
+  const addPitchMarker = useMatchVisualStore((s) => s.addPitchMarker);
+  const setSwingMarker = useMatchVisualStore((s) => s.setSwingMarker);
+  const clearForNextBatter = useMatchVisualStore((s) => s.clearForNextBatter);
+  const currentAtBatMarkers = useMatchVisualStore((s) => s.currentAtBatMarkers);
+  const swingMarker = useMatchVisualStore((s) => s.swingMarker);
+  const prevBatterIdRef = useCallback(
+    () => pitchLog.length > 0 ? pitchLog[pitchLog.length - 1]?.batterId : null,
+    [pitchLog]
+  );
+  const lastBatterIdRef = { current: '' };
+
+  // ===== Phase 12: 投球ログ変化を検出してマーカー・アニメーションを更新 =====
+  useEffect(() => {
+    const latest = pitchLog[pitchLog.length - 1];
+    const prev = pitchLog[pitchLog.length - 2];
+
+    if (!latest) return;
+
+    // 打者交代検出
+    if (prev && prev.batterId !== latest.batterId) {
+      clearForNextBatter();
+      resetBall();
+    }
+
+    // ストライクゾーンマーカー追加
+    const uv = pitchLocationToUV(latest.location.row, latest.location.col);
+    const pitchClass = isFastballClass(latest.pitchType) ? 'fastball' as const : 'breaking' as const;
+    const result: 'strike' | 'ball' | 'foul' | 'in_play' =
+      latest.outcome === 'called_strike' || latest.outcome === 'swinging_strike'
+        ? 'strike'
+        : latest.outcome === 'ball'
+        ? 'ball'
+        : latest.outcome === 'foul' || latest.outcome === 'foul_bunt'
+        ? 'foul'
+        : 'in_play';
+
+    addPitchMarker({
+      position: uv,
+      pitchClass,
+      breakDirection: latest.breakDirection ?? null,
+      result,
+    });
+
+    // スイング位置マーカー
+    if (latest.swingLocation) {
+      const swingRes: 'miss' | 'foul' | 'in_play' =
+        latest.outcome === 'swinging_strike' ? 'miss'
+        : latest.outcome === 'foul' || latest.outcome === 'foul_bunt' ? 'foul'
+        : 'in_play';
+      setSwingMarker({ position: latest.swingLocation, swingResult: swingRes });
+    }
+
+    // ボールアニメーション（投球）
+    if (latest.pitchSpeed !== undefined) {
+      triggerPitchAnimation({
+        actualLocation: latest.location,
+        speedKmh: latest.pitchSpeed,
+        pitchType: latest.pitchType,
+      });
+    }
+
+    // 打球アニメーション
+    if (latest.batContact) {
+      const trajectory = computeTrajectory({
+        contactType: latest.batContact.contactType,
+        direction: latest.batContact.direction,
+        speed: latest.batContact.speed,
+        distance: latest.batContact.distance,
+      });
+      const delay = latest.pitchSpeed ? Math.min(300, 100000 / latest.pitchSpeed) : 300;
+      const timer = setTimeout(() => {
+        triggerHitAnimation(trajectory);
+        // Phase 12-E: ホームランの場合はエフェクトを起動
+        if (trajectory.type === 'home_run') {
+          setTimeout(() => triggerHomeRunEffect(), trajectory.durationMs * 0.6);
+        }
+      }, delay);
+      return () => clearTimeout(timer);
+    }
+  }, [pitchLog.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // スコアボードの表示状態（HUDの薄さ制御用）
+  const [scoreboardPhaseVisible, setScoreboardPhaseVisible] = useState(false);
+
+  const markerHistory: AtBatMarkerHistory = {
+    pitchMarkers: currentAtBatMarkers,
+    swingMarker,
+  };
+
+  return (
+    <div className={styles.page}>
+      {/* Phase 12-A: アニメーション付きスコアボード */}
+      <AnimatedScoreboard view={view} />
+
+      {/* 中断ボタン */}
       <div style={{
         maxWidth: 900, margin: '0 auto', padding: '4px 16px',
         width: '100%', boxSizing: 'border-box',
@@ -1242,15 +1438,33 @@ export default function MatchPage() {
         </button>
       </div>
 
-      {/* イニングスコア */}
-      <InningScoreTable view={view} />
+      {/* Phase 12: グラウンド + ストライクゾーン 2カラム */}
+      <div className={visualStyles.visualArea}>
+        {/* 左カラム: グラウンド鳥瞰 */}
+        <div className={visualStyles.ballparkColumn}>
+          <Ballpark
+            view={view}
+            playerSchoolId={playerSchoolId}
+            ballAnimState={ballState}
+            scoreboardVisible={scoreboardPhaseVisible}
+          />
+        </div>
 
-      {/* 実況ログ (スコアボード直下に配置 2026-04-19 Issue #10) */}
+        {/* 右カラム: ストライクゾーン */}
+        <div className={visualStyles.strikeZoneColumn}>
+          <div className={visualStyles.strikeZoneLabel}>
+            📍 ストライクゾーン（{view.pitcher.name} vs {view.batter.name}）
+          </div>
+          <StrikeZone history={markerHistory} />
+        </div>
+      </div>
+
+      {/* 実況ログ */}
       <div style={{ maxWidth: 900, margin: '0 auto', padding: '0 16px 12px', width: '100%', boxSizing: 'border-box' }}>
         <NarrationPanel entries={narration} />
       </div>
 
-      {/* 心理ウィンドウ (Phase 7-B) — 最新投球のモノローグを表示 */}
+      {/* 心理ウィンドウ (Phase 7-B) */}
       {pitchLog.length > 0 && pitchLog[pitchLog.length - 1].monologues && (
         <div style={{ maxWidth: 900, margin: '0 auto', padding: '0 16px 8px', width: '100%', boxSizing: 'border-box' }}>
           <PsycheWindow
@@ -1263,7 +1477,7 @@ export default function MatchPage() {
         </div>
       )}
 
-      {/* コントロールバー (進行ボタン + 自動進行) */}
+      {/* コントロールバー */}
       <AutoPlayBar
         enabled={autoPlayEnabled}
         speed={autoPlaySpeed}
@@ -1315,9 +1529,6 @@ export default function MatchPage() {
 
       {/* メインコンテンツ */}
       <div className={styles.main}>
-        {/* 采配ボタン (バナー機能を統合: 打席開始等の案内は TacticsBar 内に表示) */}
-        {/* (2026-04-19 Issue #采配位置: PauseBanner と TacticsBar を統合して
-            画面を上下移動しなくて済むように) */}
         {!isMatchOver && view.isPlayerBatting !== undefined && (
           <div className={styles.mainFull}>
             <TacticsBar
@@ -1331,15 +1542,11 @@ export default function MatchPage() {
           </div>
         )}
 
-        {/* 采配対象外のポーズ (試合終了など) では単体バナー */}
         {isPaused && !isMatchOver && view.isPlayerBatting === undefined && (
           <div className={styles.mainFull}>
             <PauseBanner view={view} />
           </div>
         )}
-
-        {/* ダイヤモンド */}
-        <Diamond view={view} />
 
         {/* 投手パネル */}
         <PitcherPanel view={view} matchId={matchId} />
@@ -1347,9 +1554,7 @@ export default function MatchPage() {
         {/* 打者パネル */}
         <BatterPanel view={view} matchId={matchId} />
 
-        {/* 進行ボタンは上の AutoPlayBar に統合済み (2026-04-19) */}
-
-        {/* 直近ログ (1球ごとの詳細) */}
+        {/* 直近ログ */}
         <div className={styles.mainFull}>
           <RecentLog pitches={pitchLog} />
         </div>
@@ -1365,7 +1570,7 @@ export default function MatchPage() {
         />
       )}
 
-      {/* 詳細采配モーダル (Phase 7-C / 7-F) */}
+      {/* 詳細采配モーダル */}
       {selectMode.type === 'detailed_order' && (
         <DetailedOrderModal
           mode={selectMode.mode}
