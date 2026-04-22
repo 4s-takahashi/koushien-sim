@@ -313,8 +313,8 @@ export class MatchRunner {
    *   1. 試合終了
    *   2. 勝負所（detectKeyMoment）
    *   3. PitchMode ON → pitch_start
-   *   4. TimeMode standard → at_bat_start
-   *   5. short + pitch off → 停止なし（自動進行）
+   *   4. TimeMode standard + pitch off → at_bat_start
+   *   5. slow/fast + pitch off → 停止なし（自動進行に委ねる）
    */
   shouldPause(mode: RunnerMode): PauseReason | null {
     if (this.state.isOver) {

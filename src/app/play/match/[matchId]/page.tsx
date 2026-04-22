@@ -9,7 +9,7 @@
  * Phase 7-F: 高校名・選手名クリックで詳細画面へ遷移。
  */
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useWorldStore } from '../../../../stores/world-store';
@@ -740,8 +740,6 @@ function AutoPlayBar({
   onStepOneInning, onRunToEnd, isProcessing, isMatchOver,
 }: AutoPlayBarProps) {
   // コントロールバー (自動進行 + 進行ボタンを1行に統合)
-  // 2026-04-19 Issue #9 + Issue 進行パネル統合
-  //
   // 左側: 進行ボタン (1球/1打席/1イニング/最後まで)
   // 右側: 自動進行 (⏸/▶ + 速度3種)
   // 自動進行ONのときは手動進行ボタンを disabled にする
@@ -800,7 +798,7 @@ function AutoPlayBar({
 
       <div className={styles.autoPlaySpacer} />
 
-      {/* 自動進行 (右寄せ) */}
+      {/* 自動進行 (右寄せ、旧UIを残す) */}
       <button
         className={`${styles.autoPlayToggle} ${enabled ? styles.autoPlayToggleOn : ''}`}
         onClick={onToggle}
@@ -835,6 +833,108 @@ function AutoPlayBar({
           ⚡
         </button>
       </div>
+    </div>
+  );
+}
+
+// ============================================================
+// Phase 12-H: 新自動進行コントロールバー
+// ============================================================
+
+/**
+ * TimeMode の遅延マッピング (ms)
+ */
+const DELAY_MS: Record<import('../../../../engine/match/runner-types').TimeMode, number> = {
+  slow:     10000,
+  standard:  5000,
+  fast:      3000,
+};
+
+interface AutoAdvanceBarProps {
+  autoAdvance: boolean;
+  timeMode: import('../../../../engine/match/runner-types').TimeMode;
+  pitchMode: import('../../../../engine/match/runner-types').PitchMode;
+  onToggleAutoAdvance: () => void;
+  onSetTimeMode: (t: import('../../../../engine/match/runner-types').TimeMode) => void;
+  /** 残り時間 (ms)。null = タイマー未稼働 */
+  remainingMs: number | null;
+  /** 停止中かどうか (pauseReason が non-null) */
+  isPaused: boolean;
+  /** 今すぐ進める */
+  onAdvanceNow: () => void;
+  /** 指示なしで進める */
+  onSkipOrder: () => void;
+}
+
+function AutoAdvanceBar({
+  autoAdvance, timeMode, pitchMode,
+  onToggleAutoAdvance, onSetTimeMode,
+  remainingMs, isPaused,
+  onAdvanceNow, onSkipOrder,
+}: AutoAdvanceBarProps) {
+  const modeLabel = pitchMode === 'on' ? '次の1球' : '次の打席';
+  const delayLabel = DELAY_MS[timeMode] / 1000;
+
+  const countdownText =
+    remainingMs !== null && autoAdvance && !isPaused
+      ? `${modeLabel}まで 残り ${(remainingMs / 1000).toFixed(1)}秒`
+      : null;
+
+  return (
+    <div className={styles.autoAdvanceBar}>
+      {/* 自動進行トグル */}
+      <button
+        className={`${styles.autoAdvanceToggle} ${autoAdvance ? styles.autoAdvanceToggleOn : ''}`}
+        onClick={onToggleAutoAdvance}
+        title={autoAdvance ? '自動進行を停止' : '自動進行を開始'}
+      >
+        {autoAdvance ? '⏸' : '🔁'} 自動進行: {autoAdvance ? 'ON' : 'OFF'}
+      </button>
+
+      {/* TimeMode セレクタ (3段階) */}
+      <div className={styles.autoAdvanceTimeModeGroup} role="group" aria-label="テンポ">
+        <button
+          className={`${styles.autoAdvanceTimeModeBtn} ${timeMode === 'slow' ? styles.autoAdvanceTimeModeBtnActive : ''}`}
+          onClick={() => onSetTimeMode('slow')}
+          title="ゆっくり 10秒"
+        >
+          ⏮ ゆっくり 10秒
+        </button>
+        <button
+          className={`${styles.autoAdvanceTimeModeBtn} ${timeMode === 'standard' ? styles.autoAdvanceTimeModeBtnActive : ''}`}
+          onClick={() => onSetTimeMode('standard')}
+          title="標準 5秒"
+        >
+          ▶ 標準 5秒
+        </button>
+        <button
+          className={`${styles.autoAdvanceTimeModeBtn} ${timeMode === 'fast' ? styles.autoAdvanceTimeModeBtnActive : ''}`}
+          onClick={() => onSetTimeMode('fast')}
+          title="高速 3秒"
+        >
+          ⏭ 高速 3秒
+        </button>
+      </div>
+
+      {/* カウントダウン・操作ボタン（自動進行ON時のみ表示） */}
+      {autoAdvance && !isPaused && (
+        <>
+          {countdownText && (
+            <span className={`${styles.autoAdvanceCountdown} ${remainingMs !== null && remainingMs < 2000 ? styles.autoAdvanceCountdownHighlight : ''}`}>
+              {countdownText}
+            </span>
+          )}
+          <div className={styles.autoAdvanceNextOrderSection}>
+            <span className={styles.autoAdvanceNextOrderLabel}>{modeLabel}の指示:</span>
+            <button className={styles.autoAdvanceSkipBtn} onClick={onSkipOrder}>
+              指示なし
+            </button>
+            <button className={styles.autoAdvanceNowBtn} onClick={onAdvanceNow}>
+              今すぐ進める
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -920,6 +1020,23 @@ function NarrationPanel({ entries }: NarrationPanelProps) {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+// ============================================================
+// Phase 12-H: PLAY BALL 演出オーバーレイ
+// ============================================================
+
+function PlayBallOverlay({ visible }: { visible: boolean }) {
+  if (!visible) return null;
+  return (
+    <div className={styles.playBallOverlay}>
+      <div className={styles.playBallBand}>
+        <div className={styles.playBallAccent} />
+        <div className={styles.playBallAccentBottom} />
+        <span className={styles.playBallText}>PLAY BALL</span>
+      </div>
     </div>
   );
 }
@@ -1022,9 +1139,20 @@ export default function MatchPage() {
   const toggleAutoPlay = useMatchStore((s) => s.toggleAutoPlay);
   const setAutoPlaySpeed = useMatchStore((s) => s.setAutoPlaySpeed);
   const lastOrder = useMatchStore((s) => s.lastOrder);
+  const autoAdvance = useMatchStore((s) => s.autoAdvance);
+  const setAutoAdvance = useMatchStore((s) => s.setAutoAdvance);
+  const pendingNextOrder = useMatchStore((s) => s.pendingNextOrder);
+  const consumeNextOrder = useMatchStore((s) => s.consumeNextOrder);
 
   const [selectMode, setSelectMode] = useState<SelectMode>({ type: 'none' });
   const [initialized, setInitialized] = useState(false);
+  // Phase 12-H: PLAY BALL 演出
+  const [showPlayBall, setShowPlayBall] = useState(false);
+  // Phase 12-H: カウントダウン用タイムスタンプ
+  const [nextAutoAdvanceAt, setNextAutoAdvanceAt] = useState<number | null>(null);
+  // Phase 12-H: カウントダウン表示用の再描画トリガー
+  const [_countdownTick, setCountdownTick] = useState(0);
+  const autoAdvanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ゲーム初期化
   useEffect(() => {
@@ -1112,6 +1240,10 @@ export default function MatchPage() {
     };
 
     initMatch(initialState, worldState.playerSchoolId, worldState.seed);
+    // Phase 12-H: 新規試合開始 → PLAY BALL 演出を表示
+    setShowPlayBall(true);
+    // 2.8秒後に演出終了 (CSSアニメーションと同期)
+    setTimeout(() => setShowPlayBall(false), 2800);
     setInitialized(true);
   }, [hasHydrated, matchStoreHasHydrated, matchStoreRunner, worldState, initialized, initMatch, router, consumePausedMatch, restoreFromSnapshot]);
 
@@ -1178,13 +1310,12 @@ export default function MatchPage() {
     router.push('/play');
   }, [dumpSnapshot, pauseInteractiveMatch, router, matchResult]);
 
-  // ── 自動進行タイマー ──
-  // narration.length を deps に入れることで、1打席処理後に次の打席タイマーを起動する。
-  // 手動ボタンは autoPlayEnabled=true のとき disabled になっている (上の TacticsBar/進行ボタン参照)
-  // ので、「手動クリック → 自動進行が続けて動作」の多重進行は発生しない。
+  // ── 旧自動進行タイマー (autoPlayEnabled) ──
+  // 後方互換: autoAdvance が OFF のときは旧ロジックで動作
   useEffect(() => {
     if (!initialized) return;
     if (!autoPlayEnabled) return;
+    if (autoAdvance) return; // 新自動進行が ON なら旧ロジックは動かない
     if (pauseReason !== null) return;
     if (matchResult !== null) return;
     if (isProcessing) return;
@@ -1204,6 +1335,7 @@ export default function MatchPage() {
   }, [
     initialized,
     autoPlayEnabled,
+    autoAdvance,
     autoPlaySpeed,
     pauseReason,
     matchResult,
@@ -1212,6 +1344,102 @@ export default function MatchPage() {
     narration.length,
     stepOneAtBat,
   ]);
+
+  // ── Phase 12-H: 新自動進行タイマー (autoAdvance) ──
+  useEffect(() => {
+    // 前のタイマーをクリア
+    if (autoAdvanceTimerRef.current !== null) {
+      clearTimeout(autoAdvanceTimerRef.current);
+      autoAdvanceTimerRef.current = null;
+    }
+
+    if (!initialized) return;
+    if (!autoAdvance) {
+      setNextAutoAdvanceAt(null);
+      return;
+    }
+    if (pauseReason !== null) {
+      // 停止理由あり → 自動進行を一時中断（タイマーをクリアして待機）
+      setNextAutoAdvanceAt(null);
+      return;
+    }
+    if (matchResult !== null) {
+      setNextAutoAdvanceAt(null);
+      return;
+    }
+    if (isProcessing) return;
+    if (selectMode.type !== 'none') return;
+
+    const delayMs = DELAY_MS[runnerMode.time];
+    const fireAt = Date.now() + delayMs;
+    setNextAutoAdvanceAt(fireAt);
+
+    autoAdvanceTimerRef.current = setTimeout(() => {
+      autoAdvanceTimerRef.current = null;
+      setNextAutoAdvanceAt(null);
+      // pendingNextOrder を消費して adopt する
+      const pending = consumeNextOrder();
+      if (pending && pending.type !== 'none') {
+        applyOrder(pending);
+      }
+      if (runnerMode.pitch === 'on') {
+        stepOnePitch();
+      } else {
+        stepOneAtBat();
+      }
+    }, delayMs);
+
+    return () => {
+      if (autoAdvanceTimerRef.current !== null) {
+        clearTimeout(autoAdvanceTimerRef.current);
+        autoAdvanceTimerRef.current = null;
+      }
+    };
+  }, [
+    initialized,
+    autoAdvance,
+    runnerMode.time,
+    runnerMode.pitch,
+    pauseReason,
+    matchResult,
+    isProcessing,
+    selectMode.type,
+    narration.length,
+    pitchLog.length,
+  ]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Phase 12-H: カウントダウン表示 (100msごとに再描画) ──
+  useEffect(() => {
+    if (!autoAdvance || nextAutoAdvanceAt === null) return;
+    const interval = setInterval(() => {
+      setCountdownTick((t) => t + 1);
+    }, 100);
+    return () => clearInterval(interval);
+  }, [autoAdvance, nextAutoAdvanceAt]);
+
+  // 今すぐ進めるハンドラ
+  const handleAdvanceNow = useCallback(() => {
+    if (autoAdvanceTimerRef.current !== null) {
+      clearTimeout(autoAdvanceTimerRef.current);
+      autoAdvanceTimerRef.current = null;
+    }
+    setNextAutoAdvanceAt(null);
+    const pending = consumeNextOrder();
+    if (pending && pending.type !== 'none') {
+      applyOrder(pending);
+    }
+    if (runnerMode.pitch === 'on') {
+      stepOnePitch();
+    } else {
+      stepOneAtBat();
+    }
+  }, [consumeNextOrder, applyOrder, runnerMode.pitch, stepOnePitch, stepOneAtBat]);
+
+  // 指示なしで進めるハンドラ（pendingNextOrder をクリア → タイマーリセット）
+  const handleSkipOrder = useCallback(() => {
+    // pendingNextOrder をクリアするだけ。タイマーは継続
+    // ここでは applyOrder({ type: 'none' }) は不要。タイマーが発火したとき pending=null で進む
+  }, []);
 
   const view = getMatchView();
 
@@ -1228,6 +1456,8 @@ export default function MatchPage() {
   const canProgress = !isProcessing && !isMatchOver;
 
   const matchId = typeof _matchId === 'string' ? _matchId : 'current';
+
+  const remainingMs = nextAutoAdvanceAt !== null ? Math.max(0, nextAutoAdvanceAt - Date.now()) : null;
 
   return (
     <MatchPageInner
@@ -1256,6 +1486,12 @@ export default function MatchPage() {
       handleStepOneInning={handleStepOneInning}
       handleRunToEnd={handleRunToEnd}
       handlePauseToHome={handlePauseToHome}
+      showPlayBall={showPlayBall}
+      autoAdvance={autoAdvance}
+      onToggleAutoAdvance={() => setAutoAdvance(!autoAdvance)}
+      nextAutoAdvanceAt={remainingMs}
+      onAdvanceNow={handleAdvanceNow}
+      onSkipOrder={handleSkipOrder}
     />
   );
 }
@@ -1275,7 +1511,7 @@ interface MatchPageInnerProps {
   toggleAutoPlay: () => void;
   setAutoPlaySpeed: (s: 'slow' | 'normal' | 'fast') => void;
   runnerMode: import('../../../../engine/match/runner-types').RunnerMode;
-  setTimeMode: (t: 'short' | 'standard') => void;
+  setTimeMode: (t: import('../../../../engine/match/runner-types').TimeMode) => void;
   setPitchMode: (p: 'on' | 'off') => void;
   isPaused: boolean;
   isMatchOver: boolean;
@@ -1290,6 +1526,13 @@ interface MatchPageInnerProps {
   handleStepOneInning: () => void;
   handleRunToEnd: () => void;
   handlePauseToHome: () => void;
+  // Phase 12-H
+  showPlayBall: boolean;
+  autoAdvance: boolean;
+  onToggleAutoAdvance: () => void;
+  nextAutoAdvanceAt: number | null;
+  onAdvanceNow: () => void;
+  onSkipOrder: () => void;
 }
 
 function MatchPageInner({
@@ -1318,6 +1561,12 @@ function MatchPageInner({
   handleStepOneInning,
   handleRunToEnd,
   handlePauseToHome,
+  showPlayBall,
+  autoAdvance,
+  onToggleAutoAdvance,
+  nextAutoAdvanceAt,
+  onAdvanceNow,
+  onSkipOrder,
 }: MatchPageInnerProps) {
   const [selectMode, setSelectMode] = useState<SelectMode>({ type: 'none' });
   const matchResult = useMatchStore((s) => s.matchResult);
@@ -1439,6 +1688,9 @@ function MatchPageInner({
 
   return (
     <div className={styles.page}>
+      {/* Phase 12-H: PLAY BALL 演出 */}
+      <PlayBallOverlay visible={showPlayBall} />
+
       {/* Phase 12-A: アニメーション付きスコアボード */}
       <AnimatedScoreboard view={view} />
 
@@ -1517,24 +1769,22 @@ function MatchPageInner({
         isMatchOver={isMatchOver}
       />
 
+      {/* Phase 12-H: 新自動進行コントロールバー */}
+      <AutoAdvanceBar
+        autoAdvance={autoAdvance}
+        timeMode={runnerMode.time}
+        pitchMode={runnerMode.pitch}
+        onToggleAutoAdvance={onToggleAutoAdvance}
+        onSetTimeMode={setTimeMode}
+        remainingMs={nextAutoAdvanceAt}
+        isPaused={isPaused}
+        onAdvanceNow={onAdvanceNow}
+        onSkipOrder={onSkipOrder}
+      />
+
       {/* モードバー */}
       <div className={styles.modeBar}>
-        <span className={styles.modeLabel}>速度:</span>
-        <div className={styles.modeToggleGroup}>
-          <button
-            className={`${styles.modeToggleBtn} ${runnerMode.time === 'short' ? styles.modeToggleBtnActive : ''}`}
-            onClick={() => setTimeMode('short')}
-          >
-            ⚡短縮
-          </button>
-          <button
-            className={`${styles.modeToggleBtn} ${runnerMode.time === 'standard' ? styles.modeToggleBtnActive : ''}`}
-            onClick={() => setTimeMode('standard')}
-          >
-            🎯標準
-          </button>
-        </div>
-        <span className={styles.modeLabel} style={{ marginLeft: 8 }}>1球モード:</span>
+        <span className={styles.modeLabel}>1球モード:</span>
         <div className={styles.modeToggleGroup}>
           <button
             className={`${styles.modeToggleBtn} ${runnerMode.pitch === 'on' ? styles.modeToggleBtnActive : ''}`}

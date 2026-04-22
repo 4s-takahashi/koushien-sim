@@ -378,9 +378,9 @@ describe('matchProjector', () => {
       const homeTeam = createTestTeam('Home', 'proj-mode-home', 'h');
       const awayTeam = createTestTeam('Away', 'proj-mode-away', 'a');
       const state = createTestState(homeTeam, awayTeam);
-      const mode: RunnerMode = { time: 'short', pitch: 'on' };
+      const mode: RunnerMode = { time: 'fast', pitch: 'on' };
       const view = projectMatch(state, 'h', mode, emptyPitchLog, null);
-      expect(view.runnerMode.time).toBe('short');
+      expect(view.runnerMode.time).toBe('fast');
       expect(view.runnerMode.pitch).toBe('on');
     });
   });

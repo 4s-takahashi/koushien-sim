@@ -63,10 +63,18 @@ export interface MatchStoreState {
   // --- 実況ログ（最新30件） ---
   narration: NarrationEntry[];
 
-  // --- 自動進行 ---
+  // --- 自動進行（旧 autoPlay、後方互換のため残す） ---
   autoPlayEnabled: boolean;
-  /** 'slow' = 2s/打席, 'normal' = 1s/打席, 'fast' = 0.3s/打席 */
+  /** 'slow' = 10s, 'normal' = 5s (標準), 'fast' = 3s — autoAdvance と連動 */
   autoPlaySpeed: 'slow' | 'normal' | 'fast';
+
+  // --- Phase 12-H: 新自動進行モード ---
+  /** 自動進行 ON/OFF */
+  autoAdvance: boolean;
+  /** 次の自動実行タイムスタンプ (Date.now() + delay)。null = タイマー未セット */
+  nextAutoAdvanceAt: number | null;
+  /** 次の1球/打席用に事前選択された指示 */
+  pendingNextOrder: TacticalOrder | null;
 
   // --- 試合結果（試合終了後に格納） ---
   matchResult: MatchResult | null;
@@ -157,6 +165,17 @@ export interface MatchStoreActions {
   setAutoPlaySpeed: (speed: 'slow' | 'normal' | 'fast') => void;
   /** 実況ログをクリア */
   clearNarration: () => void;
+
+  // --- Phase 12-H: 新自動進行アクション ---
+  /** 自動進行 ON/OFF を設定する */
+  setAutoAdvance: (enabled: boolean) => void;
+  /** 次の1球/打席用の事前指示をセットする */
+  setPendingNextOrder: (order: TacticalOrder | null) => void;
+  /**
+   * step 実行時に pendingNextOrder を消費して返す。
+   * 消費後は null にリセットされる。
+   */
+  consumeNextOrder: () => TacticalOrder | null;
 }
 
 type MatchStore = MatchStoreState & MatchStoreActions;
@@ -177,6 +196,9 @@ const INITIAL_STATE: MatchStoreState = {
   narration: [],
   autoPlayEnabled: true,
   autoPlaySpeed: 'normal',
+  autoAdvance: false,
+  nextAutoAdvanceAt: null,
+  pendingNextOrder: null,
   matchResult: null,
   isProcessing: false,
   currentOrder: { type: 'none' },
@@ -457,6 +479,9 @@ interface MatchPersistedState {
   currentOrder: TacticalOrder;
   recentMonologueIds: string[];
   lastOrder: TacticalOrder | null;
+  // Phase 12-H
+  autoAdvance: boolean;
+  pendingNextOrder: TacticalOrder | null;
 }
 
 // ============================================================
@@ -950,6 +975,25 @@ export const useMatchStore = create<MatchStore>()(
   clearNarration: () => {
     set({ narration: [] });
   },
+
+  // ----------------------------------------------------------------
+  // Phase 12-H: 新自動進行アクション
+  // ----------------------------------------------------------------
+  setAutoAdvance: (enabled: boolean) => {
+    set({ autoAdvance: enabled });
+  },
+
+  setPendingNextOrder: (order: TacticalOrder | null) => {
+    set({ pendingNextOrder: order });
+  },
+
+  consumeNextOrder: () => {
+    const { pendingNextOrder } = get();
+    if (pendingNextOrder) {
+      set({ pendingNextOrder: null });
+    }
+    return pendingNextOrder;
+  },
     }),
     {
       name: MATCH_STORE_KEY,
@@ -988,6 +1032,9 @@ export const useMatchStore = create<MatchStore>()(
           currentOrder: state.currentOrder,
           recentMonologueIds: state.recentMonologueIds,
           lastOrder: state.lastOrder,
+          // Phase 12-H
+          autoAdvance: state.autoAdvance,
+          pendingNextOrder: state.pendingNextOrder,
         };
       },
       /**

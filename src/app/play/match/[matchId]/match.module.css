@@ -1338,3 +1338,203 @@
   margin-left: 2px;
   font-weight: normal;
 }
+
+/* ============================================================ */
+/* Phase 12-H: PLAY BALL 演出オーバーレイ */
+/* ============================================================ */
+
+.playBallOverlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  pointer-events: none;
+  animation: playBallFadeInOut 2.8s ease forwards;
+}
+
+.playBallBand {
+  width: 100%;
+  height: 160px;
+  background: rgba(255, 255, 255, 0.88);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  box-shadow: 0 0 40px rgba(255, 255, 255, 0.4);
+  border-top: 4px solid #8b1a1a;
+  border-bottom: 4px solid #8b1a1a;
+}
+
+.playBallText {
+  font-size: 88px;
+  font-weight: 900;
+  color: #1a1a2e;
+  letter-spacing: 6px;
+  text-transform: uppercase;
+  font-family: 'Impact', 'Arial Black', 'Noto Sans JP', sans-serif;
+  text-shadow: 2px 2px 0 rgba(0,0,0,0.15);
+  user-select: none;
+}
+
+.playBallAccent {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 6px;
+  background: linear-gradient(90deg, #8b1a1a, #c62828, #8b1a1a);
+}
+
+.playBallAccentBottom {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 6px;
+  background: linear-gradient(90deg, #8b1a1a, #c62828, #8b1a1a);
+}
+
+@keyframes playBallFadeInOut {
+  0%   { opacity: 0; }
+  10%  { opacity: 1; }
+  70%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* ============================================================ */
+/* Phase 12-H: 自動進行カウントダウン */
+/* ============================================================ */
+
+.autoAdvanceBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: rgba(13, 31, 53, 0.95);
+  border: 1px solid #1a3050;
+  border-radius: 6px;
+  max-width: 900px;
+  margin: 0 auto 4px;
+  width: 100%;
+  box-sizing: border-box;
+  flex-wrap: wrap;
+}
+
+.autoAdvanceToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 16px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid #2a4a6e;
+  background: #0d1f35;
+  color: #90a4ae;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.autoAdvanceToggle:hover {
+  border-color: #4a7aae;
+}
+
+.autoAdvanceToggleOn {
+  background: rgba(76, 175, 80, 0.2);
+  border-color: #4caf50;
+  color: #81c784;
+}
+
+.autoAdvanceTimeModeGroup {
+  display: inline-flex;
+  border: 1px solid #2a4a6e;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.autoAdvanceTimeModeBtn {
+  padding: 4px 10px;
+  font-size: 11px;
+  background: transparent;
+  border: none;
+  border-right: 1px solid #2a4a6e;
+  color: #607d8b;
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+
+.autoAdvanceTimeModeBtn:last-child {
+  border-right: none;
+}
+
+.autoAdvanceTimeModeBtn:hover {
+  background: rgba(255,255,255,0.05);
+}
+
+.autoAdvanceTimeModeBtnActive {
+  background: #1565c0;
+  color: #fff;
+}
+
+.autoAdvanceCountdown {
+  flex: 1;
+  font-size: 12px;
+  color: #b0bec5;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.autoAdvanceCountdownHighlight {
+  color: #ffd54f;
+  font-weight: bold;
+}
+
+.autoAdvanceNextOrderSection {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.autoAdvanceNextOrderLabel {
+  font-size: 11px;
+  color: #607d8b;
+  white-space: nowrap;
+}
+
+.autoAdvanceSkipBtn {
+  padding: 3px 8px;
+  font-size: 11px;
+  border-radius: 3px;
+  border: 1px solid #2a4a6e;
+  background: transparent;
+  color: #90a4ae;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.autoAdvanceSkipBtn:hover {
+  background: #1565c0;
+  border-color: #42a5f5;
+  color: #fff;
+}
+
+.autoAdvanceNowBtn {
+  padding: 3px 8px;
+  font-size: 11px;
+  border-radius: 3px;
+  border: 1px solid #42a5f5;
+  background: rgba(21, 101, 192, 0.3);
+  color: #90caf9;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.autoAdvanceNowBtn:hover {
+  background: #1565c0;
+  color: #fff;
+}

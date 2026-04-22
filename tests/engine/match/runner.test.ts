@@ -207,8 +207,8 @@ describe('MatchRunner', () => {
     }
 
     const standardMode: RunnerMode = { time: 'standard', pitch: 'off' };
-    const shortMode: RunnerMode = { time: 'short', pitch: 'off' };
-    const pitchOnMode: RunnerMode = { time: 'short', pitch: 'on' };
+    const shortMode: RunnerMode = { time: 'fast', pitch: 'off' };
+    const pitchOnMode: RunnerMode = { time: 'fast', pitch: 'on' };
 
     it('returns null when nothing special', () => {
       const homeTeam = createTestTeam('Home', 'pause-home', 'home-school');

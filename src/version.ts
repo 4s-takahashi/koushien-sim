@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.25.0';
+export const VERSION = '0.27.0';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-22 17:58 UTC';
-export const GIT_SHA = 'f6dc983';
+export const BUILD_DATE = '2026-04-22 19:36 UTC';
+export const GIT_SHA = '82415b9-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,38 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.27.0',
+    date: '2026-04-22',
+    changes: [
+      '⚾ Phase 12-H: 試合開始演出＋自動進行機能',
+      '【H-1】PLAY BALL 演出オーバーレイ',
+      '  試合新規開始時に画面中央へ半透明白帯 + 太字 "PLAY BALL" をフェードイン/アウト',
+      '  フェードイン 300ms → 2秒静止 → フェードアウト 500ms (総 2.8 秒)',
+      '  エンジ系ボーダーラインをアクセントとして追加',
+      '  中断→再開では表示しない（新規開始のみ）',
+      '',
+      '【H-2】TimeMode を 3段階に拡張',
+      '  旧: short | standard → 新: slow(10秒) | standard(5秒) | fast(3秒)',
+      '  runner-types.ts の TimeMode 型を更新',
+      '  既存テストを fast (旧 short 相当) に置き換え',
+      '',
+      '【H-3】自動進行モード（新規）',
+      '  match-store に autoAdvance / pendingNextOrder / nextAutoAdvanceAt を追加',
+      '  アクション: setAutoAdvance / setPendingNextOrder / consumeNextOrder',
+      '  AutoAdvanceBar コンポーネント: 自動進行トグル + TimeMode 3ボタン + カウントダウン',
+      '  カウントダウン表示: 「次の1球まで 残り 3.2秒」（100ms 更新）',
+      '  PitchMode = on → stepOnePitch、off → stepOneAtBat を自動実行',
+      '  「今すぐ進める」「指示なし」ボタンを提供',
+      '',
+      '【H-4】停止理由で自動進行を一時中断',
+      '  pauseReason が non-null のときタイマーをクリアして待機',
+      '  resumeFromPause (pauseReason → null) で自動進行が再開される',
+      '',
+      'テスト: phase12h.test.ts 追加 — 16 件',
+      '  TimeMode 型チェック、DELAY_MS マッピング、autoAdvance 状態遷移、consumeNextOrder',
+    ],
+  },
   {
     version: '0.25.0',
     date: '2026-04-22',

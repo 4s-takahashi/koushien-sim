@@ -44,11 +44,12 @@ export interface MatchOverrides {
 // ============================================================
 
 /**
- * 時間モード: プレイ時間の目安を決める主軸
- *   short    = ⚡ 短縮: 勝負所のみ停止（目標5分）
- *   standard = 🎯 標準: 打席ごとに停止（目標15分）
+ * 時間モード: 自動進行の間隔を決める主軸
+ *   slow     = ⏮ ゆっくり: 10秒ごとに自動進行
+ *   standard = ▶ 標準: 5秒ごとに自動進行
+ *   fast     = ⏭ 高速: 3秒ごとに自動進行
  */
-export type TimeMode = 'short' | 'standard';
+export type TimeMode = 'slow' | 'standard' | 'fast';
 
 /**
  * ピッチモード: 1球ごとの詳細介入
@@ -61,10 +62,8 @@ export type PitchMode = 'off' | 'on';
  * 進行モード（直交する2軸）
  *
  * 実効的な停止タイミング:
- *   short    + off → 勝負所のみ
- *   short    + on  → 勝負所 + 1球ごと
- *   standard + off → 打席開始ごと + 勝負所
- *   standard + on  → 全投球 + 勝負所
+ *   slow/standard/fast + off → 打席単位で自動進行
+ *   slow/standard/fast + on  → 1球単位で自動進行
  */
 export interface RunnerMode {
   time: TimeMode;
