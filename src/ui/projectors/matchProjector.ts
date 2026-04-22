@@ -253,26 +253,25 @@ function buildBasesView(state: MatchState): {
 } {
   const buildRunnerView = (
     runner: { playerId: string; speed: number } | null,
-    allTeams: MatchPlayer[],
   ): RunnerBaseView | null => {
     if (!runner) return null;
-    const mp = allTeams.find((p) => p.player.id === runner.playerId);
+    // 走者はバッティング側チーム（守備側には走者はいない）から特定する
+    const battingTeam =
+      state.currentHalf === 'top' ? state.awayTeam : state.homeTeam;
+    const mp = battingTeam.players.find((p) => p.player.id === runner.playerId);
     if (!mp) return null;
     return {
+      playerId: runner.playerId,
       runnerName: getBatterName(mp),
+      schoolShortName: battingTeam.shortName,
       speedClass: speedToClass(runner.speed),
     };
   };
 
-  const allPlayers = [
-    ...state.homeTeam.players,
-    ...state.awayTeam.players,
-  ];
-
   return {
-    first: buildRunnerView(state.bases.first, allPlayers),
-    second: buildRunnerView(state.bases.second, allPlayers),
-    third: buildRunnerView(state.bases.third, allPlayers),
+    first: buildRunnerView(state.bases.first),
+    second: buildRunnerView(state.bases.second),
+    third: buildRunnerView(state.bases.third),
   };
 }
 

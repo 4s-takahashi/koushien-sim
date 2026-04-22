@@ -672,7 +672,11 @@ export interface MonologueEntry {
 
 /** ランナー情報（UI用） */
 export interface RunnerBaseView {
+  /** 走者の playerId（盗塁・代走等で engine に渡す ID） */
+  playerId: string;
   runnerName: string;
+  /** 走者の所属チーム短縮名（v0.23.0） */
+  schoolShortName?: string;
   speedClass: 'fast' | 'normal' | 'slow';
 }
 

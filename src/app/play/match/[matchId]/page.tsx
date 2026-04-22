@@ -622,12 +622,17 @@ function SelectPanel({ mode, view, onSelect, onCancel }: SelectPanelProps) {
 
   if (mode.type === 'steal') {
     // 盗塁は走者選択（1塁→2塁、2塁→3塁）
+    // v0.24.1: runnerId は必ず playerId を使う（以前は runnerName を渡して engine 側で照合失敗していた）
     const stealers: { runnerId: string; name: string; from: string }[] = [];
     if (view.bases.first && !view.bases.second) {
-      stealers.push({ runnerId: view.bases.first.runnerName, name: view.bases.first.runnerName, from: '1塁→2塁' });
+      const r = view.bases.first;
+      const label = `${r.runnerName}${r.schoolShortName ? `(${r.schoolShortName})` : ''}`;
+      stealers.push({ runnerId: r.playerId, name: label, from: '1塁→2塁' });
     }
     if (view.bases.second && !view.bases.third) {
-      stealers.push({ runnerId: view.bases.second.runnerName, name: view.bases.second.runnerName, from: '2塁→3塁' });
+      const r = view.bases.second;
+      const label = `${r.runnerName}${r.schoolShortName ? `(${r.schoolShortName})` : ''}`;
+      stealers.push({ runnerId: r.playerId, name: label, from: '2塁→3塁' });
     }
 
     return (

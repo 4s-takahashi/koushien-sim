@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.24.0';
+export const VERSION = '0.24.1';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-22 00:42 UTC';
-export const GIT_SHA = 'dec3a70-dirty';
+export const BUILD_DATE = '2026-04-22 01:54 UTC';
+export const GIT_SHA = 'd8f9984-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,22 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.24.1',
+    date: '2026-04-22',
+    changes: [
+      '🐛 [バグ修正] 試合中の盗塁指示が反映されない問題を修正',
+      '  原因: UI側で走者の「名前」を engine の runnerId として渡していたため、engine 側で照合に失敗し盗塁処理がスキップされていた',
+      '  修正: RunnerBaseView に playerId フィールドを追加（projector で埋める）',
+      '        SelectPanel の盗塁走者選択で r.playerId を渡すよう変更',
+      '  副次改善: 盗塁ランナー選択モーダルに学校短縮名を表示（v0.23.0仕様に合わせる）',
+      '',
+      '  影響範囲:',
+      '    src/ui/projectors/view-state-types.ts — RunnerBaseView に playerId, schoolShortName 追加',
+      '    src/ui/projectors/matchProjector.ts — buildBasesView で playerId と shortName を埋める',
+      '    src/app/play/match/[matchId]/page.tsx — SelectPanel steal モードで playerId を渡す',
+    ],
+  },
   {
     version: '0.24.0',
     date: '2026-04-22',
