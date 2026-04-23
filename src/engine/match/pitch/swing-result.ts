@@ -64,7 +64,23 @@ export function calculateSwingResult(
   fairChance = Math.max(0, fairChance);
 
   if (!rng.chance(fairChance)) {
-    return { outcome: 'foul' };
+    // v0.36.0: ファール時も打球情報を生成して返す
+    // 軌道表示のため direction をファールゾーンにずらす
+    // 0°=LF, 45°=CF, 90°=RF (フェアゾーン) → ファールはそれ外
+    const baseContact = generateBatContact(batter, pitch, location, rng);
+    // ファール方向を 50/50 で左右に飛ばす（-25° 〜 -5° or 95° 〜 115°）
+    const toLeft = rng.chance(0.5);
+    const foulDirection = toLeft
+      ? -5 - rng.next() * 20    // -5° 〜 -25°（三塁側ファール）
+      : 95 + rng.next() * 20;   // 95° 〜 115°（一塁側ファール）
+    // 飛距離は短め（50% 〜 80%）
+    const foulDistance = baseContact.distance * (0.5 + rng.next() * 0.3);
+    const foulContact: Omit<BatContactResult, 'fieldResult'> = {
+      ...baseContact,
+      direction: foulDirection,
+      distance: foulDistance,
+    };
+    return { outcome: 'foul', contact: foulContact };
   }
 
   // ── (3) フェア打球 → 打球生成 ──

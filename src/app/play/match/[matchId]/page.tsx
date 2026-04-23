@@ -30,7 +30,7 @@ import { AnimatedScoreboard } from '../../../../ui/match-visual/AnimatedScoreboa
 import { Ballpark } from '../../../../ui/match-visual/Ballpark';
 import { StrikeZone } from '../../../../ui/match-visual/StrikeZone';
 import { useBallAnimation } from '../../../../ui/match-visual/useBallAnimation';
-import { computeTrajectory, buildPlaySequence } from '../../../../ui/match-visual/useBallAnimation';
+import { computeTrajectory, buildPlaySequence, buildHomeRunSequence } from '../../../../ui/match-visual/useBallAnimation';
 import { pitchLocationToUV, getBreakDirection, isFastballClass } from '../../../../ui/match-visual/pitch-marker-types';
 import type { AtBatMarkerHistory } from '../../../../ui/match-visual/pitch-marker-types';
 // v0.34.0: 効果音
@@ -1882,6 +1882,8 @@ function MatchPageInner({
       // v0.35.0: ホームラン判定は fieldResult.type を最優先（engine の結果を信用する）
       const fieldResultType = batContact.fieldResult?.type ?? undefined;
       const isHomeRun = fieldResultType === 'home_run';
+      // v0.36.0: ファール判定
+      const isFoul = fieldResultType === 'foul';
 
       // ホームラン時はフライ扱いで十分距離を取った trajectory を生成（contactType が ground_ball でも場外へ）
       const trajectory = computeTrajectory({
@@ -1896,10 +1898,31 @@ function MatchPageInner({
       const fielderPosition: string | undefined = undefined;
 
       const timer = setTimeout(() => {
-        if (isHomeRun) {
-          // ホームラン: 打球軌跡 → ホームランエフェクト
+        if (isFoul) {
+          // v0.36.0: ファール打球 — 軌跡だけ表示（外野手は動かない、結果表示なし）
+          // direction は engine 側でファールゾーンにずらし済み（-25°〜-5° or 95°〜115°）
+          // triggerHitAnimation で弧を描いて飛んで落ちる
           triggerHitAnimation(trajectory);
-          setTimeout(() => triggerHomeRunEffect(), trajectory.durationMs * 0.6);
+          return;
+        }
+        if (isHomeRun) {
+          // v0.36.0: ホームラン
+          //   triggerPlaySequence 1 本で以下を同時再生:
+          //     - 打球が弧を描いて場外へ飛んでいく (flyBall, 2400ms, peakHeight=1.4)
+          //     - 外野手が追いかけるがフェンスで停止 (fielderMove, noCatch=true)
+          //     - バッターが一塁へ走る (batterRun)
+          //     - 着弾後に "ホームラン！" 表示
+          //   飛距離の終盤でホームランエフェクト（花火）を発火
+          triggerPlaySequence(
+            buildHomeRunSequence({
+              contactType: 'fly_ball',
+              direction: batContact.direction,
+              speed: 'hard',
+              distance: Math.max(380, batContact.distance),
+            }),
+          );
+          // 打球が着弾する少し前にホームラン演出
+          setTimeout(() => triggerHomeRunEffect(), 2200);
         } else {
           // Phase 12-J: buildPlaySequence 統一API で打球種類・守備結果に応じたアニメーション
           triggerPlaySequence(

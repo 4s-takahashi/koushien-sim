@@ -505,6 +505,12 @@ export function processPitch(
     );
     batContact = { ...batContactWithoutFieldResult, fieldResult };
   }
+  // v0.36.0: ファール打球は view-state に別ルートで渡す（batContact は null のまま）
+  // UI 側で latest.outcome === 'foul' のとき、batContactForFoul を見て軌道を描画
+  const batContactForFoul =
+    (outcome === 'foul' || outcome === 'foul_bunt') && batContactWithoutFieldResult
+      ? batContactWithoutFieldResult
+      : null;
 
   // ── (6) MatchState 更新 ──
   const pitchResult: PitchResult = {
@@ -514,6 +520,7 @@ export function processPitch(
     batterAction,
     outcome,
     batContact,
+    foulContact: batContactForFoul,  // v0.36.0: ファール軌道表示用
   };
 
   // 投手スタミナ消費

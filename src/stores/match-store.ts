@@ -775,6 +775,7 @@ export const useMatchStore = create<MatchStore>()(
           ? pitchLocationToUV(pitchResult.actualLocation.row, pitchResult.actualLocation.col)
           : null,
         // Phase 12-D: 打球詳細
+        // v0.36.0: ファール時も foulContact を batContact に合流させて軌道表示
         batContact: pitchResult.batContact
           ? {
               contactType: pitchResult.batContact.contactType,
@@ -784,6 +785,17 @@ export const useMatchStore = create<MatchStore>()(
               fieldResult: {
                 type: pitchResult.batContact.fieldResult.type,
                 isError: pitchResult.batContact.fieldResult.isError,
+              },
+            }
+          : pitchResult.foulContact
+          ? {
+              contactType: pitchResult.foulContact.contactType,
+              direction: pitchResult.foulContact.direction,
+              speed: pitchResult.foulContact.speed,
+              distance: pitchResult.foulContact.distance,
+              fieldResult: {
+                type: 'foul',
+                isError: false,
               },
             }
           : null,

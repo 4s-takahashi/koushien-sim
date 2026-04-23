@@ -116,6 +116,9 @@ export interface PitchResult {
 
   // インプレーの場合のみ
   batContact: BatContactResult | null;
+
+  // v0.36.0: ファール打球の軌道情報（UI描画専用、fieldResult 無し）
+  foulContact?: Omit<BatContactResult, 'fieldResult'> | null;
 }
 
 // ============================================================

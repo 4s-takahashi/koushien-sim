@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.35.0';
+export const VERSION = '0.36.0';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-23 14:01 UTC';
-export const GIT_SHA = '6b5a6da-dirty';
+export const BUILD_DATE = '2026-04-23 14:20 UTC';
+export const GIT_SHA = '5fb2fc6-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,28 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.36.0',
+    date: '2026-04-23',
+    changes: [
+      '🎬 v0.36.0: ホームラン演出・ファール軌道 3件修正（高橋さん指示）',
+      '  💥 [1] ホームラン打球速度を遅く',
+      '    打球durationを speed=bullet 固定(500ms) → 2400ms に変更',
+      '    スタンドまで飛ぶ距離に見合った時間でゆっくり弧を描く',
+      '    peakHeightNorm を 0.8 → 1.4 に増やして高く舞い上がる演出',
+      '  🏃 [2] ホームラン時に外野手が追走',
+      '    buildHomeRunSequence() 新規 — flyBall + fielderMove + batterRun',
+      '    外野手は打球方向へ全力で走るがフェンス前で止まる（追いつかない演出）',
+      '    fielderMove.noCatch=true フラグで「捕球しない」動作を実現',
+      '    バッターも一塁へ走り出す',
+      '  ⚾ [3] ファールの軌道表示',
+      '    swing-result.ts: ファール時も batContact を生成（direction を -25°〜-5° or 95°〜115° にずらす）',
+      '    process-pitch.ts: pitchResult.foulContact に打球情報を載せる',
+      '    match-store.ts: foulContact を pitchLog の batContact 形式に合流（fieldResult.type=foul）',
+      '    page.tsx: isFoul 分岐で triggerHitAnimation のみ実行（外野手は動かず打球だけ描画）',
+      '    飛距離は元の 50〜80%、方向はファールゾーン内',
+    ],
+  },
   {
     version: '0.35.0',
     date: '2026-04-23',

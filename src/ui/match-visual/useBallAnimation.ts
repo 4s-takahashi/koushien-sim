@@ -129,7 +129,7 @@ export interface PlayPhase {
 export type PlayPhaseData =
   | { kind: 'groundRoll';  from: FieldPoint; to: FieldPoint }
   | { kind: 'flyBall';     from: FieldPoint; to: FieldPoint; peakHeight: number }
-  | { kind: 'fielderMove'; from: FieldPoint; to: FieldPoint; fielderPosKey: string }
+  | { kind: 'fielderMove'; from: FieldPoint; to: FieldPoint; fielderPosKey: string; noCatch?: boolean }
   | { kind: 'throw';       from: FieldPoint; to: FieldPoint }
   | { kind: 'batterRun';   from: FieldPoint; to: FieldPoint }
   | { kind: 'result';      text: string; isOut: boolean; baseKey?: string };
@@ -475,6 +475,85 @@ export function buildHitSequence(
       startMs: T.resultStart,
       endMs: T.resultEnd,
       data: { kind: 'result', text: 'ヒット！', isOut: false, baseKey: 'first' },
+    },
+  ];
+
+  return { phases, totalMs: T.resultEnd };
+}
+
+/**
+ * v0.36.0: ホームランのシーケンス
+ *
+ * 仕組み:
+ *   1. 打球が弧を描いて外野の奥、場外（スタンド）まで飛ぶ（ゆっくり 2.4秒）
+ *   2. 外野手がボール方向に全力で追いかける（フェンス前まで）
+ *   3. フェンス前で外野手は追いつかず、打球は頭上を越えていく
+ *   4. 「ホームラン！」の結果表示
+ */
+export function buildHomeRunSequence(
+  contact: BatContactForAnimation,
+): PlaySequence {
+  const { direction, distance } = contact;
+  const adjustedDeg = direction - 45;
+  const rad = (adjustedDeg * Math.PI) / 180;
+
+  const outfielder = getFielderForOutfield(direction);
+
+  // 打球の着弾点: 場外（外野手の元位置の 2.8 倍遠く）
+  const homeRunDist = Math.max(380, distance) * 2.6;
+  const ballEndPos: FieldPoint = {
+    x: Math.sin(rad) * homeRunDist,
+    y: Math.cos(rad) * homeRunDist,
+  };
+  const ballFromPos: FieldPoint = FIELD_POSITIONS.home;
+
+  // 外野手の追走先: 元位置から打球方向へ少し進んで、フェンス前で停止
+  const fielderFrom = outfielder.fieldPos;
+  const fenceDist = 90;
+  const fielderTo: FieldPoint = {
+    x: fielderFrom.x + Math.sin(rad) * fenceDist * 0.4,
+    y: fielderFrom.y + Math.cos(rad) * fenceDist * 0.5,
+  };
+
+  // バッターを一塁へ走らせる（ホームラン祝い用）
+  const batterFrom = FIELD_POSITIONS.home;
+  const batterTo = FIELD_POSITIONS.first;
+
+  const T = {
+    flyStart:      0,
+    flyEnd:        2400,  // ゆっくり弧を描いて飛ぶ
+    fielderStart:  150,    // 少し遅れて外野手が追いかける
+    fielderEnd:    1500,
+    batterStart:   300,
+    batterEnd:     1600,
+    resultStart:   2400,
+    resultEnd:     3200,
+  };
+
+  const phases: PlayPhase[] = [
+    {
+      kind: 'flyBall',
+      startMs: T.flyStart,
+      endMs: T.flyEnd,
+      data: { kind: 'flyBall', from: ballFromPos, to: ballEndPos, peakHeight: 1.4 },
+    },
+    {
+      kind: 'fielderMove',
+      startMs: T.fielderStart,
+      endMs: T.fielderEnd,
+      data: { kind: 'fielderMove', from: fielderFrom, to: fielderTo, fielderPosKey: outfielder.posKey, noCatch: true },
+    },
+    {
+      kind: 'batterRun',
+      startMs: T.batterStart,
+      endMs: T.batterEnd,
+      data: { kind: 'batterRun', from: batterFrom, to: batterTo },
+    },
+    {
+      kind: 'result',
+      startMs: T.resultStart,
+      endMs: T.resultEnd,
+      data: { kind: 'result', text: 'ホームラン！', isOut: false, baseKey: 'home' },
     },
   ];
 
@@ -933,7 +1012,10 @@ export function computeTrajectory(contact: BatContactForAnimation): BallTrajecto
   };
 
   // 打球種類に応じた高さと時間
+  // v0.36.0: ホームランはより高く舞い上がる
+  const isHomeRunForHeight = contactType === 'fly_ball' && distance >= 350;
   const peakHeightNorm =
+    isHomeRunForHeight ? 1.4 :
     contactType === 'fly_ball' ? 0.8 :
     contactType === 'popup' ? 0.9 :
     contactType === 'line_drive' ? 0.35 :
@@ -947,15 +1029,18 @@ export function computeTrajectory(contact: BatContactForAnimation): BallTrajecto
     y: endPos.y * 0.4 + (endPos.y * peakHeightNorm * 0.6),
   };
 
-  // 速度に応じたアニメーション時間
-  const durationMs =
-    speed === 'bullet' ? 500 :
-    speed === 'hard' ? 700 :
-    speed === 'normal' ? 900 :
-    1200;
-
   // ホームランの場合はタイプを変更
   const isHomeRunType = contactType === 'fly_ball' && distance >= 350;
+
+  // 速度に応じたアニメーション時間
+  // v0.36.0: ホームランは距離が 2.8 倍になるため、速度も見合った長めに（2400ms）
+  const durationMs = isHomeRunType
+    ? 2400  // ホームランはしっかり飛んでいく様子を見せる
+    : speed === 'bullet' ? 500
+    : speed === 'hard' ? 700
+    : speed === 'normal' ? 900
+    : 1200;
+
   const trajType: BallTrajectory['type'] =
     isHomeRunType ? 'home_run' :
     contactType === 'fly_ball' ? 'fly' :
@@ -1078,11 +1163,12 @@ export function useBallAnimation(): UseBallAnimationReturn {
    * 打球アニメーション（ホームプレート → 着弾点、ベジェ曲線）
    */
   const triggerHitAnimation = useCallback(
-    (trajectory: BallTrajectory) => {
+    (trajectory: BallTrajectory, options?: { keepPlaySequence?: boolean }) => {
       // Phase 12-L: 全アニメーション停止
+      // v0.36.0: keepPlaySequence=true のときは playSequence（外野手追走）を殺さない
       stopAnimation();
       stopHomeRunEffect();
-      stopPlaySequence();
+      if (!options?.keepPlaySequence) stopPlaySequence();
 
       // prefers-reduced-motion 対応
       if (shouldReduceMotion()) {
@@ -1201,7 +1287,8 @@ export function useBallAnimation(): UseBallAnimationReturn {
               };
               animatedFielder = { posKey: d.fielderPosKey, pos: fielderPos };
               // t=0.9 以降はボールをキャッチ（フライの場合はボールを隠す）
-              if (t >= 0.9) {
+              // v0.36.0: noCatch=true のときはボールを捕球しない（ホームラン等）
+              if (t >= 0.9 && !d.noCatch) {
                 ballPos = fielderPos;
                 ballHeight = 0;
               }
