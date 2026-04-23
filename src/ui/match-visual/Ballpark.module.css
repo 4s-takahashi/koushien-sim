@@ -7,7 +7,8 @@
   position: relative;
   width: 100%;
   aspect-ratio: 1 / 1;
-  max-width: 270px;
+  /* Phase 12-M/hotfix-5: グラウンド拡大 270px → 420px（より見やすく） */
+  max-width: 420px;
   overflow: hidden;
   border-radius: 6px;
   background: #757575;

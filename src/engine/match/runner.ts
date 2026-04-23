@@ -107,21 +107,12 @@ export function detectKeyMoment(
   // 試合終了後はキー判定不要
   if (state.isOver) return null;
 
+  // Phase 12-M/hotfix-5: ピンチ・投手疲労・クロスゲームでの自動停止は行わない
+  //   高橋さん指示 (2026-04-23): 試合進行のテンポを優先、勝負所で止まらない
+  //   chance (自校チャンス) のみ残す（プレイヤーに采配を促すため）
   const isPlayerBatting = isPlayerAttacking(state, playerSchoolId);
-  const staminaPct = getPitcherStaminaPct(state);
-  const diff = Math.abs(scoreDiff(state));
 
-  // ① 投手スタミナ 20% 以下（守備側の投手なので、プレイヤーが守備側のときに適用）
-  if (!isPlayerBatting && staminaPct < 0.2) {
-    return { kind: 'pitcher_tired', staminaPct };
-  }
-
-  // ② 7回以降で1点差以内 → クロスゲーム
-  if (state.currentInning >= 7 && diff <= 1) {
-    return { kind: 'close_and_late', inning: state.currentInning };
-  }
-
-  // ③ チャンス / ピンチ検知
+  // ③ チャンス検知 (自校攻撃時のみ残す)
   const hasScoringPos = hasScoringPositionRunner(state);
   const loaded = isBasesLoaded(state);
 
@@ -139,21 +130,6 @@ export function detectKeyMoment(
             ? `${outs}死3塁`
             : `${outs}死2塁`;
       return { kind: 'scoring_chance', detail };
-    }
-  } else {
-    // 相手攻撃中（自校守備）: ピンチ
-    if (loaded) {
-      return { kind: 'pinch', detail: '満塁' };
-    }
-    if (hasScoringPos) {
-      const outs = state.outs;
-      const detail =
-        state.bases.second && state.bases.third
-          ? `2・3塁`
-          : state.bases.third
-            ? `${outs}死3塁`
-            : `${outs}死2塁`;
-      return { kind: 'pinch', detail };
     }
   }
 

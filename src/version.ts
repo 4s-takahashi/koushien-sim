@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.32.3';
+export const VERSION = '0.32.4';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-23 11:44 UTC';
-export const GIT_SHA = '96064c1-dirty';
+export const BUILD_DATE = '2026-04-23 11:52 UTC';
+export const GIT_SHA = '3f45b9b-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,19 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.32.4',
+    date: '2026-04-23',
+    changes: [
+      '✨ Phase 12-M/hotfix-5: UI仕様修正3件（+ 長打アニメは次版）',
+      '  🎨 BSO カウント表示を実物のカウンター模倣に変更',
+      '    B: 緑3個 / S: 黄2個 / O: 赤2個 のドット表示',
+      '  📐 グラウンドを拡大 270px → 420px（左上カウンターまで大きく）',
+      '  ⚡ ピンチ・投手疲労・クロスゲームでの自動停止を解除',
+      '    → チャンス時のみ停止（自校攻撃中の采配を促すため）',
+      '  🚧 長打・タッチアップアニメは次版 (0.32.5) で実装予定',
+    ],
+  },
   {
     version: '0.32.3',
     date: '2026-04-23',

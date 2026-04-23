@@ -129,23 +129,62 @@ function Scoreboard({ view, matchId }: { view: MatchViewState; matchId: string }
 
         <div className={styles.scoreboardInfo}>
           <span className={styles.inningLabel}>{view.inningLabel}</span>
-          <div className={styles.outsCount}>
-            {[0, 1, 2].map((i) => (
-              <div
-                key={i}
-                className={`${styles.outDot} ${
-                  // outsLabel = "2アウト" → outsNum
-                  parseInt(view.outsLabel) > i ? styles.outDotFilled : ''
-                }`}
-              />
-            ))}
-          </div>
-          <span className={styles.countDisplay}>
-            <span className={styles.countBalls}>{view.count.balls}</span>
-            -
-            <span className={styles.countStrikes}>{view.count.strikes}</span>
-          </span>
+          {/* Phase 12-M/hotfix-5: 実物カウンター模倣の BSO ドット表示 */}
+          <BSOPanel
+            balls={view.count.balls}
+            strikes={view.count.strikes}
+            outs={parseInt(view.outsLabel) || 0}
+            compact
+          />
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// BSO カウントパネル（実物の野球カウンター模倣）
+// B: 緑 3 個 / S: 黄 2 個 / O: 赤 2 個
+// ============================================================
+function BSOPanel({
+  balls,
+  strikes,
+  outs,
+  compact,
+}: {
+  balls: number;
+  strikes: number;
+  outs: number;
+  compact?: boolean;
+}) {
+  return (
+    <div className={`${styles.bsoPanel} ${compact ? styles.bsoPanelCompact : ''}`}>
+      <div className={styles.bsoLabel}>B</div>
+      <div className={styles.bsoDots}>
+        {[0, 1, 2].map((i) => (
+          <div
+            key={i}
+            className={`${styles.bsoDot} ${i < balls ? styles.bsoDotBallOn : ''}`}
+          />
+        ))}
+      </div>
+      <div className={styles.bsoLabel}>S</div>
+      <div className={styles.bsoDots}>
+        {[0, 1].map((i) => (
+          <div
+            key={i}
+            className={`${styles.bsoDot} ${i < strikes ? styles.bsoDotStrikeOn : ''}`}
+          />
+        ))}
+      </div>
+      <div className={styles.bsoLabel}>O</div>
+      <div className={styles.bsoDots}>
+        {[0, 1].map((i) => (
+          <div
+            key={i}
+            className={`${styles.bsoDot} ${i < outs ? styles.bsoDotOutOn : ''}`}
+          />
+        ))}
       </div>
     </div>
   );
