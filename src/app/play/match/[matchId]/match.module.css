@@ -1633,3 +1633,80 @@
   height: 10px;
   border-width: 1px;
 }
+
+/* ============================================================ */
+/* v0.35.0: CHANGE 演出オーバーレイ */
+/* ============================================================ */
+
+.changeOverlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 199;
+  pointer-events: none;
+  animation: changeFadeInOut 2.0s ease forwards;
+}
+
+.changeBand {
+  width: 100%;
+  height: 130px;
+  background: rgba(255, 255, 255, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  box-shadow: 0 0 30px rgba(255, 255, 255, 0.4);
+  border-top: 4px solid #1b5e20;
+  border-bottom: 4px solid #1b5e20;
+}
+
+.changeText {
+  font-size: 72px;
+  font-weight: 900;
+  color: #1a1a2e;
+  letter-spacing: 10px;
+  text-transform: uppercase;
+  font-family: 'Impact', 'Arial Black', 'Noto Sans JP', sans-serif;
+  text-shadow: 2px 2px 0 rgba(0,0,0,0.15);
+  user-select: none;
+}
+
+.changeSubText {
+  position: absolute;
+  bottom: 14px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: #2e7d32;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+}
+
+.changeAccent {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 5px;
+  background: linear-gradient(90deg, #1b5e20, #43a047, #1b5e20);
+}
+
+.changeAccentBottom {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 5px;
+  background: linear-gradient(90deg, #1b5e20, #43a047, #1b5e20);
+}
+
+@keyframes changeFadeInOut {
+  0%   { opacity: 0; }
+  12%  { opacity: 1; }
+  72%  { opacity: 1; }
+  100% { opacity: 0; }
+}

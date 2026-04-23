@@ -877,11 +877,13 @@ export function bezier2(
 /**
  * 球速 (km/h) → アニメーション時間 (ms)
  *
- * 150km/h → ~200ms, 120km/h → ~350ms, 80km/h → ~450ms
+ * v0.35.0: 球速による差を拡大（体感しやすいよう 3.7 倍の差）
+ * 150km/h → ~170ms, 120km/h → ~300ms, 100km/h → ~430ms, 80km/h → ~550ms
  */
 export function pitchSpeedToDuration(speedKmh: number): number {
   const clipped = Math.max(80, Math.min(170, speedKmh));
-  return Math.round(450 - ((clipped - 80) / 90) * 250);
+  // 80km/h = 550ms, 170km/h = 130ms （範囲 420ms, 傾き 4.67ms/km/h）
+  return Math.round(550 - ((clipped - 80) / 90) * 420);
 }
 
 /**

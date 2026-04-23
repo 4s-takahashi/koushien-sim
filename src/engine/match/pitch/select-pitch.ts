@@ -9,6 +9,27 @@ export interface SelectPitchResult {
 }
 
 /**
+ * v0.35.0: 球種ごとの速度係数（ストレート比）
+ *
+ * 高橋さんフィードバック: チェンジアップがストレートと速度差がないのは不自然。
+ * 実際の野球の球種別スピード比（目安）:
+ *   - cutter (カットボール): 0.95（ストレート比 ~5%減）
+ *   - sinker (シンカー):     0.92
+ *   - slider (スライダー):   0.85（ストレート比 ~15%減）
+ *   - fork   (フォーク):     0.85
+ *   - curve  (カーブ):       0.80（ストレート比 ~20%減）
+ *   - changeup (チェンジアップ): 0.68（ストレート比 ~32%減、最も遅い）
+ */
+const PITCH_TYPE_VELOCITY_FACTOR: Record<PitchType, number> = {
+  cutter: 0.95,
+  sinker: 0.92,
+  slider: 0.85,
+  fork: 0.85,
+  curve: 0.80,
+  changeup: 0.68,
+};
+
+/**
  * 球種とコースを選択する（投手のアクション）
  */
 export function selectPitch(
@@ -51,9 +72,11 @@ export function selectPitch(
       const pitchType = rng.pick(pitchTypes);
       const breakLevel =
         (availablePitches[pitchType] ?? 1) as number;
+      // v0.35.0: 球種ごとに速度係数を変える（チェンジアップが最も遅い）
+      const velocityFactor = PITCH_TYPE_VELOCITY_FACTOR[pitchType] ?? 0.9;
       selection = {
         type: pitchType,
-        velocity: velocity * 0.9, // 変化球は遅い
+        velocity: velocity * velocityFactor,
         breakLevel,
       };
     }

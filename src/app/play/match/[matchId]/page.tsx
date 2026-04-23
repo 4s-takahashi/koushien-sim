@@ -1138,6 +1138,24 @@ function PlayBallOverlay({ visible }: { visible: boolean }) {
   );
 }
 
+/**
+ * v0.35.0: CHANGE 演出オーバーレイ
+ * ハーフイニング切替時（3アウト後）に PLAY BALL と同じ帯デザインで "CHANGE" を表示
+ */
+function ChangeOverlay({ visible, nextHalf }: { visible: boolean; nextHalf: string }) {
+  if (!visible) return null;
+  return (
+    <div className={styles.changeOverlay}>
+      <div className={styles.changeBand}>
+        <div className={styles.changeAccent} />
+        <div className={styles.changeAccentBottom} />
+        <span className={styles.changeText}>CHANGE</span>
+        <span className={styles.changeSubText}>{nextHalf}</span>
+      </div>
+    </div>
+  );
+}
+
 // ============================================================
 // 試合終了モーダル
 // ============================================================
@@ -1749,6 +1767,27 @@ function MatchPageInner({
   // ===== v0.34.0: 効果音 =====
   const sound = useSound();
 
+  // ===== v0.35.0: CHANGE 帯表示（ハーフイニング切替時） =====
+  const [showChangeOverlay, setShowChangeOverlay] = useState(false);
+  const [changeOverlayNextHalf, setChangeOverlayNextHalf] = useState<string>('');
+  const prevInningLabelForChangeRef = useRef<string>(view.inningLabel);
+  useEffect(() => {
+    if (prevInningLabelForChangeRef.current === view.inningLabel) return;
+    // 初期マウント時は CHANGE を出さない（PLAY BALL と被るため）
+    // prevInningLabelForChange が空文字の場合もスキップ
+    const prev = prevInningLabelForChangeRef.current;
+    prevInningLabelForChangeRef.current = view.inningLabel;
+    if (!prev) return;
+    // PLAY BALL 演出中（showPlayBall=true）はスキップ
+    if (showPlayBall) return;
+
+    // CHANGE 帯を表示（1.5秒後にスコアボードが出る）
+    setChangeOverlayNextHalf(view.inningLabel);
+    setShowChangeOverlay(true);
+    const timer = setTimeout(() => setShowChangeOverlay(false), 1700);
+    return () => clearTimeout(timer);
+  }, [view.inningLabel, showPlayBall]);
+
   // ===== Phase 12: マーカーストア =====
   const addPitchMarker = useMatchVisualStore((s) => s.addPitchMarker);
   const setSwingMarker = useMatchVisualStore((s) => s.setSwingMarker);
@@ -1840,20 +1879,19 @@ function MatchPageInner({
       // 投球から少し遅れてインパクト音
       const batDelay = latest.pitchSpeed ? Math.min(250, 80000 / latest.pitchSpeed) : 250;
       setTimeout(() => sound.play(batSoundId, { volume: 1.0 }), batDelay);
+      // v0.35.0: ホームラン判定は fieldResult.type を最優先（engine の結果を信用する）
+      const fieldResultType = batContact.fieldResult?.type ?? undefined;
+      const isHomeRun = fieldResultType === 'home_run';
+
+      // ホームラン時はフライ扱いで十分距離を取った trajectory を生成（contactType が ground_ball でも場外へ）
       const trajectory = computeTrajectory({
-        contactType: batContact.contactType,
+        contactType: isHomeRun ? 'fly_ball' : batContact.contactType,
         direction: batContact.direction,
-        speed: batContact.speed,
-        distance: batContact.distance,
+        speed: isHomeRun ? 'bullet' : batContact.speed,
+        distance: isHomeRun ? Math.max(380, batContact.distance) : batContact.distance,
       });
       const delay = latest.pitchSpeed ? Math.min(300, 100000 / latest.pitchSpeed) : 300;
 
-      // ホームランは従来通り triggerHitAnimation + triggerHomeRunEffect
-      const isHomeRun = trajectory.type === 'home_run';
-
-      // Phase 12-J: fieldResult.type に基づいてシーケンスを選択
-      // batContact.fieldResult が存在する場合はそれを使用
-      const fieldResultType = batContact.fieldResult?.type ?? undefined;
       // fieldResult.fielder は view-state-types では定義されていないためオプション
       const fielderPosition: string | undefined = undefined;
 
@@ -1893,6 +1931,9 @@ function MatchPageInner({
     <div className={styles.page}>
       {/* Phase 12-H: PLAY BALL 演出 */}
       <PlayBallOverlay visible={showPlayBall} />
+
+      {/* v0.35.0: CHANGE 帯（ハーフイニング切替時） */}
+      <ChangeOverlay visible={showChangeOverlay} nextHalf={changeOverlayNextHalf} />
 
       {/* v0.34.0: 効果音コントロール（右上固定） */}
       <SoundControl

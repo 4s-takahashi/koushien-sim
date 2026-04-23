@@ -11,13 +11,14 @@ import {
 import type { BatContactForAnimation } from '../../../src/ui/match-visual/useBallAnimation';
 
 describe('pitchSpeedToDuration', () => {
-  it('160km/h → 250ms 以下（速い球は短い時間）', () => {
-    // 計算式: 450 - ((160-80)/90)*250 ≈ 228ms
-    expect(pitchSpeedToDuration(160)).toBeLessThanOrEqual(250);
+  // v0.35.0: 球速による差を拡大（550ms - 130ms の範囲）
+  it('160km/h → 200ms 以下（速い球は短い時間）', () => {
+    // 計算式: 550 - ((160-80)/90)*420 ≈ 177ms
+    expect(pitchSpeedToDuration(160)).toBeLessThanOrEqual(200);
   });
 
-  it('80km/h → 450ms（遅い球は長い時間）', () => {
-    expect(pitchSpeedToDuration(80)).toBeCloseTo(450, -1);
+  it('80km/h → 550ms（遅い球は長い時間）', () => {
+    expect(pitchSpeedToDuration(80)).toBeCloseTo(550, -1);
   });
 
   it('150km/h → 80km/h より短い', () => {

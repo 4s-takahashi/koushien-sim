@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.34.0';
+export const VERSION = '0.35.0';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-23 13:32 UTC';
-export const GIT_SHA = '395e9ba-dirty';
+export const BUILD_DATE = '2026-04-23 14:01 UTC';
+export const GIT_SHA = '6b5a6da-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,32 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.35.0',
+    date: '2026-04-23',
+    changes: [
+      '🎬 v0.35.0: 試合演出・物理感 4件修正（高橋さん指示）',
+      '  💥 [1] ホームラン判定を fieldResult.type 優先に変更',
+      '    エンジンが home_run を返した場合、contactType が ground_ball でも fly_ball 扱いで打球軌跡を生成',
+      '    distance を 380 以上に補正して場外までしっかり飛ばす',
+      '    速度も bullet 固定で爽快感 UP',
+      '  🔄 [2] CHANGE 帯演出を追加',
+      '    PLAYBALL と同じ帯デザインで「CHANGE」文字＋次イニング表記を表示',
+      '    3アウト後にスコアボードが即表示されてしまう問題を解消',
+      '    useScoreboardVisibility に changeDelayMs (デフォルト 1500ms) 追加',
+      '    CHANGE 帯 → 1.5秒後 → スコアボードの順序で演出',
+      '  ⚾ [3] チェンジアップ速度を本格的に遅く',
+      '    選球種係数を導入 (fastball=1.0 / cutter=0.95 / sinker=0.92 / slider=0.85 / fork=0.85 / curve=0.80 / changeup=0.68)',
+      '    チェンジアップは全球種で最も遅い (ストレート比 -32%)',
+      '  💨 [4] 球速差の視覚的拡大',
+      '    pitchSpeedToDuration 範囲を 450-200ms → 550-130ms に拡大 (差 420ms、3.7倍)',
+      '    100km/h と 150km/h の体感差が明確に',
+      '  📝 [5] 配球学習ロジック (質問)',
+      '    現状: 各投球は単発で処理され、前球の影響は未実装',
+      '    インコース→アウトコースの打ちづらさ、高めの被弾率向上などは未反映',
+      '    別リリースでの実装を計画（要大きな engine 変更）',
+    ],
+  },
   {
     version: '0.34.0',
     date: '2026-04-23',

@@ -28,10 +28,12 @@ export interface UseScoreboardVisibilityReturn {
  *
  * @param inningLabel 現在のイニングラベル（"1回表" など）。変化を検出して表示をトリガー
  * @param autoHideMs  表示後に自動非表示するまでの時間（デフォルト 2000ms）
+ * @param changeDelayMs  イニング変化検出から表示開始までの遅延（v0.35.0: CHANGE 帯の後に出すため、デフォルト 1500ms）
  */
 export function useScoreboardVisibility(
   inningLabel: string,
   autoHideMs = 2000,
+  changeDelayMs = 1500,
 ): UseScoreboardVisibilityReturn {
   const [phase, setPhase] = useState<ScoreboardPhase>('hidden');
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -97,16 +99,16 @@ export function useScoreboardVisibility(
 
     if (prevInningLabel.current !== inningLabel) {
       prevInningLabel.current = inningLabel;
-      // 少し遅延してから表示（前のアニメーション終了を待つ）
+      // v0.35.0: CHANGE 帯の後に表示するため、従来より大きめの遅延（デフォルト 1500ms）
       timerRef.current = setTimeout(() => {
         runShowSequence();
-      }, 200);
+      }, changeDelayMs);
     }
 
     return () => {
       clearTimers();
     };
-  }, [inningLabel, runShowSequence, clearTimers]);
+  }, [inningLabel, runShowSequence, clearTimers, changeDelayMs]);
 
   // アンマウント時にタイマーをクリア
   useEffect(() => {
