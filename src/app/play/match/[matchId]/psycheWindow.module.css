@@ -1,5 +1,5 @@
 /* ============================================================ */
-/* 心理ウィンドウ — psycheWindow.module.css (Phase 7-B) */
+/* 心理ウィンドウ — psycheWindow.module.css (Phase 7-B / 12-I) */
 /* ============================================================ */
 
 .psycheWindow {
@@ -18,9 +18,48 @@
   margin-bottom: 8px;
   padding-bottom: 4px;
   border-bottom: 1px solid rgba(156, 136, 216, 0.25);
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
-/* 吹き出し群を横並び */
+/* Phase 12-I: ローテーション表示用ドット */
+.psycheRotateDots {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+}
+
+.psycheRotateDot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #37474f;
+}
+
+.psycheRotateDotActive {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #9c88d8;
+}
+
+/* Phase 12-I: フェードアニメーション */
+.bubbleFade {
+  transition: opacity 0.2s ease;
+}
+
+.bubbleFadeIn {
+  opacity: 1;
+}
+
+.bubbleFadeOut {
+  opacity: 0;
+}
+
+/* Phase 12-I: 1バブル表示用（旧 bubblesRow は互換のため残す） */
 .bubblesRow {
   display: flex;
   gap: 8px;
@@ -40,6 +79,14 @@
   padding: 8px 10px;
   position: relative;
   border: 1px solid #2a2a6e;
+}
+
+/* Phase 12-I: 1バブル表示モード（横幅を広げてコンパクトに） */
+.bubbleSingle {
+  flex: none;
+  min-width: unset;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .bubbleHeader {

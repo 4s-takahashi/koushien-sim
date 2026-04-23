@@ -4,12 +4,13 @@
  * PsycheWindow.tsx
  *
  * Phase 7-B: 選手心理ウィンドウ
- * 直前の投球に紐づくモノローグを吹き出し風に表示する。
- * - 打者は左側
- * - 投手は右側
- * - 捕手は中央下
+ * Phase 12-I: 3バブル横並び → 1バブル + 1秒ローテーション
+ *
+ * 打者→捕手→投手を1秒ごとに切り替えて1つの吹き出しで表示する。
+ * null/undefined の役割はスキップする。
  */
 
+import { useState, useEffect } from 'react';
 import type { MonologueEntry } from '../../../../ui/projectors/view-state-types';
 import styles from './psycheWindow.module.css';
 
@@ -31,7 +32,7 @@ interface PsycheWindowProps {
 }
 
 // ============================================================
-// 吹き出しコンポーネント
+// 吹き出しコンポーネント（1バブル）
 // ============================================================
 
 interface BubbleProps {
@@ -57,7 +58,7 @@ function Bubble({ role, text, effectSummary, playerName }: BubbleProps) {
     role === 'runner' ? '走者' : '野手';
 
   return (
-    <div className={`${styles.bubble} ${positionCls}`}>
+    <div className={`${styles.bubble} ${positionCls} ${styles.bubbleSingle}`}>
       <div className={styles.bubbleHeader}>
         <span className={styles.bubbleRole}>{roleLabel}</span>
         <span className={styles.bubbleName}>{playerName}</span>
@@ -75,56 +76,66 @@ function Bubble({ role, text, effectSummary, playerName }: BubbleProps) {
 // ============================================================
 
 export function PsycheWindow({ monologues, batterName, batterSchoolShortName, pitcherName, pitcherSchoolShortName }: PsycheWindowProps) {
+  const [roleIndex, setRoleIndex] = useState(0);
+  const [visible, setVisible] = useState(true);
+
   if (!monologues || monologues.length === 0) {
     return null;
   }
 
   const batter = monologues.find((m) => m.role === 'batter');
-  const pitcher = monologues.find((m) => m.role === 'pitcher');
   const catcher = monologues.find((m) => m.role === 'catcher');
+  const pitcher = monologues.find((m) => m.role === 'pitcher');
 
-  const hasBubble = batter || pitcher || catcher;
+  // null でないロールを順番に並べる（打者→捕手→投手）
+  const activeBubbles = [
+    batter  ? { entry: batter,  name: batterSchoolShortName ? `${batterName}(${batterSchoolShortName})` : batterName } : null,
+    catcher ? { entry: catcher, name: '捕手' } : null,
+    pitcher ? { entry: pitcher, name: pitcherSchoolShortName ? `${pitcherName}(${pitcherSchoolShortName})` : pitcherName } : null,
+  ].filter((b): b is NonNullable<typeof b> => b !== null);
+
+  const hasBubble = activeBubbles.length > 0;
   if (!hasBubble) return null;
 
-  const getPlayerName = (role: MonologueEntry['role']) => {
-    if (role === 'batter') {
-      return batterSchoolShortName ? `${batterName}(${batterSchoolShortName})` : batterName;
-    }
-    if (role === 'pitcher') {
-      return pitcherSchoolShortName ? `${pitcherName}(${pitcherSchoolShortName})` : pitcherName;
-    }
-    if (role === 'catcher') return '捕手';
-    return role;
-  };
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  useEffect(() => {
+    if (activeBubbles.length <= 1) return;
+    const interval = setInterval(() => {
+      // フェードアウト → インデックス更新 → フェードイン
+      setVisible(false);
+      setTimeout(() => {
+        setRoleIndex((prev) => (prev + 1) % activeBubbles.length);
+        setVisible(true);
+      }, 200);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [activeBubbles.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const safeIndex = roleIndex % activeBubbles.length;
+  const current = activeBubbles[safeIndex];
 
   return (
     <div className={styles.psycheWindow}>
-      <div className={styles.psycheTitle}>🧠 選手心理</div>
-      <div className={styles.bubblesRow}>
-        {batter && (
-          <Bubble
-            role={batter.role}
-            text={batter.text}
-            effectSummary={batter.effectSummary}
-            playerName={getPlayerName(batter.role)}
-          />
+      <div className={styles.psycheTitle}>
+        🧠 選手心理
+        {activeBubbles.length > 1 && (
+          <span className={styles.psycheRotateDots}>
+            {activeBubbles.map((_, i) => (
+              <span
+                key={i}
+                className={i === safeIndex ? styles.psycheRotateDotActive : styles.psycheRotateDot}
+              />
+            ))}
+          </span>
         )}
-        {catcher && (
-          <Bubble
-            role={catcher.role}
-            text={catcher.text}
-            effectSummary={catcher.effectSummary}
-            playerName={getPlayerName(catcher.role)}
-          />
-        )}
-        {pitcher && (
-          <Bubble
-            role={pitcher.role}
-            text={pitcher.text}
-            effectSummary={pitcher.effectSummary}
-            playerName={getPlayerName(pitcher.role)}
-          />
-        )}
+      </div>
+      <div className={`${styles.bubbleFade} ${visible ? styles.bubbleFadeIn : styles.bubbleFadeOut}`}>
+        <Bubble
+          role={current.entry.role}
+          text={current.entry.text}
+          effectSummary={current.entry.effectSummary}
+          playerName={current.name}
+        />
       </div>
     </div>
   );

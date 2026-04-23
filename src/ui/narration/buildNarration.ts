@@ -191,7 +191,7 @@ export function buildNarrationForPitch(
   const baseId = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
   const batter = getBatterName(stateBefore);
-  const pitcher = getPitcherName(stateBefore);
+  // Phase 12-I: 実況ログから「投手→打者」記述を削除したため pitcher 変数は不要
   const pitchType = pitchTypeJP(pitch.pitchSelection.type);
 
   // ── Phase 7-F: 盗塁イベントの実況（投球前に差し込む） ──
@@ -295,9 +295,10 @@ export function buildNarrationForPitch(
     ? `${locationText}の${pitchType} ${speedKmh}km/h`
     : `${pitchType} ${speedKmh}km/h`;
 
+  // Phase 12-I: 「投手→打者:」の記述を削除し、打者名 + 投球詳細のみ表示
   entries.push({
     id: `${baseId}-p`,
-    text: `⚾ ${pitcher} → ${batter}: ${pitchDetail} … ${resultText}`,
+    text: `⚾ ${batter}: ${pitchDetail} … ${resultText}`,
     kind: resultKind,
     inning: stateBefore.currentInning,
     half: stateBefore.currentHalf,

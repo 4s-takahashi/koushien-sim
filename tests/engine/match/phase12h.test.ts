@@ -131,10 +131,12 @@ describe('consumeNextOrder (Phase 12-H)', () => {
       autoAdvance: false,
       pendingNextOrder: null,
       nextAutoAdvanceAt: null,
+      // Phase 12-I: lastOrder も毎回リセットして独立したテストにする
+      lastOrder: null,
     });
   });
 
-  it('pendingNextOrder が null のとき null を返す', () => {
+  it('pendingNextOrder が null かつ lastOrder も null のとき null を返す', () => {
     const { consumeNextOrder } = useMatchStore.getState();
     const result = consumeNextOrder();
     expect(result).toBeNull();
@@ -150,12 +152,12 @@ describe('consumeNextOrder (Phase 12-H)', () => {
     expect(useMatchStore.getState().pendingNextOrder).toBeNull();
   });
 
-  it('2回連続で consumeNextOrder すると2回目は null', () => {
+  it('2回連続で consumeNextOrder すると2回目は null (lastOrder も null の場合)', () => {
     const { setPendingNextOrder, consumeNextOrder } = useMatchStore.getState();
     setPendingNextOrder({ type: 'steal', runnerId: 'runner-001' });
 
     consumeNextOrder(); // 1回目: 消費
-    const second = consumeNextOrder(); // 2回目: null
+    const second = consumeNextOrder(); // 2回目: lastOrder=null → null
     expect(second).toBeNull();
   });
 
@@ -165,5 +167,63 @@ describe('consumeNextOrder (Phase 12-H)', () => {
     const result = consumeNextOrder();
     expect(result).toEqual({ type: 'none' });
     expect(useMatchStore.getState().pendingNextOrder).toBeNull();
+  });
+});
+
+// ============================================================
+// 5. Phase 12-I: 前回采配継続テスト
+// ============================================================
+
+describe('consumeNextOrder continuation (Phase 12-I)', () => {
+  beforeEach(() => {
+    useMatchStore.setState({
+      autoAdvance: false,
+      pendingNextOrder: null,
+      nextAutoAdvanceAt: null,
+      lastOrder: null,
+    });
+  });
+
+  it('pendingNextOrder が null のとき lastOrder を返す', () => {
+    useMatchStore.setState({ lastOrder: { type: 'bunt', playerId: 'batter-001' } });
+    const { consumeNextOrder } = useMatchStore.getState();
+    const result = consumeNextOrder();
+    expect(result).toEqual({ type: 'bunt', playerId: 'batter-001' });
+  });
+
+  it('pendingNextOrder が null で lastOrder が steal のとき steal を返す', () => {
+    useMatchStore.setState({ lastOrder: { type: 'steal', runnerId: 'runner-001' } });
+    const { consumeNextOrder } = useMatchStore.getState();
+    const result = consumeNextOrder();
+    expect(result).toEqual({ type: 'steal', runnerId: 'runner-001' });
+  });
+
+  it('pendingNextOrder が存在するとき、lastOrder より pendingNextOrder を優先する', () => {
+    useMatchStore.setState({
+      lastOrder: { type: 'bunt', playerId: 'batter-001' },
+      pendingNextOrder: { type: 'steal', runnerId: 'runner-002' },
+    });
+    const { consumeNextOrder } = useMatchStore.getState();
+    const result = consumeNextOrder();
+    // pendingNextOrder が優先
+    expect(result).toEqual({ type: 'steal', runnerId: 'runner-002' });
+    // 消費後は null にリセット
+    expect(useMatchStore.getState().pendingNextOrder).toBeNull();
+  });
+
+  it('pendingNextOrder 消費後の次回呼び出しは lastOrder を返す', () => {
+    useMatchStore.setState({
+      lastOrder: { type: 'bunt', playerId: 'batter-001' },
+      pendingNextOrder: { type: 'steal', runnerId: 'runner-002' },
+    });
+    const { consumeNextOrder } = useMatchStore.getState();
+
+    // 1回目: pendingNextOrder を消費
+    const first = consumeNextOrder();
+    expect(first).toEqual({ type: 'steal', runnerId: 'runner-002' });
+
+    // 2回目: pendingNextOrder が null なので lastOrder を返す
+    const second = consumeNextOrder();
+    expect(second).toEqual({ type: 'bunt', playerId: 'batter-001' });
   });
 });

@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.27.0';
+export const VERSION = '0.28.0';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-23 01:39 UTC';
-export const GIT_SHA = '8eedb01';
+export const BUILD_DATE = '2026-04-23 02:12 UTC';
+export const GIT_SHA = 'f6fa8d0-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,28 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.28.0',
+    date: '2026-04-23',
+    changes: [
+      '⚾ Phase 12-I: 自動進行采配継続・心理ウィンドウ統合・vs表示改行',
+      '【I-1】自動進行中の前回采配継続',
+      '  consumeNextOrder() が pendingNextOrder=null のとき lastOrder を継続指示として返す',
+      '  AutoAdvanceBarの「指示なし」ボタンを「継続中の指示: ○○」表示に変更',
+      '  新テスト: 前回采配継続・pendingが優先されること・消費後は継続指示を返すこと',
+      '',
+      '【I-2】選手心理ウィンドウの統合',
+      '  3バブル横並び → 1バブル + 1秒ローテーション表示',
+      '  打者→捕手→投手の順で1秒ごとに切り替え（null役割はスキップ）',
+      '  フェードアニメーション 200ms を追加',
+      '  ローテーション位置インジケーター（ドット）を追加',
+      '',
+      '【I-3】実況ログ + vs表示の改善',
+      '  実況ログから「投手→打者:」の記述を削除（打者名+投球詳細のみ）',
+      '  ストライクゾーン上の vs表示を2行形式に変更',
+      '  投手：○○(学校) / 打者：○○(学校) の2行表示',
+    ],
+  },
   {
     version: '0.27.0',
     date: '2026-04-22',

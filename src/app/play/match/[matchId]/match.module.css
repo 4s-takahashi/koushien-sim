@@ -1523,6 +1523,24 @@
   color: #fff;
 }
 
+/* Phase 12-I: 継続中の指示表示 */
+.autoAdvanceContinueOrderActive {
+  font-size: 11px;
+  font-weight: 600;
+  color: #ffd54f;
+  background: rgba(255, 193, 7, 0.12);
+  border: 1px solid rgba(255, 213, 79, 0.4);
+  border-radius: 3px;
+  padding: 2px 7px;
+  white-space: nowrap;
+}
+
+.autoAdvanceContinueOrderNone {
+  font-size: 11px;
+  color: #546e7a;
+  padding: 2px 4px;
+}
+
 .autoAdvanceNowBtn {
   padding: 3px 8px;
   font-size: 11px;

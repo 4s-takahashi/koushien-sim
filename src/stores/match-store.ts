@@ -988,11 +988,15 @@ export const useMatchStore = create<MatchStore>()(
   },
 
   consumeNextOrder: () => {
-    const { pendingNextOrder } = get();
+    const { pendingNextOrder, lastOrder } = get();
     if (pendingNextOrder) {
+      // 明示的に事前選択された指示があればそれを消費して返す
       set({ pendingNextOrder: null });
+      return pendingNextOrder;
     }
-    return pendingNextOrder;
+    // Phase 12-I: pendingNextOrder が null のとき、lastOrder を継続指示として返す
+    // これにより自動進行中は前回の采配が引き継がれる
+    return lastOrder;
   },
     }),
     {

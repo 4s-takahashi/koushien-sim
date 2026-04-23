@@ -862,15 +862,32 @@ interface AutoAdvanceBarProps {
   isPaused: boolean;
   /** 今すぐ進める */
   onAdvanceNow: () => void;
-  /** 指示なしで進める */
+  /** 指示なしで進める (Phase 12-I: 後方互換のため残す) */
   onSkipOrder: () => void;
+  /** Phase 12-I: 継続中の采配（lastOrder）。null = 指示なし */
+  continuingOrder: TacticalOrder | null;
+}
+
+/** Phase 12-I: TacticalOrder を日本語ラベルに変換する */
+function tacticalOrderLabel(order: TacticalOrder | null): string {
+  if (!order || order.type === 'none') return '指示なし';
+  switch (order.type) {
+    case 'bunt': return 'バント';
+    case 'steal': return '盗塁';
+    case 'hit_and_run': return 'ヒットエンドラン';
+    case 'intentional_walk': return '申告敬遠';
+    case 'batter_detailed': return '打者詳細采配';
+    case 'pitcher_detailed': return '投手詳細采配';
+    default: return '指示なし';
+  }
 }
 
 function AutoAdvanceBar({
   autoAdvance, timeMode, pitchMode,
   onToggleAutoAdvance, onSetTimeMode,
   remainingMs, isPaused,
-  onAdvanceNow, onSkipOrder,
+  onAdvanceNow,
+  continuingOrder,
 }: AutoAdvanceBarProps) {
   const modeLabel = pitchMode === 'on' ? '次の1球' : '次の打席';
   const delayLabel = DELAY_MS[timeMode] / 1000;
@@ -879,6 +896,10 @@ function AutoAdvanceBar({
     remainingMs !== null && autoAdvance && !isPaused
       ? `${modeLabel}まで 残り ${(remainingMs / 1000).toFixed(1)}秒`
       : null;
+
+  // Phase 12-I: 継続中の指示ラベル
+  const continuingLabel = tacticalOrderLabel(continuingOrder);
+  const hasContinuingOrder = continuingOrder !== null && continuingOrder.type !== 'none';
 
   return (
     <div className={styles.autoAdvanceBar}>
@@ -925,10 +946,11 @@ function AutoAdvanceBar({
             </span>
           )}
           <div className={styles.autoAdvanceNextOrderSection}>
-            <span className={styles.autoAdvanceNextOrderLabel}>{modeLabel}の指示:</span>
-            <button className={styles.autoAdvanceSkipBtn} onClick={onSkipOrder}>
-              指示なし
-            </button>
+            {/* Phase 12-I: 「指示なし」ボタンの代わりに継続中の指示を表示 */}
+            <span className={styles.autoAdvanceNextOrderLabel}>継続中の指示:</span>
+            <span className={hasContinuingOrder ? styles.autoAdvanceContinueOrderActive : styles.autoAdvanceContinueOrderNone}>
+              {continuingLabel}
+            </span>
             <button className={styles.autoAdvanceNowBtn} onClick={onAdvanceNow}>
               今すぐ進める
             </button>
@@ -1492,6 +1514,7 @@ export default function MatchPage() {
       nextAutoAdvanceAt={remainingMs}
       onAdvanceNow={handleAdvanceNow}
       onSkipOrder={handleSkipOrder}
+      continuingOrder={lastOrder}
     />
   );
 }
@@ -1533,6 +1556,8 @@ interface MatchPageInnerProps {
   nextAutoAdvanceAt: number | null;
   onAdvanceNow: () => void;
   onSkipOrder: () => void;
+  // Phase 12-I: 継続中の采配
+  continuingOrder: TacticalOrder | null;
 }
 
 function MatchPageInner({
@@ -1567,6 +1592,7 @@ function MatchPageInner({
   nextAutoAdvanceAt,
   onAdvanceNow,
   onSkipOrder,
+  continuingOrder,
 }: MatchPageInnerProps) {
   const [selectMode, setSelectMode] = useState<SelectMode>({ type: 'none' });
   const matchResult = useMatchStore((s) => s.matchResult);
@@ -1733,7 +1759,8 @@ function MatchPageInner({
         {/* 中カラム: ストライクゾーン (40%縮小) */}
         <div className={visualStyles.strikeZoneColumn}>
           <div className={visualStyles.strikeZoneLabel}>
-            📍 {view.pitcher.name} vs {view.batter.name}
+            <span>投手：{view.pitcher.name}{view.pitcher.schoolShortName ? `(${view.pitcher.schoolShortName})` : ''}</span>
+            <span>打者：{view.batter.name}{view.batter.schoolShortName ? `(${view.batter.schoolShortName})` : ''}</span>
           </div>
           <StrikeZone history={markerHistory} />
         </div>
@@ -1769,7 +1796,7 @@ function MatchPageInner({
         isMatchOver={isMatchOver}
       />
 
-      {/* Phase 12-H: 新自動進行コントロールバー */}
+      {/* Phase 12-H/I: 新自動進行コントロールバー */}
       <AutoAdvanceBar
         autoAdvance={autoAdvance}
         timeMode={runnerMode.time}
@@ -1780,6 +1807,7 @@ function MatchPageInner({
         isPaused={isPaused}
         onAdvanceNow={onAdvanceNow}
         onSkipOrder={onSkipOrder}
+        continuingOrder={continuingOrder}
       />
 
       {/* モードバー */}
