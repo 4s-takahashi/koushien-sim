@@ -18,6 +18,14 @@ import type { PitchLogEntry, MatchViewState, PitchLocationLabel, EnrichedPitchTy
 import { MatchRunner } from '../engine/match/runner';
 import { cpuAutoTactics } from '../engine/match/tactics';
 import { projectMatch } from '../ui/projectors/matchProjector';
+import { generateSchoolShortName } from '../engine/world/school-generator';
+
+// Phase 12-M/hotfix-3: shortName 欠損セーブ対策
+function teamShortName(team: { name?: string; shortName?: string }): string | undefined {
+  if (team.shortName) return team.shortName;
+  if (team.name) return generateSchoolShortName(team.name);
+  return undefined;
+}
 import { createRNG } from '../engine/core/rng';
 import { buildNarrationForPitch, buildNarrationForAtBat } from '../ui/narration/buildNarration';
 import type { NarrationEntry } from '../ui/narration/buildNarration';
@@ -739,7 +747,7 @@ export const useMatchStore = create<MatchStore>()(
         batterId,
         batterName,
         // v0.23.0: 打者の所属チーム短縮名
-        batterSchoolShortName: battingTeam.shortName,
+        batterSchoolShortName: teamShortName(battingTeam),
         // Phase 7-A-2: 球速・コース・球種ラベル
         pitchSpeed: toPitchSpeedKmh(pitchResult.pitchSelection.velocity),
         pitchLocation: toPitchLocationLabel(
@@ -871,7 +879,7 @@ export const useMatchStore = create<MatchStore>()(
         batterId,
         batterName,
         // v0.23.0: 打者の所属チーム短縮名
-        batterSchoolShortName: battingTeam.shortName,
+        batterSchoolShortName: teamShortName(battingTeam),
         // Phase 7-A-2: 球速・コース・球種ラベル
         pitchSpeed: toPitchSpeedKmh(p.pitchSelection.velocity),
         pitchLocation: toPitchLocationLabel(p.actualLocation.row, p.actualLocation.col),
@@ -998,14 +1006,14 @@ export const useMatchStore = create<MatchStore>()(
 
   // ----------------------------------------------------------------
   // Phase 12-K: アナリストコメント
+  // Phase 12-M/hotfix-3: 随時上書き方式 — 常に最新1件のみ保持
   // ----------------------------------------------------------------
   addAnalystComment: (inning: number, half: 'top' | 'bottom', managers: Manager[]) => {
-    const { pitchLog, analystComments } = get();
+    const { pitchLog } = get();
     const comment = generateAnalystCommentFromManagers(pitchLog, managers, inning, half);
     if (!comment) return;
-    // 最大20件保持（古いものを削除）
-    const updated = [...analystComments, comment].slice(-20);
-    set({ analystComments: updated });
+    // 随時上書き: 常に最新 1 件のみ（過去のコメントは保持しない）
+    set({ analystComments: [comment] });
   },
 
   // ----------------------------------------------------------------

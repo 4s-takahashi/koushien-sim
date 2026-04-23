@@ -19,10 +19,21 @@ import type {
 } from './view-state-types';
 import { detectKeyMoment } from '../../engine/match/runner';
 import { TRAIT_LABELS } from '../labels/trait-labels';
+import { generateSchoolShortName } from '../../engine/world/school-generator';
 
 // ============================================================
 // 内部ヘルパー
 // ============================================================
+
+/**
+ * Phase 12-M/hotfix-3: shortName が欠損しているセーブデータでも学校名を安全に表示するための fallback.
+ * MatchTeam の shortName が undefined の場合は name から生成する。
+ */
+function teamShortName(team: { name: string; shortName?: string }): string {
+  if (team.shortName) return team.shortName;
+  if (team.name) return generateSchoolShortName(team.name);
+  return '';
+}
 
 /** スタミナ割合からスタミナクラスを返す */
 function staminaToClass(pct: number): 'fresh' | 'normal' | 'tired' | 'exhausted' {
@@ -186,7 +197,7 @@ function buildPitcherView(state: MatchState): PitcherView {
   return {
     id: pitcherMP.player.id,
     name: getBatterName(pitcherMP),
-    schoolShortName: fieldingTeam.shortName,
+    schoolShortName: teamShortName(fieldingTeam),
     pitchCount: pitcherMP.pitchCountInGame,
     staminaPct,
     staminaClass: staminaToClass(staminaPct),
@@ -219,7 +230,7 @@ function buildBatterView(state: MatchState): BatterView {
   return {
     id: batterMP.player.id,
     name: getBatterName(batterMP),
-    schoolShortName: battingTeam.shortName,
+    schoolShortName: teamShortName(battingTeam),
     battingAvg: getTodayBattingAvg(state, batterId),
     overall: computeOverall(batterMP),
     moodLabel: moodToLabel(batterMP.player.condition.mood),
@@ -244,7 +255,7 @@ function buildAvailableRelievers(state: MatchState): RelieverView[] {
     .map((mp) => ({
       id: mp.player.id,
       name: getBatterName(mp),
-      schoolShortName: fieldingTeam.shortName,
+      schoolShortName: teamShortName(fieldingTeam),
       staminaPct: mp.stamina / 100,
     }));
 }
@@ -260,7 +271,7 @@ function buildAvailablePinchHitters(state: MatchState): PinchHitterView[] {
     .map((mp) => ({
       id: mp.player.id,
       name: getBatterName(mp),
-      schoolShortName: battingTeam.shortName,
+      schoolShortName: teamShortName(battingTeam),
       overall: computeOverall(mp),
     }));
 }
@@ -286,7 +297,7 @@ function buildBasesView(state: MatchState): {
     return {
       playerId: runner.playerId,
       runnerName: getBatterName(mp),
-      schoolShortName: battingTeam.shortName,
+      schoolShortName: teamShortName(battingTeam),
       speedClass: speedToClass(runner.speed),
     };
   };

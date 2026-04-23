@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.32.1';
+export const VERSION = '0.32.2';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-23 11:19 UTC';
-export const GIT_SHA = '79c4812-dirty';
+export const BUILD_DATE = '2026-04-23 11:35 UTC';
+export const GIT_SHA = '81b540f-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,17 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.32.2',
+    date: '2026-04-23',
+    changes: [
+      '🐛 Phase 12-M/hotfix-3: 学校短縮名表示 + アナリスト上書き方式',
+      '  🐛 Bug: 試合中の選手名右の (学校短縮名) が一部表示されない',
+      '    → matchProjector / match-store に teamShortName() fallback を追加',
+      '    → shortName 欠損セーブでも name から自動生成して表示',
+      '  ✨ アナリスト分析を「随時上書き」方式に変更（最新 1 件のみ保持）',
+    ],
+  },
   {
     version: '0.32.1',
     date: '2026-04-23',
