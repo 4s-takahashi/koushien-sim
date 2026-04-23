@@ -19,8 +19,8 @@
 export const VERSION = '0.32.0';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-23 10:52 UTC';
-export const GIT_SHA = '72ba07a';
+export const BUILD_DATE = '2026-04-23 11:03 UTC';
+export const GIT_SHA = '56d76be-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
