@@ -1079,9 +1079,17 @@ export const useMatchStore = create<MatchStore>()(
        * 復元時のコールバック。
        * matchStateJson から MatchRunner を再生成する。
        * Map/Set は deserializeMatchState が正しく復元する。
+       *
+       * Phase 12-L: localStorage 破損時は自動でクリアして再初期化する。
+       * state が null（破損・バージョン不一致）の場合も _hasHydrated = true を立て、
+       * 画面が「読み込み中」のまま止まらないようにする。
        */
       onRehydrateStorage: () => (state) => {
-        if (!state) return;
+        // Phase 12-L: state が null（破損・バージョン不一致）のときもフラグを立てる
+        if (!state) {
+          useMatchStore.setState({ _hasHydrated: true, isProcessing: false });
+          return;
+        }
         // hydration 完了フラグを立てる
         state._hasHydrated = true;
         // isProcessing は常に false にリセット
@@ -1093,7 +1101,16 @@ export const useMatchStore = create<MatchStore>()(
             const runner = new MatchRunner(matchState, cpuAutoTactics, state.playerSchoolId);
             state.runner = runner;
           } catch {
-            // 復元失敗時は runner を null にリセット（ゲームリセット扱い）
+            // Phase 12-L: 復元失敗時は localStorage を安全にクリアして再初期化する。
+            // localStorage が破損/古いバージョンのデータを持っている場合に備え
+            // 明示的に該当キーを削除する。
+            try {
+              if (typeof window !== 'undefined') {
+                localStorage.removeItem(MATCH_STORE_KEY);
+              }
+            } catch {
+              // localStorage へのアクセス自体が失敗しても無視
+            }
             state.runner = null;
             state.matchStateJson = null;
           }

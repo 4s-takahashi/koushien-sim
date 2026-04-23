@@ -785,40 +785,48 @@ export function advanceWorldDay(
 
     if (isSummerWindow) {
       const id = `tournament-summer-${newDate.year}`;
-      const newTournament = createTournamentBracket(
-        id,
-        'summer',
-        newDate.year,
-        nextWorld.schools,
-        rng.derive('create-summer-tournament'),
-      );
-      nextWorld = {
-        ...nextWorld,
-        activeTournament: newTournament,
-        seasonState: {
-          ...nextWorld.seasonState,
-          phase: 'summer_tournament',
-          currentTournamentId: newTournament.id,
-        },
-      };
+      // Phase 12-L: 同じ年の夏大会が既に履歴に存在する場合は再作成しない
+      const alreadyDone = nextWorld.tournamentHistory?.some((t) => t.id === id) ?? false;
+      if (!alreadyDone) {
+        const newTournament = createTournamentBracket(
+          id,
+          'summer',
+          newDate.year,
+          nextWorld.schools,
+          rng.derive('create-summer-tournament'),
+        );
+        nextWorld = {
+          ...nextWorld,
+          activeTournament: newTournament,
+          seasonState: {
+            ...nextWorld.seasonState,
+            phase: 'summer_tournament',
+            currentTournamentId: newTournament.id,
+          },
+        };
+      }
     } else if (isAutumnWindow) {
       const id = `tournament-autumn-${newDate.year}`;
-      const newTournament = createTournamentBracket(
-        id,
-        'autumn',
-        newDate.year,
-        nextWorld.schools,
-        rng.derive('create-autumn-tournament'),
-      );
-      nextWorld = {
-        ...nextWorld,
-        activeTournament: newTournament,
-        seasonState: {
-          ...nextWorld.seasonState,
-          phase: 'autumn_tournament',
-          currentTournamentId: newTournament.id,
-        },
-      };
+      // Phase 12-L: 同じ年の秋大会が既に履歴に存在する場合は再作成しない
+      const alreadyDone = nextWorld.tournamentHistory?.some((t) => t.id === id) ?? false;
+      if (!alreadyDone) {
+        const newTournament = createTournamentBracket(
+          id,
+          'autumn',
+          newDate.year,
+          nextWorld.schools,
+          rng.derive('create-autumn-tournament'),
+        );
+        nextWorld = {
+          ...nextWorld,
+          activeTournament: newTournament,
+          seasonState: {
+            ...nextWorld.seasonState,
+            phase: 'autumn_tournament',
+            currentTournamentId: newTournament.id,
+          },
+        };
+      }
     }
   }
 
@@ -1117,6 +1125,7 @@ export function completeInteractiveMatch(
   // activeTournament が null の場合はここでも大会を自動生成する。
   // これにより、インタラクティブ試合で日付が進んだ結果 7/10〜7/30 / 9/15〜10/14 に
   // 突入した場合でも、次の advanceDay を待たずに大会が作られる。
+  // Phase 12-L: 同年の大会が既に履歴に存在する場合は再作成しない。
   if (!nextWorld.activeTournament) {
     const isSummerWindow =
       newDate.month === 7 && newDate.day >= 10 && newDate.day <= 30;
@@ -1127,22 +1136,25 @@ export function completeInteractiveMatch(
     if (isSummerWindow || isAutumnWindow) {
       const type: 'summer' | 'autumn' = isSummerWindow ? 'summer' : 'autumn';
       const id = `tournament-${type}-${newDate.year}`;
-      const newTournament = createTournamentBracket(
-        id,
-        type,
-        newDate.year,
-        nextWorld.schools,
-        rng.derive(`create-${type}-tournament`),
-      );
-      nextWorld = {
-        ...nextWorld,
-        activeTournament: newTournament,
-        seasonState: {
-          ...nextWorld.seasonState,
-          phase: isSummerWindow ? 'summer_tournament' : 'autumn_tournament',
-          currentTournamentId: newTournament.id,
-        },
-      };
+      const alreadyDone = nextWorld.tournamentHistory?.some((t) => t.id === id) ?? false;
+      if (!alreadyDone) {
+        const newTournament = createTournamentBracket(
+          id,
+          type,
+          newDate.year,
+          nextWorld.schools,
+          rng.derive(`create-${type}-tournament`),
+        );
+        nextWorld = {
+          ...nextWorld,
+          activeTournament: newTournament,
+          seasonState: {
+            ...nextWorld.seasonState,
+            phase: isSummerWindow ? 'summer_tournament' : 'autumn_tournament',
+            currentTournamentId: newTournament.id,
+          },
+        };
+      }
     }
   }
 

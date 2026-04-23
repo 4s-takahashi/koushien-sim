@@ -1179,6 +1179,17 @@ export default function MatchPage() {
   const [_countdownTick, setCountdownTick] = useState(0);
   const autoAdvanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Phase 12-L: hydration タイムアウト
+  // match-store の persist が 3 秒以内に完了しない場合、強制的に _hasHydrated を true に設定する。
+  // localStorage が破損・ロックされているときに「読み込み中...」で固まるバグを防ぐ。
+  useEffect(() => {
+    if (matchStoreHasHydrated) return;
+    const timeout = setTimeout(() => {
+      useMatchStore.setState({ _hasHydrated: true, isProcessing: false });
+    }, 3000);
+    return () => clearTimeout(timeout);
+  }, [matchStoreHasHydrated]);
+
   // ゲーム初期化
   useEffect(() => {
     // world-store と match-store 両方の persist 復元が完了するまで何もしない
@@ -1811,17 +1822,18 @@ function MatchPageInner({
         {/* 右カラム: 情報パネル（縮小分の余白を活用） */}
         <div className={visualStyles.infoColumn}>
           <NarrationPanel entries={narration} />
-          {pitchLog.length > 0 && pitchLog[pitchLog.length - 1].monologues && (
+          {/* Phase 12-L: PsycheWindow にアナリストコメントを統合表示 */}
+          {(pitchLog.length > 0 && pitchLog[pitchLog.length - 1].monologues) || hasAnalyst ? (
             <PsycheWindow
-              monologues={pitchLog[pitchLog.length - 1].monologues}
-              batterName={pitchLog[pitchLog.length - 1].batterName}
-              batterSchoolShortName={pitchLog[pitchLog.length - 1].batterSchoolShortName}
+              monologues={pitchLog.length > 0 ? pitchLog[pitchLog.length - 1].monologues : undefined}
+              batterName={pitchLog.length > 0 ? pitchLog[pitchLog.length - 1].batterName : ''}
+              batterSchoolShortName={pitchLog.length > 0 ? pitchLog[pitchLog.length - 1].batterSchoolShortName : undefined}
               pitcherName={view.pitcher.name}
               pitcherSchoolShortName={view.pitcher.schoolShortName}
+              analystComments={analystComments}
+              hasAnalyst={hasAnalyst}
             />
-          )}
-          {/* Phase 12-K: アナリストパネル */}
-          <AnalystPanel comments={analystComments} visible={hasAnalyst} />
+          ) : null}
         </div>
       </div>
 

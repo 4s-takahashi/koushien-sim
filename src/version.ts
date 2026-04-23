@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.30.0';
+export const VERSION = '0.31.0';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-23 05:20 UTC';
-export const GIT_SHA = '3e94128-dirty';
+export const BUILD_DATE = '2026-04-23 08:49 UTC';
+export const GIT_SHA = 'bceb874-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,38 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.31.0',
+    date: '2026-04-23',
+    changes: [
+      '🐛 Phase 12-L: バグ修正4件 + アナリスト心理統合',
+      '',
+      '【バグ1】秋大会が「1週間進む」で発動しないことがある（回帰テスト追加）',
+      '  tests/stores/autumn-tournament-e2e.test.ts: advanceWeek連続押しの回帰テスト追加',
+      '  既存の world-ticker.ts の isAutumnWindow 修正は維持、テストで担保',
+      '',
+      '【バグ2】試合中にアニメーションが止まる',
+      '  useBallAnimation.ts: triggerPitchAnimation/triggerHitAnimation/triggerPlaySequence の',
+      '  各トリガー開始時に他の全RAF（rafRef/homeRunRafRef/seqRafRef）を停止するよう修正',
+      '  mountedRef を追加してアンマウント後の setBallState 呼び出しを防止',
+      '',
+      '【バグ3】ストライクゾーン内角・外角が左打者で反転しない',
+      '  buildNarration.ts: pitchLocationJPForBatter() を新規追加',
+      '  左打者（battingSide=left）の場合にのみ内角・外角テキストをミラー反転',
+      '  ストライクゾーン描画（投手視点）は変更なし、ナレーションテキストのみ対応',
+      '',
+      '【バグ4】試合読み込み中で止まることがある',
+      '  match-store.ts: onRehydrateStorage の state=null 時も _hasHydrated=true をセット',
+      '  match-store.ts: localStorage 破損時に localStorage.removeItem() で自動クリア',
+      '  page.tsx: matchStore hydration タイムアウト 3秒 を追加',
+      '',
+      '【機能】アナリスト解析コメントを心理ウィンドウに統合表示',
+      '  PsycheWindow.tsx: analystComments / hasAnalyst props を追加',
+      '  AnalystSection コンポーネントをPsycheWindow内部に統合',
+      '  psycheWindow.module.css: analystSection 系スタイルを追加',
+      '  page.tsx: PsycheWindow に analystComments/hasAnalyst を渡すよう変更',
+    ],
+  },
   {
     version: '0.30.0',
     date: '2026-04-23',

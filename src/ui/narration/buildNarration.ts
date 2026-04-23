@@ -71,6 +71,32 @@ function pitchLocationJP(row: number, col: number): string {
   return PITCH_LOCATION_JP[key] ?? '';
 }
 
+/**
+ * Phase 12-L: バッターの左右を考慮したコース日本語を返す。
+ * ストライクゾーン描画は「投手視点」のまま変えない（内野/外野表示はそのまま）。
+ * ナレーション/実況テキストのみ打者の左右で内角/外角を反転する。
+ * - 右打者: col 1 = 内角, col 3 = 外角
+ * - 左打者: col 1 = 外角, col 3 = 内角（ミラー）
+ * - スイッチ: 右打ちと同じ扱い（打席によって異なるが現状は右基準）
+ */
+function pitchLocationJPForBatter(
+  row: number,
+  col: number,
+  battingSide: import('../../engine/types/player').BattingSide,
+): string {
+  const r = Math.max(1, Math.min(3, row));
+  let c = Math.max(1, Math.min(3, col));
+  // 左打者は内外角を反転
+  if (battingSide === 'left') {
+    if (c === 1) c = 3;
+    else if (c === 3) c = 1;
+  }
+  const vertical = r === 1 ? 'high' : r === 3 ? 'low' : 'middle';
+  const horizontal = c === 1 ? 'inside' : c === 3 ? 'outside' : 'middle';
+  const key = `${horizontal}_${vertical}`;
+  return PITCH_LOCATION_JP[key] ?? '';
+}
+
 function outcomeJP(outcome: string): string {
   switch (outcome) {
     case 'called_strike': return '見逃しストライク';
@@ -194,6 +220,12 @@ export function buildNarrationForPitch(
   // Phase 12-I: 実況ログから「投手→打者」記述を削除したため pitcher 変数は不要
   const pitchType = pitchTypeJP(pitch.pitchSelection.type);
 
+  // Phase 12-L: 打者の左右を取得してコース日本語に反映する
+  const batterTeam = stateBefore.currentHalf === 'top' ? stateBefore.awayTeam : stateBefore.homeTeam;
+  const batterId = batterTeam.battingOrder[stateBefore.currentBatterIndex];
+  const batterMatchPlayer = batterTeam.players.find((p) => p.player.id === batterId);
+  const batterSide = batterMatchPlayer?.player.battingSide ?? 'right';
+
   // ── Phase 7-F: 盗塁イベントの実況（投球前に差し込む） ──
   const prevLogLen = stateBefore.log.length;
   const newLogEvents = stateAfter.log.slice(prevLogLen);
@@ -287,9 +319,11 @@ export function buildNarrationForPitch(
   // 1行で: 投手 → 打者: コース + 球種 + 球速 … 結果
   // 例: ⚾ 鈴木 → 田中: 内角低めのスライダー 138km/h … 空振り
   const speedKmh = Math.round(pitch.pitchSelection.velocity);
-  const locationText = pitchLocationJP(
+  // Phase 12-L: 打者の左右を考慮して内/外角を反転
+  const locationText = pitchLocationJPForBatter(
     pitch.actualLocation.row,
     pitch.actualLocation.col,
+    batterSide,
   );
   const pitchDetail = locationText
     ? `${locationText}の${pitchType} ${speedKmh}km/h`

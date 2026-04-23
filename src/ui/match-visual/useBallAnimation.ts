@@ -994,6 +994,8 @@ export function useBallAnimation(): UseBallAnimationReturn {
   const rafRef = useRef<number | null>(null);
   const homeRunRafRef = useRef<number | null>(null);
   const seqRafRef = useRef<number | null>(null);
+  /** Phase 12-L: アンマウント後の setBallState 呼び出しを防ぐフラグ */
+  const mountedRef = useRef(true);
 
   // アニメーションループを停止
   const stopAnimation = useCallback(() => {
@@ -1024,7 +1026,12 @@ export function useBallAnimation(): UseBallAnimationReturn {
    */
   const triggerPitchAnimation = useCallback(
     (pitch: PitchResultVisual) => {
+      // Phase 12-L: 全アニメーションを停止してから新しい投球アニメを開始する。
+      // 以前は stopAnimation() のみで、seqRafRef や homeRunRafRef が生き残り
+      // setBallState の競合でアニメーションが固まるバグがあった。
       stopAnimation();
+      stopHomeRunEffect();
+      stopPlaySequence();
 
       // prefers-reduced-motion 対応
       if (shouldReduceMotion()) {
@@ -1070,7 +1077,10 @@ export function useBallAnimation(): UseBallAnimationReturn {
    */
   const triggerHitAnimation = useCallback(
     (trajectory: BallTrajectory) => {
+      // Phase 12-L: 全アニメーション停止
       stopAnimation();
+      stopHomeRunEffect();
+      stopPlaySequence();
 
       // prefers-reduced-motion 対応
       if (shouldReduceMotion()) {
@@ -1113,13 +1123,14 @@ export function useBallAnimation(): UseBallAnimationReturn {
         } else {
           rafRef.current = null;
           // 着弾 300ms 後にボールを非表示
-          setTimeout(() => setBallState(null), 300);
+          // Phase 12-L: mountedRef でアンマウント後の呼び出しを防ぐ
+          setTimeout(() => { if (mountedRef.current) setBallState(null); }, 300);
         }
       };
 
       rafRef.current = requestAnimationFrame(animate);
     },
-    [stopAnimation],
+    [stopAnimation, stopHomeRunEffect, stopPlaySequence],
   );
 
   /**
@@ -1127,6 +1138,9 @@ export function useBallAnimation(): UseBallAnimationReturn {
    */
   const triggerPlaySequence = useCallback(
     (sequence: PlaySequence) => {
+      // Phase 12-L: 全アニメーション停止
+      stopAnimation();
+      stopHomeRunEffect();
       stopPlaySequence();
       if (shouldReduceMotion()) return;
 
@@ -1249,7 +1263,9 @@ export function useBallAnimation(): UseBallAnimationReturn {
         } else {
           seqRafRef.current = null;
           // シーケンス終了後に状態をクリア
+          // Phase 12-L: mountedRef でアンマウント後の呼び出しを防ぐ
           setTimeout(() => {
+            if (!mountedRef.current) return;
             setBallState((prev) =>
               prev ? { ...prev, playSequenceState: undefined, isAnimating: false } : null,
             );
@@ -1259,7 +1275,7 @@ export function useBallAnimation(): UseBallAnimationReturn {
 
       seqRafRef.current = requestAnimationFrame(animateSeq);
     },
-    [stopPlaySequence],
+    [stopAnimation, stopHomeRunEffect, stopPlaySequence],
   );
 
   const resetBall = useCallback(() => {
@@ -1299,8 +1315,11 @@ export function useBallAnimation(): UseBallAnimationReturn {
   }, [stopHomeRunEffect]);
 
   // アンマウント時のクリーンアップ
+  // Phase 12-L: mountedRef.current = false にしてアンマウント後の setBallState を防ぐ
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
+      mountedRef.current = false;
       stopAnimation();
       stopHomeRunEffect();
       stopPlaySequence();
