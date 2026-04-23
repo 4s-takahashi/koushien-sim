@@ -15,15 +15,15 @@ import {
   type FieldPoint,
 } from './field-coordinates';
 import type { PlaySequenceState } from './useBallAnimation';
+import type { MatchViewState } from '../projectors/view-state-types';
 
 /**
  * Phase 12-F: feet → canvas px の動的スケール
- * fieldToCanvas と整合（最小辺 / 800）
+ * fieldToCanvas と整合（最小辺 / (FIELD_MAX_RADIUS_FT * 2)）
  */
 function getPxPerFoot(w: number, h: number): number {
-  return Math.min(w, h) / 800;
+  return Math.min(w, h) / 650;
 }
-import type { MatchViewState } from '../projectors/view-state-types';
 
 // ===== 描画用カラーパレット =====
 const COLORS = {

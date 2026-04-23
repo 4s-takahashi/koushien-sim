@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.32.4';
+export const VERSION = '0.32.5';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-23 11:52 UTC';
-export const GIT_SHA = '3f45b9b-dirty';
+export const BUILD_DATE = '2026-04-23 12:08 UTC';
+export const GIT_SHA = '9d9846e-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,18 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.32.5',
+    date: '2026-04-23',
+    changes: [
+      '🐛 Phase 12-M/hotfix-5.1: 前版の UI 修正が不完全だったため再修正',
+      '  🎨 BSO カウント表示を MatchHUD (グラウンド左上オーバーレイ) に適用',
+      '    ※ v0.32.4 は scoreboard 内のみ修正で、実際に高橋さんが見ている HUD は旧表示のままだった',
+      '  📐 緑のフィールド(内野+外野)自体を拡大',
+      '    FIELD_MAX_RADIUS_FT 400 → 325、getPxPerFoot 分母 800 → 650',
+      '    ballparkContainer サイズは元の 270px に戻し、canvas 内の緑描画だけが大きくなる',
+    ],
+  },
   {
     version: '0.32.4',
     date: '2026-04-23',

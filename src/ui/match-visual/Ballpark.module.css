@@ -7,8 +7,8 @@
   position: relative;
   width: 100%;
   aspect-ratio: 1 / 1;
-  /* Phase 12-M/hotfix-5: グラウンド拡大 270px → 420px（より見やすく） */
-  max-width: 420px;
+  /* Phase 12-M/hotfix-5.1: コンテナサイズは元に戻し、緑のフィールド自体を拡大 */
+  max-width: 270px;
   overflow: hidden;
   border-radius: 6px;
   background: #757575;

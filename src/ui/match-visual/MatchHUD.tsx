@@ -3,6 +3,9 @@
  * Phase 12-A/C: 試合中常時表示HUD（左上オーバーレイ）
  *
  * スコアボードが非表示の間、コンパクトにスコア・カウント・イニングを表示する
+ *
+ * Phase 12-M/hotfix-5.1: カウント表示を実物のカウンターパネル模倣に変更
+ *   B (緑3個) / S (黄2個) / O (赤2個) のドット表示
  */
 
 import React from 'react';
@@ -20,6 +23,8 @@ export function MatchHUD({
   scoreboardVisible = false,
 }: MatchHUDProps): React.ReactElement {
   const outs = (view as MatchViewState & { outs?: number }).outs ?? 0;
+  const balls = view.count.balls;
+  const strikes = view.count.strikes;
 
   return (
     <div
@@ -32,28 +37,38 @@ export function MatchHUD({
       aria-label="試合情報HUD"
       role="complementary"
     >
-      {/* カウント行 */}
-      <div className={styles.hudCount}>
-        <span className={styles.hudBalls} title="ボール">
-          B:{view.count.balls}
-        </span>
-        <span className={styles.hudSep}> </span>
-        <span className={styles.hudStrikes} title="ストライク">
-          S:{view.count.strikes}
-        </span>
-        <span className={styles.hudSep}> </span>
-        {/* アウト表示 */}
-        <span className={styles.hudOuts} aria-label={`${outs}アウト`}>
+      {/* BSO カウントパネル（実物カウンター模倣） */}
+      <div
+        className={styles.bsoPanel}
+        aria-label={`B ${balls}, S ${strikes}, O ${outs}`}
+      >
+        <div className={styles.bsoLabel}>B</div>
+        <div className={styles.bsoDots}>
           {[0, 1, 2].map((i) => (
-            <span
+            <div
               key={i}
-              className={
-                i < outs ? styles.hudOutDotFilled : styles.hudOutDotEmpty
-              }
-              aria-hidden="true"
+              className={`${styles.bsoDot} ${i < balls ? styles.bsoDotBallOn : ''}`}
             />
           ))}
-        </span>
+        </div>
+        <div className={styles.bsoLabel}>S</div>
+        <div className={styles.bsoDots}>
+          {[0, 1].map((i) => (
+            <div
+              key={i}
+              className={`${styles.bsoDot} ${i < strikes ? styles.bsoDotStrikeOn : ''}`}
+            />
+          ))}
+        </div>
+        <div className={styles.bsoLabel}>O</div>
+        <div className={styles.bsoDots}>
+          {[0, 1].map((i) => (
+            <div
+              key={i}
+              className={`${styles.bsoDot} ${i < outs ? styles.bsoDotOutOn : ''}`}
+            />
+          ))}
+        </div>
       </div>
 
       {/* イニング行 */}

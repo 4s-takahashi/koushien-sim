@@ -22,7 +22,15 @@ export interface CanvasPoint {
 export const FIELD_SCALE = 1.0; // px per foot (450px canvas 基準)
 
 /** フィールド全体が収まるための最大半径 (feet)。外野フェンスまで 380ft */
-const FIELD_MAX_RADIUS_FT = 400;
+/**
+ * フィールドの最大半径（ft）
+ * Phase 12-F: Canvas スケール計算の基準
+ *
+ * Phase 12-M/hotfix-5.1: 400ft → 325ft に縮小
+ *   緑のフィールドを拡大表示するため、フィールドの「外周マージン」を減らす
+ *   実際の外野半径 380ft よりわずかに大きい値にして、canvas 全体で緑が広く見えるように
+ */
+const FIELD_MAX_RADIUS_FT = 325;
 
 /** ホームプレートの canvas 上の相対位置（Y方向、下ほど 1 に近い） */
 const HOME_Y_RATIO = 0.92;
