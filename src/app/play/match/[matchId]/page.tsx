@@ -23,6 +23,7 @@ import type { MatchViewState, PitchLogEntry } from '../../../../ui/projectors/vi
 import { PITCH_LABELS } from '../../../../ui/labels/pitch-labels';
 import styles from './match.module.css';
 import { PsycheWindow } from './PsycheWindow';
+import { AnalystPanel } from './AnalystPanel';
 import { DetailedOrderModal } from './DetailedOrderModal';
 // Phase 12: ビジュアルコンポーネント
 import { AnimatedScoreboard } from '../../../../ui/match-visual/AnimatedScoreboard';
@@ -1165,6 +1166,8 @@ export default function MatchPage() {
   const setAutoAdvance = useMatchStore((s) => s.setAutoAdvance);
   const pendingNextOrder = useMatchStore((s) => s.pendingNextOrder);
   const consumeNextOrder = useMatchStore((s) => s.consumeNextOrder);
+  const analystComments = useMatchStore((s) => s.analystComments);
+  const addAnalystComment = useMatchStore((s) => s.addAnalystComment);
 
   const [selectMode, setSelectMode] = useState<SelectMode>({ type: 'none' });
   const [initialized, setInitialized] = useState(false);
@@ -1470,6 +1473,30 @@ export default function MatchPage() {
     // ここでは applyOrder({ type: 'none' }) は不要。タイマーが発火したとき pending=null で進む
   }, []);
 
+  // ── Phase 12-K: イニング終了時にアナリストコメントを生成 ──
+  const prevInningRef = useRef<{ inning: number; half: 'top' | 'bottom' } | null>(null);
+  useEffect(() => {
+    if (!initialized || !pauseReason || pauseReason.kind !== 'inning_end') return;
+    const view = getMatchView();
+    if (!view) return;
+    // 現在のイニング・表裏を取得（inning_end 時は次のイニング開始前なので、
+    // view から推定するより pitchLog の最後のエントリを参照する）
+    const lastPitch = pitchLog[pitchLog.length - 1];
+    if (!lastPitch) return;
+    const inning = lastPitch.inning;
+    const half = lastPitch.half;
+    // 同じイニング・同じ表裏で二重生成しない
+    const key = `${inning}-${half}`;
+    const prevKey = prevInningRef.current
+      ? `${prevInningRef.current.inning}-${prevInningRef.current.half}`
+      : null;
+    if (key === prevKey) return;
+    prevInningRef.current = { inning, half };
+    // プレイヤー校のマネージャーを取得
+    const managers = worldState?.managerStaff?.members ?? [];
+    addAnalystComment(inning, half, managers);
+  }, [pauseReason, initialized]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const view = getMatchView();
 
   if (!hasHydrated || !matchStoreHasHydrated || !worldState) {
@@ -1522,6 +1549,8 @@ export default function MatchPage() {
       onAdvanceNow={handleAdvanceNow}
       onSkipOrder={handleSkipOrder}
       continuingOrder={lastOrder}
+      analystComments={analystComments}
+      hasAnalyst={(worldState.managerStaff?.members ?? []).some((m) => m.role === 'analytics')}
     />
   );
 }
@@ -1565,6 +1594,9 @@ interface MatchPageInnerProps {
   onSkipOrder: () => void;
   // Phase 12-I: 継続中の采配
   continuingOrder: TacticalOrder | null;
+  // Phase 12-K: アナリストコメント
+  analystComments: import('../../../../engine/staff/analyst').AnalystComment[];
+  hasAnalyst: boolean;
 }
 
 function MatchPageInner({
@@ -1600,6 +1632,8 @@ function MatchPageInner({
   onAdvanceNow,
   onSkipOrder,
   continuingOrder,
+  analystComments,
+  hasAnalyst,
 }: MatchPageInnerProps) {
   const [selectMode, setSelectMode] = useState<SelectMode>({ type: 'none' });
   const matchResult = useMatchStore((s) => s.matchResult);
@@ -1786,6 +1820,8 @@ function MatchPageInner({
               pitcherSchoolShortName={view.pitcher.schoolShortName}
             />
           )}
+          {/* Phase 12-K: アナリストパネル */}
+          <AnalystPanel comments={analystComments} visible={hasAnalyst} />
         </div>
       </div>
 

@@ -47,8 +47,9 @@
 }
 
 /* Phase 12-I: フェードアニメーション */
+/* Phase 12-K: 0.2s → 0.3s（視認性向上） */
 .bubbleFade {
-  transition: opacity 0.2s ease;
+  transition: opacity 0.3s ease;
 }
 
 .bubbleFadeIn {

@@ -5,6 +5,7 @@
  *
  * Phase 7-B: 選手心理ウィンドウ
  * Phase 12-I: 3バブル横並び → 1バブル + 1秒ローテーション
+ * Phase 12-K: ローテーション間隔 1秒 → 2秒、フェード 200ms → 300ms
  *
  * 打者→捕手→投手を1秒ごとに切り替えて1つの吹き出しで表示する。
  * null/undefined の役割はスキップする。
@@ -106,8 +107,8 @@ export function PsycheWindow({ monologues, batterName, batterSchoolShortName, pi
       setTimeout(() => {
         setRoleIndex((prev) => (prev + 1) % activeBubbles.length);
         setVisible(true);
-      }, 200);
-    }, 1000);
+      }, 300); // Phase 12-K: 200ms → 300ms
+    }, 2000); // Phase 12-K: 1000ms → 2000ms
     return () => clearInterval(interval);
   }, [activeBubbles.length]); // eslint-disable-line react-hooks/exhaustive-deps
 

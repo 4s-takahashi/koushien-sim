@@ -8,6 +8,11 @@
  * Phase 12-E 追加:
  * - homeRunProgress を BallparkRenderState に渡す
  * - FPS 30 上限（非アニメーション時はスキップ）
+ *
+ * Phase 12-K バグ修正:
+ * - visibilitychange で RAF が止まったまま再開されない問題を修正
+ * - ResizeObserver 発火時のループ二重起動を防止（guard 追加）
+ * - rehydrate 後にアニメーションが動くよう、isAnimating 変化を監視
  */
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
@@ -63,6 +68,9 @@ export function Ballpark({
   // Phase 12-E: FPS throttle (目標 30fps = 33ms/frame)
   const lastDrawTimeRef = useRef<number>(0);
   const TARGET_FRAME_MS = 33; // ~30fps
+
+  // Phase 12-K: ResizeObserver 二重起動防止 guard
+  const isLoopRunningRef = useRef<boolean>(false);
 
   // ResizeObserver でコンテナサイズを監視
   useEffect(() => {
@@ -123,6 +131,12 @@ export function Ballpark({
     if (now !== undefined) lastDrawTimeRef.current = now;
   }, [view, playerSchoolId, ballAnimState, canvasSize]);
 
+  // Phase 12-K: 現在のアニメーション状態を ref で管理（ループ内から最新状態を参照）
+  const ballAnimStateRef = useRef(ballAnimState);
+  useEffect(() => {
+    ballAnimStateRef.current = ballAnimState;
+  }, [ballAnimState]);
+
   // アニメーション中は RAF で描画（FPS 30 上限）、そうでなければ通常の effect で描画
   useEffect(() => {
     const isAnimating =
@@ -135,6 +149,10 @@ export function Ballpark({
         ballAnimState.playSequenceState.totalProgress < 1);
 
     if (isAnimating) {
+      // Phase 12-K: 既にループが動いている場合は新規起動しない（二重起動防止）
+      if (isLoopRunningRef.current) return;
+      isLoopRunningRef.current = true;
+
       const loop = (now: number) => {
         // Phase 12-E: フレームスキップ（前フレームから TARGET_FRAME_MS 未満なら描画省略）
         if (now - lastDrawTimeRef.current >= TARGET_FRAME_MS) {
@@ -146,19 +164,66 @@ export function Ballpark({
       return () => {
         if (animFrameRef.current !== null) {
           cancelAnimationFrame(animFrameRef.current);
+          animFrameRef.current = null;
         }
+        isLoopRunningRef.current = false;
       };
     } else {
-      // 静止状態
+      // 静止状態: RAF を止めてから静止描画
+      if (animFrameRef.current !== null) {
+        cancelAnimationFrame(animFrameRef.current);
+        animFrameRef.current = null;
+        isLoopRunningRef.current = false;
+      }
       draw();
     }
   }, [ballAnimState?.isAnimating, ballAnimState?.homeRunProgress, draw]);
+
+  // Phase 12-K: visibilitychange でタブが非表示→表示に戻ったとき再描画トリガー
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return;
+
+      // タブ復帰時: RAF ループが死んでいたら再起動する
+      const current = ballAnimStateRef.current;
+      const animating =
+        current?.isAnimating ||
+        (current?.homeRunProgress !== undefined &&
+          current.homeRunProgress > 0 &&
+          current.homeRunProgress < 1) ||
+        (current?.playSequenceState !== undefined &&
+          current.playSequenceState.totalProgress > 0 &&
+          current.playSequenceState.totalProgress < 1);
+
+      if (animating && !isLoopRunningRef.current) {
+        // ループが止まっていたら再起動（animFrameRef 経由）
+        const loop = (now: number) => {
+          if (now - lastDrawTimeRef.current >= TARGET_FRAME_MS) {
+            draw(now);
+          }
+          animFrameRef.current = requestAnimationFrame(loop);
+        };
+        isLoopRunningRef.current = true;
+        animFrameRef.current = requestAnimationFrame(loop);
+      } else if (!animating) {
+        // 非アニメーション状態でも再描画して最新状態を反映
+        draw();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [draw]);
 
   // アンマウント時のクリーンアップ
   useEffect(() => {
     return () => {
       if (animFrameRef.current !== null) {
         cancelAnimationFrame(animFrameRef.current);
+        animFrameRef.current = null;
+        isLoopRunningRef.current = false;
       }
     };
   }, []);

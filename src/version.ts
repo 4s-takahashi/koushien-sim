@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.29.0';
+export const VERSION = '0.30.0';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-23 02:59 UTC';
-export const GIT_SHA = '9888d3d-dirty';
+export const BUILD_DATE = '2026-04-23 05:20 UTC';
+export const GIT_SHA = '3e94128-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,51 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.30.0',
+    date: '2026-04-23',
+    changes: [
+      '⚾ Phase 12-K: 選手心理延長・アナリスト分析・アニメーション修正',
+      '',
+      '【タスク1】選手心理ウィンドウのローテーション延長',
+      '  PsycheWindow.tsx: ローテーション間隔 1秒 → 2秒に延長（視認性向上）',
+      '  psycheWindow.module.css: フェードアニメーション 0.2s → 0.3s に拡大',
+      '  ローテーション位置インジケーター（ドット）の挙動は変更なし',
+      '',
+      '【タスク2】アナリストマネージャーによる相手投手分析コメント',
+      '  新規: src/engine/staff/analyst.ts — 投球ログ集計・分析ロジック',
+      '    generateAnalystComment(): マネージャーレベルに応じたコメント生成',
+      '    generateAnalystCommentFromManagers(): マネージャーリストから最高レベルを選択',
+      '    分析対象: 球種傾向・コース傾向・カウント別配球・ランナー時傾向',
+      '    レベル別ノイズ: レベル1=ノイズ多(0.6)〜レベル5=ほぼ正確(0.05)',
+      '    1回終了時: 「まだ読み切れません」弱コメント',
+      '    2回以降: 球種/コース/カウント/ランナー傾向の本格分析',
+      '  新規: src/app/play/match/[matchId]/AnalystPanel.tsx — アナリストパネルUI',
+      '    実況ログとは別枠の吹き出し形式コメント表示',
+      '    過去のコメントはスクロール可能',
+      '    コメント種別アイコン (⚾📍🔢🏃📋❓) 付き',
+      '    マネージャーのレベルを★表示',
+      '  match-store.ts: analystComments: AnalystComment[] を追加（スキーマ互換）',
+      '    addAnalystComment() アクション追加',
+      '    persist に analystComments を含める',
+      '    initMatch() でリセット',
+      '  page.tsx: イニング終了（inning_end）時にアナリストコメントを自動生成',
+      '    analytics ロールのマネージャーが存在する場合のみパネル表示',
+      '',
+      '【タスク3】アニメーション停止バグ修正',
+      '  Ballpark.tsx 修正:',
+      '    visibilitychange リスナー追加: タブ復帰時にアニメーションループを再起動',
+      '    isLoopRunningRef guard: ResizeObserver 発火時のループ二重起動防止',
+      '    ballAnimStateRef: ループ内から最新のアニメーション状態を参照できるよう改善',
+      '    アンマウント時のクリーンアップを isLoopRunningRef を含めて徹底',
+      '',
+      '【テスト】',
+      '  tests/engine/staff/analyst.test.ts 新規 — 19件',
+      '    各レベルのコメント生成・分析の境界値・マネージャー選択ロジック',
+      '  tests/ui/match-visual/animation-lifecycle.test.ts 新規 — 18件',
+      '    isAnimating 判定ロジック・二重起動防止・visibilitychange 復帰・rehydrate後描画',
+    ],
+  },
   {
     version: '0.29.0',
     date: '2026-04-23',

@@ -10,6 +10,9 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { MatchState, MatchResult, TacticalOrder } from '../engine/match/types';
+import type { AnalystComment } from '../engine/staff/analyst';
+import { generateAnalystCommentFromManagers } from '../engine/staff/analyst';
+import type { Manager } from '../engine/types/manager-staff';
 import type { RunnerMode, PauseReason } from '../engine/match/runner-types';
 import type { PitchLogEntry, MatchViewState, PitchLocationLabel, EnrichedPitchType } from '../ui/projectors/view-state-types';
 import { MatchRunner } from '../engine/match/runner';
@@ -93,6 +96,10 @@ export interface MatchStoreState {
   // --- Phase 7-F: 直前采配の記憶（詳細采配モーダル用プリセレクト） ---
   /** 直前に適用した詳細采配 (batter_detailed / pitcher_detailed)。新打者に変わるとリセット */
   lastOrder: TacticalOrder | null;
+
+  // --- Phase 12-K: アナリストコメント ---
+  /** イニング切れ目で生成されたアナリストコメント一覧 */
+  analystComments: AnalystComment[];
 }
 
 export interface MatchStoreActions {
@@ -166,6 +173,15 @@ export interface MatchStoreActions {
   /** 実況ログをクリア */
   clearNarration: () => void;
 
+  // --- Phase 12-K: アナリストコメントアクション ---
+  /**
+   * イニング終了時にアナリストコメントを生成して追加する。
+   * @param inning 終了したイニング番号
+   * @param half 終了した表/裏
+   * @param managers プレイヤー校のマネージャー一覧
+   */
+  addAnalystComment: (inning: number, half: 'top' | 'bottom', managers: Manager[]) => void;
+
   // --- Phase 12-H: 新自動進行アクション ---
   /** 自動進行 ON/OFF を設定する */
   setAutoAdvance: (enabled: boolean) => void;
@@ -204,6 +220,7 @@ const INITIAL_STATE: MatchStoreState = {
   currentOrder: { type: 'none' },
   recentMonologueIds: [],
   lastOrder: null,
+  analystComments: [],
 };
 
 // Phase 7-E3: 直近モノローグID リングバッファのサイズ
@@ -482,6 +499,8 @@ interface MatchPersistedState {
   // Phase 12-H
   autoAdvance: boolean;
   pendingNextOrder: TacticalOrder | null;
+  // Phase 12-K
+  analystComments: AnalystComment[];
 }
 
 // ============================================================
@@ -514,6 +533,7 @@ export const useMatchStore = create<MatchStore>()(
       pitchLog: [],
       matchResult: null,
       isProcessing: false,
+      analystComments: [],
     });
   },
 
@@ -977,6 +997,18 @@ export const useMatchStore = create<MatchStore>()(
   },
 
   // ----------------------------------------------------------------
+  // Phase 12-K: アナリストコメント
+  // ----------------------------------------------------------------
+  addAnalystComment: (inning: number, half: 'top' | 'bottom', managers: Manager[]) => {
+    const { pitchLog, analystComments } = get();
+    const comment = generateAnalystCommentFromManagers(pitchLog, managers, inning, half);
+    if (!comment) return;
+    // 最大20件保持（古いものを削除）
+    const updated = [...analystComments, comment].slice(-20);
+    set({ analystComments: updated });
+  },
+
+  // ----------------------------------------------------------------
   // Phase 12-H: 新自動進行アクション
   // ----------------------------------------------------------------
   setAutoAdvance: (enabled: boolean) => {
@@ -1039,6 +1071,8 @@ export const useMatchStore = create<MatchStore>()(
           // Phase 12-H
           autoAdvance: state.autoAdvance,
           pendingNextOrder: state.pendingNextOrder,
+          // Phase 12-K
+          analystComments: state.analystComments,
         };
       },
       /**
