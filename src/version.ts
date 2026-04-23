@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.28.0';
+export const VERSION = '0.29.0';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-23 02:12 UTC';
-export const GIT_SHA = 'f6fa8d0-dirty';
+export const BUILD_DATE = '2026-04-23 02:59 UTC';
+export const GIT_SHA = '9888d3d-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,45 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.29.0',
+    date: '2026-04-23',
+    changes: [
+      '⚾ Phase 12-J: 打球種類に応じたリアルな守備アニメーション',
+      '',
+      '【問題】buildGroundOutSequence() が常にゴロ→送球→一塁アウトのパターンで動き、',
+      '        実際の pitchResult（ヒット/アウト/フライ等）に関係なく「アウト」表示になっていた。',
+      '',
+      '【解決】buildPlaySequence(contact) 統一API を新設し、fieldResult.type に基づいて',
+      '        適切なシーケンスを自動選択するように変更。',
+      '',
+      '【新規関数 (useBallAnimation.ts)】',
+      '  buildPlaySequence(): 統一API — fieldResultType に基づくシーケンス自動選択',
+      '  buildFlyoutSequence(): 外野フライ/ファウルフライアウト',
+      '  buildPopupSequence(): 内野ポップアップアウト',
+      '  buildHitSequence(): シングルヒット（外野打球→カット→中継）',
+      '  buildInfieldHitSequence(): 内野安打（ゴロが抜ける→一塁間に合わず）',
+      '  buildDoubleSequence(): 二塁打（打者が一塁→二塁の2段階走塁）',
+      '  buildTripleSequence(): 三塁打（打者が一塁→二塁→三塁の3段階走塁）',
+      '  buildSacrificeFlySequence(): 犠牲フライ（外野キャッチ→バックホーム）',
+      '',
+      '【新フェーズ種類】',
+      '  flyBall: フライボール軌跡（高い弧、peakHeight パラメータで高さ制御）',
+      '  PlaySequenceState.ballHeightNorm: シーケンス中のボール高さを BallparkCanvas に反映',
+      '',
+      '【BallparkCanvas.ts 更新】',
+      '  drawResultFlash(): baseKey（first/second/third/catcher）に応じた表示位置に対応',
+      '  ballHeightNorm: シーケンス状態から取得してフライボールの影を正しく描画',
+      '',
+      '【page.tsx 更新 (match/[matchId])】',
+      '  buildGroundOutSequence 直接呼び出し → buildPlaySequence 統一APIへ切り替え',
+      '  batContact.fieldResult.type を buildPlaySequence に渡してシーケンスを決定',
+      '  ホームランのみ従来通り triggerHitAnimation + triggerHomeRunEffect を維持',
+      '',
+      '【テスト】tests/ui/match-visual/play-sequences.test.ts 新規追加 — 32 件',
+      '  各シーケンス関数のフェーズ構成・テキスト・走塁段階数・後方互換性を検証',
+    ],
+  },
   {
     version: '0.28.0',
     date: '2026-04-23',

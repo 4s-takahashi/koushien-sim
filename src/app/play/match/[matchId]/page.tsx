@@ -29,7 +29,7 @@ import { AnimatedScoreboard } from '../../../../ui/match-visual/AnimatedScoreboa
 import { Ballpark } from '../../../../ui/match-visual/Ballpark';
 import { StrikeZone } from '../../../../ui/match-visual/StrikeZone';
 import { useBallAnimation } from '../../../../ui/match-visual/useBallAnimation';
-import { computeTrajectory, buildGroundOutSequence } from '../../../../ui/match-visual/useBallAnimation';
+import { computeTrajectory, buildPlaySequence } from '../../../../ui/match-visual/useBallAnimation';
 import { pitchLocationToUV, getBreakDirection, isFastballClass } from '../../../../ui/match-visual/pitch-marker-types';
 import type { AtBatMarkerHistory } from '../../../../ui/match-visual/pitch-marker-types';
 import visualStyles from './match-visual.module.css';
@@ -1380,10 +1380,17 @@ export default function MatchPage() {
       setNextAutoAdvanceAt(null);
       return;
     }
+    // 自動進行中は pitch_start / at_bat_start / inning_end の「通常停止」は無視して進める。
+    // 勝負所 (scoring_chance / pinch / pitcher_tired / close_and_late) と match_end のみ停止。
     if (pauseReason !== null) {
-      // 停止理由あり → 自動進行を一時中断（タイマーをクリアして待機）
-      setNextAutoAdvanceAt(null);
-      return;
+      const routineKinds = ['pitch_start', 'at_bat_start', 'inning_end'];
+      const isRoutine = routineKinds.includes(pauseReason.kind);
+      if (!isRoutine) {
+        // 勝負所・試合終了 → 自動進行を一時中断（タイマーをクリアして待機）
+        setNextAutoAdvanceAt(null);
+        return;
+      }
+      // routine pause は無視して自動進行継続
     }
     if (matchResult !== null) {
       setNextAutoAdvanceAt(null);
@@ -1672,32 +1679,34 @@ function MatchPageInner({
         distance: batContact.distance,
       });
       const delay = latest.pitchSpeed ? Math.min(300, 100000 / latest.pitchSpeed) : 300;
-      const isGroundBall =
-        batContact.contactType === 'ground_ball' ||
-        batContact.contactType === 'bunt_ground';
+
+      // ホームランは従来通り triggerHitAnimation + triggerHomeRunEffect
+      const isHomeRun = trajectory.type === 'home_run';
+
+      // Phase 12-J: fieldResult.type に基づいてシーケンスを選択
+      // batContact.fieldResult が存在する場合はそれを使用
+      const fieldResultType = batContact.fieldResult?.type ?? undefined;
+      // fieldResult.fielder は view-state-types では定義されていないためオプション
+      const fielderPosition: string | undefined = undefined;
+
       const timer = setTimeout(() => {
-        if (isGroundBall) {
-          // Phase 12-G: 内野ゴロ → プレイシーケンスアニメーション
-          // outcome が in_play でも out にはなる場合があるが、
-          // ログに groundOut 的な情報がなければ便宜的にアウト扱い
-          const isOut = latest.outcome === 'in_play';
-          triggerPlaySequence(
-            buildGroundOutSequence(
-              {
-                contactType: batContact.contactType,
-                direction: batContact.direction,
-                speed: batContact.speed,
-                distance: batContact.distance,
-              },
-              isOut,
-            ),
-          );
-        } else {
+        if (isHomeRun) {
+          // ホームラン: 打球軌跡 → ホームランエフェクト
           triggerHitAnimation(trajectory);
-          // Phase 12-E: ホームランの場合はエフェクトを起動
-          if (trajectory.type === 'home_run') {
-            setTimeout(() => triggerHomeRunEffect(), trajectory.durationMs * 0.6);
-          }
+          setTimeout(() => triggerHomeRunEffect(), trajectory.durationMs * 0.6);
+        } else {
+          // Phase 12-J: buildPlaySequence 統一API で打球種類・守備結果に応じたアニメーション
+          triggerPlaySequence(
+            buildPlaySequence({
+              contactType: batContact.contactType,
+              direction: batContact.direction,
+              speed: batContact.speed,
+              distance: batContact.distance,
+              fieldResultType,
+              fielderPosition,
+              runnersOnBase: [], // 走者情報は将来拡張
+            }),
+          );
         }
       }, delay);
       return () => clearTimeout(timer);

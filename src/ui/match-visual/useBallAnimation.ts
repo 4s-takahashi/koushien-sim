@@ -1,6 +1,6 @@
 'use client';
 /**
- * Phase 12-D/E: ボール・打球アニメーションフック
+ * Phase 12-D/E/G/J: ボール・打球アニメーションフック
  *
  * requestAnimationFrame を使用して 60fps でボールを動かす
  * - 投球: マウンド → ホームプレート
@@ -10,6 +10,16 @@
  * Phase 12-E 追加:
  * - ホームランエフェクト進捗 (homeRunProgress) を返す
  * - triggerHomeRunEffect() でホームランパーティクルを起動
+ *
+ * Phase 12-J 追加:
+ * - buildPlaySequence() 統一API: fieldResult.type に基づき適切なシーケンスを構築
+ * - buildFlyoutSequence(): 外野フライ/ファウルフライ
+ * - buildHitSequence(): シングルヒット（外野へ打球→カット→中継）
+ * - buildDoubleSequence(): 二塁打（打者が二塁まで走塁）
+ * - buildTripleSequence(): 三塁打（打者が三塁まで走塁）
+ * - buildSacrificeFlySequence(): 犠牲フライ（バックホーム）
+ * - buildInfieldHitSequence(): 内野安打
+ * - buildPopupSequence(): ポップフライ（内野ポップアップ）
  */
 
 import { useState, useRef, useCallback, useEffect } from 'react';
@@ -68,6 +78,27 @@ export interface BatContactForAnimation {
   direction: number;    // 角度（0=LF, 45=CF, 90=RF）
   speed: 'weak' | 'normal' | 'hard' | 'bullet';
   distance: number;     // feet
+  /** Phase 12-J: 守備結果タイプ（buildPlaySequence に渡す） */
+  fieldResultType?: string;
+  /** Phase 12-J: 処理選手のポジション名 */
+  fielderPosition?: string;
+  /** Phase 12-J: 塁上走者情報（送球先判断用） */
+  runnersOnBase?: ('first' | 'second' | 'third')[];
+}
+
+/**
+ * Phase 12-J: 将来の拡張用 — 選手能力値（型定義のみ）
+ * 守備力・肩力・守備範囲が影響する将来の拡張に備えて定義
+ */
+export interface FielderAbility {
+  /** 守備力 (1-100) */
+  fielding: number;
+  /** 肩の強さ (1-100) */
+  throwing: number;
+  /** 守備範囲 (1-100) */
+  range: number;
+  /** 勝負強さ（将来の拡張） */
+  clutch?: number;
 }
 
 // ===== Phase 12-G: プレイシーケンス（内野ゴロ等の複合アニメーション）=====
@@ -78,11 +109,12 @@ export interface BatContactForAnimation {
  * 各フェーズは t=0..1 の進行度で制御する
  */
 export type PlayPhaseKind =
-  | 'groundRoll'   // ボールがゴロで内野に転がる
-  | 'fielderMove'  // 内野手がボールに向かって移動
-  | 'throw'        // 内野手から一塁へ送球
-  | 'batterRun'    // バッターが本塁→一塁へ走塁
-  | 'result';      // アウト/セーフ判定フラッシュ
+  | 'groundRoll'    // ボールがゴロで内野に転がる
+  | 'flyBall'       // Phase 12-J: フライボール軌跡（高い弧）
+  | 'fielderMove'   // 内野手/外野手がボールに向かって移動
+  | 'throw'         // 送球（内野手→塁、外野手→カット、カット→本塁）
+  | 'batterRun'     // バッターが走塁
+  | 'result';       // アウト/セーフ判定フラッシュ
 
 export interface PlayPhase {
   kind: PlayPhaseKind;
@@ -96,10 +128,11 @@ export interface PlayPhase {
 
 export type PlayPhaseData =
   | { kind: 'groundRoll';  from: FieldPoint; to: FieldPoint }
+  | { kind: 'flyBall';     from: FieldPoint; to: FieldPoint; peakHeight: number }
   | { kind: 'fielderMove'; from: FieldPoint; to: FieldPoint; fielderPosKey: string }
   | { kind: 'throw';       from: FieldPoint; to: FieldPoint }
   | { kind: 'batterRun';   from: FieldPoint; to: FieldPoint }
-  | { kind: 'result';      text: string; isOut: boolean };
+  | { kind: 'result';      text: string; isOut: boolean; baseKey?: string };
 
 /** プレイシーケンス定義 */
 export interface PlaySequence {
@@ -117,18 +150,20 @@ export interface PlaySequenceState {
   }[];
   /** 現在のボール位置 */
   ballPosition?: FieldPoint;
+  /** ボールの高さ正規化（0=地上、1=最高点）Phase 12-J追加 */
+  ballHeightNorm?: number;
   /** 動的フィールダー位置（posKey=ポジション名, pos=現在位置） */
   animatedFielder?: { posKey: string; pos: FieldPoint };
   /** バッター走者位置 */
   batterRunnerPos?: FieldPoint;
   /** 判定テキスト */
-  resultText?: { text: string; isOut: boolean };
+  resultText?: { text: string; isOut: boolean; baseKey?: string };
   /** シーケンス全体の進行度 (0-1) */
   totalProgress: number;
 }
 
 /**
- * Phase 12-G: 打球の着弾方向からどのポジションの選手が捕球するか判定
+ * Phase 12-G: 打球の着弾方向からどのポジションの選手が捕球するか判定（内野用）
  */
 function getFielderForGroundBall(direction: number): {
   posKey: string;
@@ -145,6 +180,58 @@ function getFielderForGroundBall(direction: number): {
   } else {
     return { posKey: 'first', fieldPos: FIELD_POSITIONS.firstBase };
   }
+}
+
+/**
+ * Phase 12-J: 打球方向から外野手ポジションを判定
+ */
+function getFielderForOutfield(direction: number): {
+  posKey: string;
+  fieldPos: FieldPoint;
+} {
+  if (direction < 30) {
+    return { posKey: 'left', fieldPos: FIELD_POSITIONS.leftField };
+  } else if (direction < 60) {
+    return { posKey: 'center', fieldPos: FIELD_POSITIONS.centerField };
+  } else {
+    return { posKey: 'right', fieldPos: FIELD_POSITIONS.rightField };
+  }
+}
+
+/**
+ * Phase 12-J: 走者状況に応じた送球先を決定
+ * 優先順位: ホーム（得点阻止） > 二塁/三塁（追加進塁阻止） > 一塁
+ */
+function getThrowTarget(
+  runnersOnBase: ('first' | 'second' | 'third')[],
+  isHit: boolean,
+): { posKey: string; fieldPos: FieldPoint } {
+  // ヒット時: 走者が三塁にいればホームへ、二塁にいれば三塁/ホームへ
+  if (isHit) {
+    if (runnersOnBase.includes('third')) {
+      // バックホーム
+      return { posKey: 'catcher', fieldPos: FIELD_POSITIONS.catcher };
+    }
+    if (runnersOnBase.includes('second')) {
+      return { posKey: 'catcher', fieldPos: FIELD_POSITIONS.catcher };
+    }
+    // 走者なし or 一塁のみ → カット(二塁方向)
+    return { posKey: 'second', fieldPos: FIELD_POSITIONS.second };
+  }
+  // アウト時: 一塁または最もリードしている走者を刺す
+  return { posKey: 'first', fieldPos: FIELD_POSITIONS.firstBase };
+}
+
+/**
+ * Phase 12-J: 打球方向と飛距離から着弾位置を計算
+ */
+function calcLandingPos(direction: number, distance: number, scale = 0.8): FieldPoint {
+  const adjustedDeg = direction - 45;
+  const rad = (adjustedDeg * Math.PI) / 180;
+  return {
+    x: Math.sin(rad) * distance * scale,
+    y: Math.cos(rad) * distance * scale,
+  };
 }
 
 /**
@@ -229,6 +316,531 @@ export function buildGroundOutSequence(
     phases,
     totalMs: T.resultEnd,
   };
+}
+
+// ===== Phase 12-J: 新しいシーケンス構築関数 =====
+
+/**
+ * Phase 12-J: 外野フライ / ポップフライアウトのシーケンス
+ * フライ打球 → 外野手（または内野手）がキャッチ → アウト
+ */
+export function buildFlyoutSequence(
+  contact: BatContactForAnimation,
+  isOutfield: boolean,
+): PlaySequence {
+  const { direction, distance } = contact;
+  const landPos = calcLandingPos(direction, distance);
+  const fielder = isOutfield
+    ? getFielderForOutfield(direction)
+    : getFielderForGroundBall(direction); // ポップは内野手
+
+  const home: FieldPoint = FIELD_POSITIONS.home;
+
+  const T = {
+    flyStart:   0,
+    flyEnd:     800,
+    fielderStart: 100,
+    fielderEnd: 700,
+    resultStart: 800,
+    resultEnd:  1300,
+  };
+
+  const phases: PlayPhase[] = [
+    {
+      kind: 'flyBall',
+      startMs: T.flyStart,
+      endMs: T.flyEnd,
+      data: { kind: 'flyBall', from: home, to: landPos, peakHeight: 0.85 },
+    },
+    {
+      kind: 'fielderMove',
+      startMs: T.fielderStart,
+      endMs: T.fielderEnd,
+      data: { kind: 'fielderMove', from: fielder.fieldPos, to: landPos, fielderPosKey: fielder.posKey },
+    },
+    {
+      kind: 'result',
+      startMs: T.resultStart,
+      endMs: T.resultEnd,
+      data: { kind: 'result', text: 'アウト！', isOut: true },
+    },
+  ];
+
+  return { phases, totalMs: T.resultEnd };
+}
+
+/**
+ * Phase 12-J: ポップフライアウトのシーケンス（内野ポップアップ）
+ */
+export function buildPopupSequence(contact: BatContactForAnimation): PlaySequence {
+  const { direction } = contact;
+  // ポップアップは内野近く（短距離）
+  const landPos = calcLandingPos(direction, 40, 0.8);
+  const fielder = getFielderForGroundBall(direction);
+  const home: FieldPoint = FIELD_POSITIONS.home;
+
+  const T = {
+    flyStart: 0,
+    flyEnd: 600,
+    fielderStart: 50,
+    fielderEnd: 550,
+    resultStart: 600,
+    resultEnd: 1100,
+  };
+
+  const phases: PlayPhase[] = [
+    {
+      kind: 'flyBall',
+      startMs: T.flyStart,
+      endMs: T.flyEnd,
+      data: { kind: 'flyBall', from: home, to: landPos, peakHeight: 0.95 },
+    },
+    {
+      kind: 'fielderMove',
+      startMs: T.fielderStart,
+      endMs: T.fielderEnd,
+      data: { kind: 'fielderMove', from: fielder.fieldPos, to: landPos, fielderPosKey: fielder.posKey },
+    },
+    {
+      kind: 'result',
+      startMs: T.resultStart,
+      endMs: T.resultEnd,
+      data: { kind: 'result', text: 'アウト！', isOut: true },
+    },
+  ];
+
+  return { phases, totalMs: T.resultEnd };
+}
+
+/**
+ * Phase 12-J: シングルヒット（外野安打）のシーケンス
+ * 打球 → 外野に落下 → 外野手が追う → カット（中継手）→ 内野へ返球
+ */
+export function buildHitSequence(
+  contact: BatContactForAnimation,
+): PlaySequence {
+  const { direction, distance } = contact;
+  const landPos = calcLandingPos(direction, distance);
+  const outfielder = getFielderForOutfield(direction);
+
+  // カット（中継）ポジション: センター方向ならSSか2B、レフト方向ならSS、ライト方向なら2B
+  const cutoff: FieldPoint = direction < 45
+    ? FIELD_POSITIONS.shortstop
+    : FIELD_POSITIONS.secondBase;
+
+  // バッター走者は一塁へ
+  const home: FieldPoint = FIELD_POSITIONS.home;
+  const first: FieldPoint = FIELD_POSITIONS.first;
+
+  const T = {
+    flyStart:      0,
+    flyEnd:        700,
+    fielderStart:  200,
+    fielderEnd:    900,
+    throwStart:    950,
+    throwEnd:     1250,
+    batterStart:   300,
+    batterEnd:    1100,
+    resultStart:  1200,
+    resultEnd:    1700,
+  };
+
+  const phases: PlayPhase[] = [
+    {
+      kind: 'flyBall',
+      startMs: T.flyStart,
+      endMs: T.flyEnd,
+      data: { kind: 'flyBall', from: home, to: landPos, peakHeight: 0.6 },
+    },
+    {
+      kind: 'fielderMove',
+      startMs: T.fielderStart,
+      endMs: T.fielderEnd,
+      data: { kind: 'fielderMove', from: outfielder.fieldPos, to: landPos, fielderPosKey: outfielder.posKey },
+    },
+    {
+      kind: 'throw',
+      startMs: T.throwStart,
+      endMs: T.throwEnd,
+      data: { kind: 'throw', from: landPos, to: cutoff },
+    },
+    {
+      kind: 'batterRun',
+      startMs: T.batterStart,
+      endMs: T.batterEnd,
+      data: { kind: 'batterRun', from: home, to: first },
+    },
+    {
+      kind: 'result',
+      startMs: T.resultStart,
+      endMs: T.resultEnd,
+      data: { kind: 'result', text: 'ヒット！', isOut: false, baseKey: 'first' },
+    },
+  ];
+
+  return { phases, totalMs: T.resultEnd };
+}
+
+/**
+ * Phase 12-J: 内野安打のシーケンス
+ * 打球がゴロで内野を抜ける or 内野手がギリギリ間に合わない
+ */
+export function buildInfieldHitSequence(
+  contact: BatContactForAnimation,
+): PlaySequence {
+  const { direction } = contact;
+  const adjustedDeg = direction - 45;
+  const rad = (adjustedDeg * Math.PI) / 180;
+  const groundDist = 55;
+  const ballLandPos: FieldPoint = {
+    x: Math.sin(rad) * groundDist,
+    y: Math.cos(rad) * groundDist,
+  };
+
+  const { posKey, fieldPos } = getFielderForGroundBall(direction);
+  const home: FieldPoint = FIELD_POSITIONS.home;
+  const first: FieldPoint = FIELD_POSITIONS.first;
+  const firstBasePlayer: FieldPoint = FIELD_POSITIONS.firstBase;
+
+  const T = {
+    rollStart:    0,
+    rollEnd:      400,
+    fielderStart: 100,
+    fielderEnd:   520,
+    throwStart:   550,
+    throwEnd:     850,
+    batterStart:  300,
+    batterEnd:   1000,
+    resultStart:  900,
+    resultEnd:   1400,
+  };
+
+  const phases: PlayPhase[] = [
+    {
+      kind: 'groundRoll',
+      startMs: T.rollStart,
+      endMs: T.rollEnd,
+      data: { kind: 'groundRoll', from: home, to: ballLandPos },
+    },
+    {
+      kind: 'fielderMove',
+      startMs: T.fielderStart,
+      endMs: T.fielderEnd,
+      data: { kind: 'fielderMove', from: fieldPos, to: ballLandPos, fielderPosKey: posKey },
+    },
+    {
+      kind: 'throw',
+      startMs: T.throwStart,
+      endMs: T.throwEnd,
+      data: { kind: 'throw', from: ballLandPos, to: firstBasePlayer },
+    },
+    {
+      kind: 'batterRun',
+      startMs: T.batterStart,
+      endMs: T.batterEnd,
+      data: { kind: 'batterRun', from: home, to: first },
+    },
+    {
+      kind: 'result',
+      startMs: T.resultStart,
+      endMs: T.resultEnd,
+      data: { kind: 'result', text: '内野安打！', isOut: false, baseKey: 'first' },
+    },
+  ];
+
+  return { phases, totalMs: T.resultEnd };
+}
+
+/**
+ * Phase 12-J: 二塁打のシーケンス
+ * 打球が外野へ → 外野手が追う → バッターが二塁まで走塁
+ */
+export function buildDoubleSequence(
+  contact: BatContactForAnimation,
+): PlaySequence {
+  const { direction, distance } = contact;
+  const landPos = calcLandingPos(direction, distance);
+  const outfielder = getFielderForOutfield(direction);
+
+  const home: FieldPoint = FIELD_POSITIONS.home;
+  const first: FieldPoint = FIELD_POSITIONS.first;
+  const second: FieldPoint = FIELD_POSITIONS.second;
+
+  // カット（中継）
+  const cutoff: FieldPoint = direction < 45
+    ? FIELD_POSITIONS.shortstop
+    : FIELD_POSITIONS.secondBase;
+
+  const T = {
+    flyStart:     0,
+    flyEnd:       750,
+    fielderStart: 200,
+    fielderEnd:   1000,
+    throwStart:  1050,
+    throwEnd:    1350,
+    batterStart:  300,
+    batter1End:   900,   // 一塁通過
+    batter2End:  1400,   // 二塁到達
+    resultStart: 1400,
+    resultEnd:   1900,
+  };
+
+  const phases: PlayPhase[] = [
+    {
+      kind: 'flyBall',
+      startMs: T.flyStart,
+      endMs: T.flyEnd,
+      data: { kind: 'flyBall', from: home, to: landPos, peakHeight: 0.55 },
+    },
+    {
+      kind: 'fielderMove',
+      startMs: T.fielderStart,
+      endMs: T.fielderEnd,
+      data: { kind: 'fielderMove', from: outfielder.fieldPos, to: landPos, fielderPosKey: outfielder.posKey },
+    },
+    {
+      kind: 'throw',
+      startMs: T.throwStart,
+      endMs: T.throwEnd,
+      data: { kind: 'throw', from: landPos, to: cutoff },
+    },
+    {
+      kind: 'batterRun',
+      startMs: T.batterStart,
+      endMs: T.batter1End,
+      data: { kind: 'batterRun', from: home, to: first },
+    },
+    {
+      kind: 'batterRun',
+      startMs: T.batter1End,
+      endMs: T.batter2End,
+      data: { kind: 'batterRun', from: first, to: second },
+    },
+    {
+      kind: 'result',
+      startMs: T.resultStart,
+      endMs: T.resultEnd,
+      data: { kind: 'result', text: '二塁打！', isOut: false, baseKey: 'second' },
+    },
+  ];
+
+  return { phases, totalMs: T.resultEnd };
+}
+
+/**
+ * Phase 12-J: 三塁打のシーケンス
+ * 打球が外野深くへ → バッターが三塁まで走塁
+ */
+export function buildTripleSequence(
+  contact: BatContactForAnimation,
+): PlaySequence {
+  const { direction, distance } = contact;
+  const landPos = calcLandingPos(direction, distance);
+  const outfielder = getFielderForOutfield(direction);
+
+  const home: FieldPoint = FIELD_POSITIONS.home;
+  const first: FieldPoint = FIELD_POSITIONS.first;
+  const second: FieldPoint = FIELD_POSITIONS.second;
+  const third: FieldPoint = FIELD_POSITIONS.third;
+
+  const T = {
+    flyStart:     0,
+    flyEnd:       800,
+    fielderStart: 200,
+    fielderEnd:  1100,
+    throwStart:  1150,
+    throwEnd:    1500,
+    batterStart:  300,
+    batter1End:   800,
+    batter2End:  1200,
+    batter3End:  1700,
+    resultStart: 1700,
+    resultEnd:   2200,
+  };
+
+  const phases: PlayPhase[] = [
+    {
+      kind: 'flyBall',
+      startMs: T.flyStart,
+      endMs: T.flyEnd,
+      data: { kind: 'flyBall', from: home, to: landPos, peakHeight: 0.5 },
+    },
+    {
+      kind: 'fielderMove',
+      startMs: T.fielderStart,
+      endMs: T.fielderEnd,
+      data: { kind: 'fielderMove', from: outfielder.fieldPos, to: landPos, fielderPosKey: outfielder.posKey },
+    },
+    {
+      kind: 'throw',
+      startMs: T.throwStart,
+      endMs: T.throwEnd,
+      data: { kind: 'throw', from: landPos, to: third },
+    },
+    {
+      kind: 'batterRun',
+      startMs: T.batterStart,
+      endMs: T.batter1End,
+      data: { kind: 'batterRun', from: home, to: first },
+    },
+    {
+      kind: 'batterRun',
+      startMs: T.batter1End,
+      endMs: T.batter2End,
+      data: { kind: 'batterRun', from: first, to: second },
+    },
+    {
+      kind: 'batterRun',
+      startMs: T.batter2End,
+      endMs: T.batter3End,
+      data: { kind: 'batterRun', from: second, to: third },
+    },
+    {
+      kind: 'result',
+      startMs: T.resultStart,
+      endMs: T.resultEnd,
+      data: { kind: 'result', text: '三塁打！', isOut: false, baseKey: 'third' },
+    },
+  ];
+
+  return { phases, totalMs: T.resultEnd };
+}
+
+/**
+ * Phase 12-J: 犠牲フライのシーケンス
+ * 外野フライ → 外野手キャッチ → バックホーム
+ */
+export function buildSacrificeFlySequence(
+  contact: BatContactForAnimation,
+): PlaySequence {
+  const { direction, distance } = contact;
+  const landPos = calcLandingPos(direction, distance);
+  const outfielder = getFielderForOutfield(direction);
+  const home: FieldPoint = FIELD_POSITIONS.home;
+
+  const T = {
+    flyStart:     0,
+    flyEnd:       750,
+    fielderStart: 150,
+    fielderEnd:   700,
+    throwStart:   750,
+    throwEnd:    1100,
+    resultStart: 1100,
+    resultEnd:   1600,
+  };
+
+  const phases: PlayPhase[] = [
+    {
+      kind: 'flyBall',
+      startMs: T.flyStart,
+      endMs: T.flyEnd,
+      data: { kind: 'flyBall', from: home, to: landPos, peakHeight: 0.8 },
+    },
+    {
+      kind: 'fielderMove',
+      startMs: T.fielderStart,
+      endMs: T.fielderEnd,
+      data: { kind: 'fielderMove', from: outfielder.fieldPos, to: landPos, fielderPosKey: outfielder.posKey },
+    },
+    {
+      kind: 'throw',
+      startMs: T.throwStart,
+      endMs: T.throwEnd,
+      data: { kind: 'throw', from: landPos, to: home },
+    },
+    {
+      kind: 'result',
+      startMs: T.resultStart,
+      endMs: T.resultEnd,
+      data: { kind: 'result', text: '犠牲フライ！', isOut: false },
+    },
+  ];
+
+  return { phases, totalMs: T.resultEnd };
+}
+
+/**
+ * Phase 12-J: 統一 API — pitchResult の fieldResult.type に応じて適切なシーケンスを構築
+ *
+ * @param contact BatContactForAnimation（fieldResultType / fielderPosition / runnersOnBase を含む）
+ * @returns PlaySequence
+ */
+export function buildPlaySequence(contact: BatContactForAnimation): PlaySequence {
+  const { contactType, fieldResultType, runnersOnBase = [] } = contact;
+
+  // ── ホームランは呼び出し元で triggerHitAnimation + triggerHomeRunEffect を使うため除外
+  // ── それ以外の fieldResultType に基づいて分岐
+
+  switch (fieldResultType) {
+    // ────── ヒット系 ──────
+    case 'single': {
+      // 内野ゴロで内野安打 or 外野ヒット
+      const isInfieldHit = contactType === 'ground_ball' || contactType === 'bunt_ground';
+      if (isInfieldHit) {
+        return buildInfieldHitSequence(contact);
+      }
+      return buildHitSequence(contact);
+    }
+
+    case 'double':
+      return buildDoubleSequence(contact);
+
+    case 'triple':
+      return buildTripleSequence(contact);
+
+    case 'sacrifice_fly':
+      return buildSacrificeFlySequence(contact);
+
+    // ────── アウト系 ──────
+    case 'out': {
+      // ゴロアウト
+      if (contactType === 'ground_ball' || contactType === 'bunt_ground') {
+        return buildGroundOutSequence(contact, true);
+      }
+      // ポップフライアウト
+      if (contactType === 'popup') {
+        return buildPopupSequence(contact);
+      }
+      // 外野フライアウト
+      const isOutfield = contact.distance >= 100;
+      return buildFlyoutSequence(contact, isOutfield);
+    }
+
+    case 'double_play':
+      // 併殺: ゴロ → 二塁送球 → 一塁送球
+      return buildGroundOutSequence(contact, true);
+
+    case 'sacrifice':
+      // バント → ゴロアウト（ランナー進塁）
+      return buildGroundOutSequence(contact, true);
+
+    case 'error': {
+      // エラー: アウトになるべきところがセーフ
+      if (contactType === 'ground_ball' || contactType === 'bunt_ground') {
+        return buildGroundOutSequence(contact, false); // セーフ扱い
+      }
+      return buildFlyoutSequence(contact, contact.distance >= 100);
+    }
+
+    case 'fielders_choice':
+      return buildGroundOutSequence(contact, true);
+
+    // ────── フォールバック ──────
+    default: {
+      // fieldResultType が不明 or 未設定の場合は打球種類で判断
+      if (contactType === 'ground_ball' || contactType === 'bunt_ground') {
+        return buildGroundOutSequence(contact, false);
+      }
+      if (contactType === 'popup') {
+        return buildPopupSequence(contact);
+      }
+      if (contactType === 'fly_ball' || contactType === 'line_drive') {
+        const isOutfield = (contact.distance ?? 0) >= 100;
+        return buildFlyoutSequence(contact, isOutfield);
+      }
+      return buildGroundOutSequence(contact, false);
+    }
+  }
 }
 
 // ===== ユーティリティ関数 =====
@@ -527,6 +1139,7 @@ export function useBallAnimation(): UseBallAnimationReturn {
         // 各フェーズの進行度を計算
         const activePhases: PlaySequenceState['activePhases'] = [];
         let ballPos: FieldPoint | undefined;
+        let ballHeight = 0;
         let animatedFielder: PlaySequenceState['animatedFielder'];
         let batterRunnerPos: FieldPoint | undefined;
         let resultText: PlaySequenceState['resultText'];
@@ -548,19 +1161,33 @@ export function useBallAnimation(): UseBallAnimationReturn {
                 x: lerp(d.from.x, d.to.x, et),
                 y: lerp(d.from.y, d.to.y, et),
               };
+              ballHeight = 0.05; // 地面近く
+              break;
+            }
+            case 'flyBall': {
+              // Phase 12-J: フライボール（高い弧）
+              const et = easeOut(t);
+              ballPos = bezier2(
+                d.from,
+                { x: (d.from.x + d.to.x) * 0.5, y: (d.from.y + d.to.y) * 0.5 + d.peakHeight * 60 },
+                d.to,
+                et,
+              );
+              ballHeight = Math.sin(et * Math.PI) * d.peakHeight;
               break;
             }
             case 'fielderMove': {
-              // 内野手移動
+              // 内野手/外野手移動
               const et = easeOut(t);
               const fielderPos: FieldPoint = {
                 x: lerp(d.from.x, d.to.x, et),
                 y: lerp(d.from.y, d.to.y, et),
               };
               animatedFielder = { posKey: d.fielderPosKey, pos: fielderPos };
-              // t=0.9 以降はボールをキャッチ
+              // t=0.9 以降はボールをキャッチ（フライの場合はボールを隠す）
               if (t >= 0.9) {
                 ballPos = fielderPos;
+                ballHeight = 0;
               }
               break;
             }
@@ -572,10 +1199,11 @@ export function useBallAnimation(): UseBallAnimationReturn {
               // 軽い弧
               const arc = Math.sin(Math.PI * t) * 20;
               ballPos = { x: bx, y: by + arc };
+              ballHeight = Math.sin(Math.PI * t) * 0.2;
               break;
             }
             case 'batterRun': {
-              // バッター走塁: ホーム → 一塁
+              // バッター走塁
               const et = easeOut(t);
               batterRunnerPos = {
                 x: lerp(d.from.x, d.to.x, et),
@@ -584,7 +1212,7 @@ export function useBallAnimation(): UseBallAnimationReturn {
               break;
             }
             case 'result': {
-              resultText = { text: d.text, isOut: d.isOut };
+              resultText = { text: d.text, isOut: d.isOut, baseKey: d.baseKey };
               break;
             }
           }
@@ -594,6 +1222,7 @@ export function useBallAnimation(): UseBallAnimationReturn {
         const seqState: PlaySequenceState = {
           activePhases,
           ballPosition: ballPos,
+          ballHeightNorm: ballHeight,
           animatedFielder,
           batterRunnerPos,
           resultText,

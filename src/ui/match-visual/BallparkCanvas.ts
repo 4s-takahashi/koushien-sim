@@ -161,13 +161,14 @@ export function renderBallpark(
   }
 
   // ボール描画（アニメーション中のみ）
-  // Phase 12-G: プレイシーケンスのボール位置を優先
+  // Phase 12-G/J: プレイシーケンスのボール位置を優先、高さもシーケンス状態から取得
   const ballPos = state.playSequenceState?.ballPosition ?? state.ballPosition;
+  const ballH = state.playSequenceState?.ballHeightNorm ?? state.ballHeightNorm ?? 0;
   if (ballPos) {
     drawBallWithShadow(
       ctx,
       ballPos,
-      state.ballHeightNorm ?? 0,
+      ballH,
       canvasWidth,
       canvasHeight,
     );
@@ -178,10 +179,10 @@ export function renderBallpark(
     drawHomeRunEffect(ctx, state.homeRunProgress, canvasWidth, canvasHeight);
   }
 
-  // Phase 12-G: 判定テキストフラッシュ
+  // Phase 12-G/J: 判定テキストフラッシュ
   if (state.playSequenceState?.resultText) {
-    const { text, isOut } = state.playSequenceState.resultText;
-    drawResultFlash(ctx, text, isOut, canvasWidth, canvasHeight);
+    const { text, isOut, baseKey } = state.playSequenceState.resultText;
+    drawResultFlash(ctx, text, isOut, baseKey ?? 'first', canvasWidth, canvasHeight);
   }
 }
 
@@ -426,19 +427,26 @@ function drawBatterRunner(
 }
 
 /**
- * Phase 12-G: 判定テキストフラッシュ（アウト / セーフ）
+ * Phase 12-G/J: 判定テキストフラッシュ（アウト / セーフ / ヒット等）
+ * baseKey: 表示する塁の付近（'first'|'second'|'third'|'catcher'）
  */
 function drawResultFlash(
   ctx: CanvasRenderingContext2D,
   text: string,
   isOut: boolean,
+  baseKey: string,
   w: number,
   h: number,
 ): void {
-  // 一塁付近に表示
-  const first = fieldToCanvas(FIELD_POSITIONS.first, w, h);
-  const cx = first.cx + 20;
-  const cy = first.cy - 20;
+  // baseKey に応じた表示位置
+  const basePos: FieldPoint =
+    baseKey === 'second' ? FIELD_POSITIONS.second :
+    baseKey === 'third'  ? FIELD_POSITIONS.third :
+    baseKey === 'catcher'? FIELD_POSITIONS.catcher :
+    FIELD_POSITIONS.first;
+  const baseC = fieldToCanvas(basePos, w, h);
+  const cx = baseC.cx + 20;
+  const cy = baseC.cy - 20;
 
   const color = isOut ? '#ef5350' : '#66bb6a';
   const fontSize = Math.max(12, Math.min(20, w * 0.045));
