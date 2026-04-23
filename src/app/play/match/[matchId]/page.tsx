@@ -33,6 +33,9 @@ import { useBallAnimation } from '../../../../ui/match-visual/useBallAnimation';
 import { computeTrajectory, buildPlaySequence } from '../../../../ui/match-visual/useBallAnimation';
 import { pitchLocationToUV, getBreakDirection, isFastballClass } from '../../../../ui/match-visual/pitch-marker-types';
 import type { AtBatMarkerHistory } from '../../../../ui/match-visual/pitch-marker-types';
+// v0.34.0: 効果音
+import { useSound, hitContactToBatSoundId, pitchSpeedToCatchSoundId } from '../../../../ui/sound/useSound';
+import { SoundControl } from './SoundControl';
 import visualStyles from './match-visual.module.css';
 
 // ============================================================
@@ -1743,6 +1746,9 @@ function MatchPageInner({
   // ===== Phase 12: ボールアニメーション =====
   const { ballState, triggerPitchAnimation, triggerHitAnimation, triggerHomeRunEffect, triggerPlaySequence, resetBall } = useBallAnimation();
 
+  // ===== v0.34.0: 効果音 =====
+  const sound = useSound();
+
   // ===== Phase 12: マーカーストア =====
   const addPitchMarker = useMatchVisualStore((s) => s.addPitchMarker);
   const setSwingMarker = useMatchVisualStore((s) => s.setSwingMarker);
@@ -1812,11 +1818,28 @@ function MatchPageInner({
         speedKmh: latest.pitchSpeed,
         pitchType: latest.pitchType,
       });
+      // v0.34.0: 投球音（すぐ鳴らす）
+      sound.play('pitch_throw', { volume: 0.7 });
+
+      // v0.34.0: 捕球音は「打球が発生しない場合」のみ（ball / called_strike / swinging_strike）
+      // ミット到達タイミングに合わせて遅延再生
+      const isInPlay = latest.outcome === 'in_play';
+      const isFoul = latest.outcome === 'foul' || latest.outcome === 'foul_bunt';
+      if (!isInPlay && !isFoul) {
+        const catchSoundId = pitchSpeedToCatchSoundId(latest.pitchSpeed);
+        const catchDelay = Math.min(450, 60000 / latest.pitchSpeed); // 球速が速いほど早い
+        setTimeout(() => sound.play(catchSoundId, { volume: 0.9 }), catchDelay);
+      }
     }
 
     // 打球アニメーション
     const batContact = latest.batContact;
     if (batContact) {
+      // v0.34.0: 打球音（バット→ボール）
+      const batSoundId = hitContactToBatSoundId(batContact.speed, batContact.contactType);
+      // 投球から少し遅れてインパクト音
+      const batDelay = latest.pitchSpeed ? Math.min(250, 80000 / latest.pitchSpeed) : 250;
+      setTimeout(() => sound.play(batSoundId, { volume: 1.0 }), batDelay);
       const trajectory = computeTrajectory({
         contactType: batContact.contactType,
         direction: batContact.direction,
@@ -1870,6 +1893,14 @@ function MatchPageInner({
     <div className={styles.page}>
       {/* Phase 12-H: PLAY BALL 演出 */}
       <PlayBallOverlay visible={showPlayBall} />
+
+      {/* v0.34.0: 効果音コントロール（右上固定） */}
+      <SoundControl
+        volume={sound.volume}
+        muted={sound.muted}
+        onSetVolume={sound.setVolume}
+        onToggleMuted={sound.toggleMuted}
+      />
 
       {/* Phase 12-A: アニメーション付きスコアボード */}
       <AnimatedScoreboard view={view} />

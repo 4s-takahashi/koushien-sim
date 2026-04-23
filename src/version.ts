@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.33.0';
+export const VERSION = '0.34.0';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-23 12:44 UTC';
-export const GIT_SHA = '6abe50c-dirty';
+export const BUILD_DATE = '2026-04-23 13:32 UTC';
+export const GIT_SHA = '395e9ba-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,29 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.34.0',
+    date: '2026-04-23',
+    changes: [
+      '🔊 v0.34.0: 効果音システム導入（高橋さん要望）',
+      '  🎵 AI 生成サウンド 12 種（elevenlabs/sound-effects）',
+      '    バット金属音 5段階（弱い当たり〜完璧な芯食い）',
+      '    バント音 1種',
+      '    投球音 1種（シュッ）',
+      '    キャッチャー捕球音 5段階（球速 110km/h未満〜150km/h以上）',
+      '  🧩 src/ui/sound/useSound.ts 新規作成',
+      '    HTML5 Audio で実装、LocalStorage で音量・ミュート永続化',
+      '    hitContactToBatSoundId(): 打球強度 + 打球種別から音レベル算出',
+      '    pitchSpeedToCatchSoundId(): 球速から捕球音レベル算出',
+      '  🎚️ SoundControl コンポーネント追加（画面右上固定）',
+      '    🔊 アイコン → ポップオーバーで音量スライダー + ミュートボタン',
+      '  🔁 再生タイミング',
+      '    投球音: 投球アニメ開始と同時',
+      '    捕球音: ストライク/ボール判定時（打球・ファウル除外）、球速に応じた遅延',
+      '    打球音: バットコンタクト時、投球から少し遅れて再生',
+      '  📁 サウンドファイル: public/sounds/generated/ 配下（差し替え可）',
+    ],
+  },
   {
     version: '0.33.0',
     date: '2026-04-23',
