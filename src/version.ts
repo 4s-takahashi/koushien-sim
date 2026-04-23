@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.36.0';
+export const VERSION = '0.37.0';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-23 14:20 UTC';
-export const GIT_SHA = '5fb2fc6-dirty';
+export const BUILD_DATE = '2026-04-23 14:41 UTC';
+export const GIT_SHA = 'dcaefab-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,43 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.37.0',
+    date: '2026-04-23',
+    changes: [
+      '🏏 v0.37.0: 打球シミュレーション本格化（高橋さん指示）',
+      '  🎯 [1] 打球方向を打者の左右・コース・タイミングで決定',
+      '    従来: rng.gaussian(45, 15-30) でセンター集中のみ → 外野フライがほぼ出ない',
+      '    改訂: コース別の想定方向 + タイミング偏差 + 打者の左右で反転',
+      '      - 右打者のインコース → 引っ張り (direction ≈ 20°, レフト方向)',
+      '      - 右打者のアウトコース → 流し (direction ≈ 70°, ライト方向)',
+      '      - ど真ん中 → センター',
+      '      - 左打者は全て左右反転',
+      '    technique が高いほど σ 小で狙い通り',
+      '  ⚡ [2] スイングタイミング (early/perfect/late) 判定',
+      '    - 速球 (>145km/h) → 振り遅れ (late) しやすい',
+      '    - 緩い球 (<115km/h チェンジアップ) → 早打ち (early) しやすい',
+      '    - インコース速球 → 詰まり (early)',
+      '    - アウトコース速球 → 流し気味 (late)',
+      '    - ゾーン外 → タイミングずれやすい',
+      '    - contact + technique が高いほど perfect 率 UP',
+      '    タイミングずれると:',
+      '      - 打球速度 -20〜25%',
+      '      - 飛距離 -15%',
+      '      - ゴロ/ポップアップ増',
+      '      - 方向が 18° ずれる (早打ち=引っ張り側、振り遅れ=流し側)',
+      '  🏁 [3] ファール判定を自然な打球方向から',
+      '    従来: swing-result.ts で一律 10% の確率＋ランダム方向 → 同じ場所に集中',
+      '    改訂: bat-contact 内で direction が極端 (<-10° or >100°) ならファール確定',
+      '      - 際どい方向 (-10〜0°, 90〜100°) は 70% ファール',
+      '      - ライン際 (0〜5°, 85〜90°) は 25% ファール',
+      '    2ストライク時は +10% ファール率（粘り）',
+      '    ファール方向: 三塁側 (-30〜-2°) または 一塁側 (92〜120°)',
+      '  🧪 [4] bat-contact.test.ts に検証テスト 4件追加',
+      '    右/左打者の引っ張り、右打アウトコース流し、チェンジアップ早打ち',
+      '    全48テスト pass (既存43 + 新規5)',
+    ],
+  },
   {
     version: '0.36.0',
     date: '2026-04-23',
