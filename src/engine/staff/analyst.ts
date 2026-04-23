@@ -276,6 +276,7 @@ function makeRng(seed: number): () => number {
  * @param analyst analyticsロールのマネージャー（null=アナリスト不在）
  * @param inning コメントを生成するイニング番号
  * @param half 表/裏終了後
+ * @param pitcherName 相手投手名（v0.33.0: 主語を明示する目的で渡す。省略時は「相手投手」）
  * @returns コメント（アナリスト不在の場合はnull）
  */
 export function generateAnalystComment(
@@ -283,12 +284,16 @@ export function generateAnalystComment(
   analyst: Manager | null,
   inning: number,
   half: 'top' | 'bottom',
+  pitcherName?: string,
 ): AnalystComment | null {
   if (!analyst) return null;
 
   const analystName = analyst.lastName ?? '分析担当';
   const level = Math.max(1, Math.min(5, Math.round(analyst.level / 20))); // 1-100 → 1-5スケール
   const noiseLevel = NOISE_BY_LEVEL[level] ?? 0.3;
+
+  // v0.33.0: 主語（相手投手）。pitcherName が与えられれば「相手投手◯◯は」、なければ「相手投手は」
+  const subject = pitcherName ? `相手投手${pitcherName}は` : '相手投手は';
 
   const relevantPitches = getPitchesUpToInning(pitchLog, inning, half);
 
@@ -300,7 +305,7 @@ export function generateAnalystComment(
       inning,
       half,
       analystName,
-      text: 'まだサンプルが少なくて読み切れません…。もう少し投球を見てみましょう。',
+      text: `${subject}まだサンプルが少なくて読み切れません…。もう少し投球を見てみましょう。`,
       kind: 'insufficient',
       analystLevel: level,
     };
@@ -318,7 +323,7 @@ export function generateAnalystComment(
         inning,
         half,
         analystName,
-        text: '1回が終わりましたが、まだ傾向を掴み切れていません。もう少し見ていきます。',
+        text: `1回が終わりましたが、${subject}まだ傾向が掴み切れていません。もう少し見ていきます。`,
         kind: 'insufficient',
         analystLevel: level,
       };
@@ -330,7 +335,7 @@ export function generateAnalystComment(
       inning,
       half,
       analystName,
-      text: `1回の様子では${pitchTypeJa(top.key)}が多めでした（${pct}%程度）。まだ判断は早いですが、頭に入れておきましょう。`,
+      text: `1回の様子では${subject}${pitchTypeJa(top.key)}が多めでした（${pct}%程度）。まだ判断は早いですが、頭に入れておきましょう。`,
       kind: 'pitch_tendency',
       analystLevel: level,
     };
@@ -345,9 +350,9 @@ export function generateAnalystComment(
   // レベル低（1-2）: 30%の確率でノイズコメント
   if (level <= 2 && analysisRoll < 0.3) {
     const noiseComments = [
-      '投手は外角のスライダーを多用しているような気がします…でも、自信はあまりないです。',
-      '低めに集める傾向があるかもしれませんが、まだはっきりとは言えません。',
-      '2ストライクからのストレートが少ない気がするんですが…統計の見方が難しくて。',
+      `${subject}外角のスライダーを多用しているような気がします…でも、自信はあまりないです。`,
+      `${subject}低めに集める傾向があるかもしれませんが、まだはっきりとは言えません。`,
+      `${subject}2ストライクからのストレートが少ない気がするんですが…統計の見方が難しくて。`,
     ];
     const idx = Math.floor(rng() * noiseComments.length);
     return {
@@ -373,7 +378,7 @@ export function generateAnalystComment(
         inning,
         half,
         analystName,
-        text: `${inning}回終了時点では球種の偏りは特に見当たりません。バランスよく投げ分けている印象です。`,
+        text: `${inning}回終了時点では${subject}球種の偏りは特に見当たりません。バランスよく投げ分けている印象です。`,
         kind: 'pitch_tendency',
         analystLevel: level,
       };
@@ -390,7 +395,7 @@ export function generateAnalystComment(
       inning,
       half,
       analystName,
-      text: `${levelComment}、${pitchTypeJa(top.key)}が多めです（${pct}%程度）。次の打席も${pitchTypeJa(top.key)}を頭に入れておきましょう。`,
+      text: `${levelComment}、${subject}${pitchTypeJa(top.key)}が多めです（${pct}%程度）。次の打席も${pitchTypeJa(top.key)}を頭に入れておきましょう。`,
       kind: 'pitch_tendency',
       analystLevel: level,
     };
@@ -407,7 +412,7 @@ export function generateAnalystComment(
         inning,
         half,
         analystName,
-        text: `${inning}回終了時点ではコースの偏りは見られません。まんべんなく投げてきます。`,
+        text: `${inning}回終了時点では${subject}コースの偏りは見られません。まんべんなく投げてきます。`,
         kind: 'location_tendency',
         analystLevel: level,
       };
@@ -419,7 +424,7 @@ export function generateAnalystComment(
       inning,
       half,
       analystName,
-      text: `${zoneJa(top.key)}への配球が${pct}%程度あります。そのコースへの対応を意識しましょう。`,
+      text: `${subject}${zoneJa(top.key)}への配球が${pct}%程度あります。そのコースへの対応を意識しましょう。`,
       kind: 'location_tendency',
       analystLevel: level,
     };
@@ -438,7 +443,7 @@ export function generateAnalystComment(
         inning,
         half,
         analystName,
-        text: `ランナーがいる場面では${pitchTypeJa(topRunner.key)}を多投する傾向があります（${Math.round(topRunner.ratio * 100)}%）。揺さぶりに注意しましょう。`,
+        text: `ランナーがいる場面では${subject}${pitchTypeJa(topRunner.key)}を多投する傾向があります（${Math.round(topRunner.ratio * 100)}%）。揺さぶりに注意しましょう。`,
         kind: 'runner_tendency',
         analystLevel: level,
       };
@@ -449,7 +454,7 @@ export function generateAnalystComment(
       inning,
       half,
       analystName,
-      text: `特定のカウントでの際立った傾向はまだ見えていません。${inning}回の全投球をしっかりスコアブックに記録しました。`,
+      text: `${subject}特定のカウントでの際立った傾向はまだ見えていません。${inning}回の全投球をしっかりスコアブックに記録しました。`,
       kind: 'count_tendency',
       analystLevel: level,
     };
@@ -462,7 +467,7 @@ export function generateAnalystComment(
     inning,
     half,
     analystName,
-    text: `2ストライク後の決め球は${pitchTypeJa(countTend.pitchType)}が多いです（${pct}%、${countTend.count}/${countTend.total}球）。追い込まれたら要注意です。`,
+    text: `${subject}2ストライク後の決め球に${pitchTypeJa(countTend.pitchType)}を多投します（${pct}%、${countTend.count}/${countTend.total}球）。追い込まれたら要注意です。`,
     kind: 'count_tendency',
     analystLevel: level,
   };
@@ -482,6 +487,7 @@ export function generateAnalystCommentFromManagers(
   managers: Manager[],
   inning: number,
   half: 'top' | 'bottom',
+  pitcherName?: string,
 ): AnalystComment | null {
   // analytics ロールのマネージャーを探す（最高レベルを優先）
   const analysts = managers.filter((m) => m.role === 'analytics');
@@ -489,5 +495,5 @@ export function generateAnalystCommentFromManagers(
 
   // レベル最高のマネージャーを選択
   const best = analysts.reduce((a, b) => (a.level >= b.level ? a : b));
-  return generateAnalystComment(pitchLog, best, inning, half);
+  return generateAnalystComment(pitchLog, best, inning, half, pitcherName);
 }

@@ -108,6 +108,10 @@ export interface MatchStoreState {
   // --- Phase 12-K: アナリストコメント ---
   /** イニング切れ目で生成されたアナリストコメント一覧 */
   analystComments: AnalystComment[];
+
+  // --- v0.33.0: アナリスト分析タブの未読管理 ---
+  /** 最後にユーザーがアナリストタブを開いた時点の最新コメントID（未読バッジ判定に使用） */
+  lastReadAnalystId: string | null;
 }
 
 export interface MatchStoreActions {
@@ -187,8 +191,12 @@ export interface MatchStoreActions {
    * @param inning 終了したイニング番号
    * @param half 終了した表/裏
    * @param managers プレイヤー校のマネージャー一覧
+   * @param pitcherName 相手投手名（v0.33.0: 主語を明示する目的で渡す）
    */
-  addAnalystComment: (inning: number, half: 'top' | 'bottom', managers: Manager[]) => void;
+  addAnalystComment: (inning: number, half: 'top' | 'bottom', managers: Manager[], pitcherName?: string) => void;
+
+  /** アナリスト分析タブを既読化する（v0.33.0） */
+  markAnalystRead: () => void;
 
   // --- Phase 12-H: 新自動進行アクション ---
   /** 自動進行 ON/OFF を設定する */
@@ -229,6 +237,7 @@ const INITIAL_STATE: MatchStoreState = {
   recentMonologueIds: [],
   lastOrder: null,
   analystComments: [],
+  lastReadAnalystId: null,
 };
 
 // Phase 7-E3: 直近モノローグID リングバッファのサイズ
@@ -509,6 +518,8 @@ interface MatchPersistedState {
   pendingNextOrder: TacticalOrder | null;
   // Phase 12-K
   analystComments: AnalystComment[];
+  // v0.33.0
+  lastReadAnalystId: string | null;
 }
 
 // ============================================================
@@ -542,6 +553,7 @@ export const useMatchStore = create<MatchStore>()(
       matchResult: null,
       isProcessing: false,
       analystComments: [],
+      lastReadAnalystId: null,
     });
   },
 
@@ -1008,12 +1020,20 @@ export const useMatchStore = create<MatchStore>()(
   // Phase 12-K: アナリストコメント
   // Phase 12-M/hotfix-3: 随時上書き方式 — 常に最新1件のみ保持
   // ----------------------------------------------------------------
-  addAnalystComment: (inning: number, half: 'top' | 'bottom', managers: Manager[]) => {
+  addAnalystComment: (inning: number, half: 'top' | 'bottom', managers: Manager[], pitcherName?: string) => {
     const { pitchLog } = get();
-    const comment = generateAnalystCommentFromManagers(pitchLog, managers, inning, half);
+    const comment = generateAnalystCommentFromManagers(pitchLog, managers, inning, half, pitcherName);
     if (!comment) return;
     // 随時上書き: 常に最新 1 件のみ（過去のコメントは保持しない）
     set({ analystComments: [comment] });
+  },
+
+  /** v0.33.0: アナリストタブを既読化する */
+  markAnalystRead: () => {
+    const { analystComments } = get();
+    if (analystComments.length === 0) return;
+    const latestId = analystComments[analystComments.length - 1].id;
+    set({ lastReadAnalystId: latestId });
   },
 
   // ----------------------------------------------------------------
@@ -1081,6 +1101,8 @@ export const useMatchStore = create<MatchStore>()(
           pendingNextOrder: state.pendingNextOrder,
           // Phase 12-K
           analystComments: state.analystComments,
+          // v0.33.0
+          lastReadAnalystId: state.lastReadAnalystId,
         };
       },
       /**

@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.32.5';
+export const VERSION = '0.33.0';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-23 12:08 UTC';
-export const GIT_SHA = '9d9846e-dirty';
+export const BUILD_DATE = '2026-04-23 12:44 UTC';
+export const GIT_SHA = '6abe50c-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,25 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.33.0',
+    date: '2026-04-23',
+    changes: [
+      '✨ v0.33.0: アナリスト分析 UI 改善 3件（高橋さん指示）',
+      '  📝 [1] アナリスト分析の主語を明確化',
+      '    コメント文頭に「相手投手◯◯は」を付与し、投手のことか打者のことか一目瞭然に',
+      '    generateAnalystComment() / generateAnalystCommentFromManagers() に pitcherName 引数追加',
+      '    match-store の addAnalystComment も pitcherName を受け取り、page.tsx から view.pitcher.name を渡す',
+      '  📋 [2] アナリスト分析を「選手心理」パネルにタブ格納',
+      '    PsycheWindow に tabHeader を追加し「🧠 選手心理」と「📊 アナリスト分析」を切替',
+      '    心理タブ選択中のみバブルローテーションを実行（CPU 節約）',
+      '    タブ選択と同時に markAnalystRead() で既読化',
+      '  🔔 [3] 新着バッジ表示（未読件数）',
+      '    match-store に lastReadAnalystId 追加（persist 対象）',
+      '    最新 analystComment.id !== lastReadAnalystId なら未読＝バッジ "1" 表示（赤丸＋脈動アニメ）',
+      '    アナリストタブを開いた瞬間に lastReadAnalystId を更新して既読化',
+    ],
+  },
   {
     version: '0.32.5',
     date: '2026-04-23',

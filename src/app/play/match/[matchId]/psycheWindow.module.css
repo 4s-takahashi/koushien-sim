@@ -306,3 +306,79 @@
     min-width: unset;
   }
 }
+
+/* ============================================================ */
+/* v0.33.0: タブヘッダー（選手心理 / アナリスト分析） */
+/* ============================================================ */
+
+.tabHeader {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(156, 136, 216, 0.25);
+}
+
+.tabButton {
+  position: relative;
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  color: #7a7a9a;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px 4px 0 0;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  line-height: 1.4;
+}
+
+.tabButton:hover {
+  color: #b8b8d8;
+  background: rgba(156, 136, 216, 0.08);
+}
+
+.tabButtonActive {
+  color: #9c88d8;
+  background: rgba(156, 136, 216, 0.15);
+  border-color: rgba(156, 136, 216, 0.4);
+  border-bottom-color: transparent;
+}
+
+/* 未読バッジ */
+.tabBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  font-size: 10px;
+  font-weight: 900;
+  color: #ffffff;
+  background: #e53935;
+  border-radius: 9px;
+  letter-spacing: 0;
+  line-height: 1;
+  box-shadow: 0 0 0 1.5px #1a1a3e, 0 0 4px rgba(229, 57, 53, 0.6);
+  animation: tabBadgePulse 1.4s ease-in-out infinite;
+}
+
+@keyframes tabBadgePulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.12);
+    opacity: 0.88;
+  }
+}
+
+.tabContent {
+  min-height: 60px;
+}

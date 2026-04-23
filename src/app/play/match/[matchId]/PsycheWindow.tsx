@@ -7,10 +7,10 @@
  * Phase 12-I: 3バブル横並び → 1バブル + 1秒ローテーション
  * Phase 12-K: ローテーション間隔 1秒 → 2秒、フェード 200ms → 300ms
  * Phase 12-L: アナリストコメントを同一ウィンドウ内に統合表示
+ * v0.33.0: タブ化（心理 / アナリスト分析）+ 新着バッジ
  *
  * 打者→捕手→投手を2秒ごとに切り替えて1つの吹き出しで表示する。
- * アナリストが所属している場合はウィンドウ下部に「📊 アナリスト分析」セクションを追加表示する。
- * null/undefined の役割はスキップする。
+ * アナリストが所属している場合はタブ切替でアナリスト分析を表示する。
  */
 
 import { useState, useEffect, useRef } from 'react';
@@ -21,6 +21,8 @@ import styles from './psycheWindow.module.css';
 // ============================================================
 // 型
 // ============================================================
+
+type TabKey = 'psyche' | 'analyst';
 
 interface PsycheWindowProps {
   /** 最新投球ログのモノローグエントリ */
@@ -43,6 +45,16 @@ interface PsycheWindowProps {
    * false の場合はアナリストセクションを非表示
    */
   hasAnalyst?: boolean;
+  /**
+   * v0.33.0: 最後にアナリストタブを開いた時点の最新コメントID
+   * これと現在の最新コメントIDが異なる場合「未読」としてバッジ表示
+   */
+  lastReadAnalystId?: string | null;
+  /**
+   * v0.33.0: アナリストタブを既読化するコールバック
+   * タブがクリックされた際に呼ばれる
+   */
+  onAnalystRead?: () => void;
 }
 
 // ============================================================
@@ -119,7 +131,6 @@ function AnalystSection({ comments }: AnalystSectionProps) {
 
   return (
     <div className={styles.analystSection}>
-      <div className={styles.analystSectionTitle}>📊 アナリスト分析</div>
       {comments.length === 0 ? (
         <div className={styles.analystEmpty}>イニング終了時に分析が届きます</div>
       ) : (
@@ -161,9 +172,12 @@ export function PsycheWindow({
   pitcherSchoolShortName,
   analystComments,
   hasAnalyst = false,
+  lastReadAnalystId = null,
+  onAnalystRead,
 }: PsycheWindowProps) {
   const [roleIndex, setRoleIndex] = useState(0);
   const [visible, setVisible] = useState(true);
+  const [activeTab, setActiveTab] = useState<TabKey>('psyche');
 
   // アクティブなバブルを計算（hooks の前に計算して依存関係を安定させる）
   const batter = monologues?.find((m) => m.role === 'batter');
@@ -179,8 +193,17 @@ export function PsycheWindow({
   const hasBubble = activeBubbles.length > 0;
   const showAnalyst = hasAnalyst && analystComments !== undefined;
 
+  // v0.33.0: 未読バッジ判定
+  // - アナリストコメントが存在し、かつ最新コメントIDが lastReadAnalystId と異なる場合に未読
+  const latestAnalystId = showAnalyst && analystComments && analystComments.length > 0
+    ? analystComments[analystComments.length - 1].id
+    : null;
+  const hasUnreadAnalyst = latestAnalystId !== null && latestAnalystId !== lastReadAnalystId;
+  const unreadCount = hasUnreadAnalyst ? 1 : 0; // 随時上書き方式なので最大 1 件
+
   // Phase 12-L: フック呼び出しはすべて条件チェックの前に置く（rules-of-hooks 準拠）
   useEffect(() => {
+    if (activeTab !== 'psyche') return;
     if (activeBubbles.length <= 1) return;
     const interval = setInterval(() => {
       // フェードアウト → インデックス更新 → フェードイン
@@ -191,7 +214,14 @@ export function PsycheWindow({
       }, 300); // Phase 12-K: 200ms → 300ms
     }, 2000); // Phase 12-K: 1000ms → 2000ms
     return () => clearInterval(interval);
-  }, [activeBubbles.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeBubbles.length, activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // v0.33.0: アナリストタブが選択されたら既読化
+  useEffect(() => {
+    if (activeTab === 'analyst' && hasUnreadAnalyst && onAnalystRead) {
+      onAnalystRead();
+    }
+  }, [activeTab, hasUnreadAnalyst, onAnalystRead]);
 
   // どちらのセクションも表示しない場合は null を返す
   if (!hasBubble && !showAnalyst) return null;
@@ -199,13 +229,22 @@ export function PsycheWindow({
   const safeIndex = roleIndex % Math.max(activeBubbles.length, 1);
   const current = hasBubble ? activeBubbles[safeIndex] : null;
 
+  const handleTabClick = (tab: TabKey) => {
+    setActiveTab(tab);
+  };
+
   return (
     <div className={styles.psycheWindow}>
-      {hasBubble && (
-        <>
-          <div className={styles.psycheTitle}>
+      {/* v0.33.0: タブヘッダー */}
+      <div className={styles.tabHeader}>
+        {hasBubble && (
+          <button
+            type="button"
+            className={`${styles.tabButton} ${activeTab === 'psyche' ? styles.tabButtonActive : ''}`}
+            onClick={() => handleTabClick('psyche')}
+          >
             🧠 選手心理
-            {activeBubbles.length > 1 && (
+            {activeTab === 'psyche' && activeBubbles.length > 1 && (
               <span className={styles.psycheRotateDots}>
                 {activeBubbles.map((_, i) => (
                   <span
@@ -215,7 +254,27 @@ export function PsycheWindow({
                 ))}
               </span>
             )}
-          </div>
+          </button>
+        )}
+        {showAnalyst && (
+          <button
+            type="button"
+            className={`${styles.tabButton} ${activeTab === 'analyst' ? styles.tabButtonActive : ''}`}
+            onClick={() => handleTabClick('analyst')}
+          >
+            📊 アナリスト分析
+            {unreadCount > 0 && (
+              <span className={styles.tabBadge} aria-label={`${unreadCount}件の新着`}>
+                {unreadCount}
+              </span>
+            )}
+          </button>
+        )}
+      </div>
+
+      {/* タブコンテンツ */}
+      <div className={styles.tabContent}>
+        {activeTab === 'psyche' && hasBubble && (
           <div className={`${styles.bubbleFade} ${visible ? styles.bubbleFadeIn : styles.bubbleFadeOut}`}>
             {current && (
               <Bubble
@@ -226,13 +285,12 @@ export function PsycheWindow({
               />
             )}
           </div>
-        </>
-      )}
+        )}
 
-      {/* Phase 12-L: アナリストコメントを同一ウィンドウ内に統合表示 */}
-      {showAnalyst && (
-        <AnalystSection comments={analystComments!} />
-      )}
+        {activeTab === 'analyst' && showAnalyst && (
+          <AnalystSection comments={analystComments!} />
+        )}
+      </div>
     </div>
   );
 }

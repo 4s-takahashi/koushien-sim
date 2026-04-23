@@ -1239,6 +1239,9 @@ export default function MatchPage() {
   const consumeNextOrder = useMatchStore((s) => s.consumeNextOrder);
   const analystComments = useMatchStore((s) => s.analystComments);
   const addAnalystComment = useMatchStore((s) => s.addAnalystComment);
+  // v0.33.0: アナリスト未読管理
+  const lastReadAnalystId = useMatchStore((s) => s.lastReadAnalystId);
+  const markAnalystRead = useMatchStore((s) => s.markAnalystRead);
 
   const [selectMode, setSelectMode] = useState<SelectMode>({ type: 'none' });
   const [initialized, setInitialized] = useState(false);
@@ -1583,7 +1586,10 @@ export default function MatchPage() {
     prevInningRef.current = { inning: endedInning, half: endedHalf };
     // プレイヤー校のマネージャーを取得
     const managers = worldState?.managerStaff?.members ?? [];
-    addAnalystComment(endedInning, endedHalf, managers);
+    // v0.33.0: 相手投手名（現在の view から取得）を主語として渡す
+    const currentView = getMatchView();
+    const pitcherName = currentView?.pitcher?.name ?? undefined;
+    addAnalystComment(endedInning, endedHalf, managers, pitcherName);
   }, [pitchLog, initialized]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const view = getMatchView();
@@ -1640,6 +1646,8 @@ export default function MatchPage() {
       continuingOrder={lastOrder}
       analystComments={analystComments}
       hasAnalyst={(worldState.managerStaff?.members ?? []).some((m) => m.role === 'analytics')}
+      lastReadAnalystId={lastReadAnalystId}
+      onAnalystRead={markAnalystRead}
     />
   );
 }
@@ -1686,6 +1694,9 @@ interface MatchPageInnerProps {
   // Phase 12-K: アナリストコメント
   analystComments: import('../../../../engine/staff/analyst').AnalystComment[];
   hasAnalyst: boolean;
+  // v0.33.0: アナリスト未読管理
+  lastReadAnalystId: string | null;
+  onAnalystRead: () => void;
 }
 
 function MatchPageInner({
@@ -1723,6 +1734,8 @@ function MatchPageInner({
   continuingOrder,
   analystComments,
   hasAnalyst,
+  lastReadAnalystId,
+  onAnalystRead,
 }: MatchPageInnerProps) {
   const [selectMode, setSelectMode] = useState<SelectMode>({ type: 'none' });
   const matchResult = useMatchStore((s) => s.matchResult);
@@ -1919,6 +1932,8 @@ function MatchPageInner({
               pitcherSchoolShortName={view.pitcher.schoolShortName}
               analystComments={analystComments}
               hasAnalyst={hasAnalyst}
+              lastReadAnalystId={lastReadAnalystId}
+              onAnalystRead={onAnalystRead}
             />
           ) : null}
         </div>
