@@ -391,11 +391,19 @@ interface TacticsBtnProps {
   disabled: boolean;
   /** 上部にバナー (pauseBanner 情報) を統合表示する場合は true */
   showBanner?: boolean;
+  /** Phase 12-M/hotfix-4: 継続中の詳細采配（新打者までは継続） */
+  lastOrder?: TacticalOrder | null;
 }
 
-function TacticsBar({ view, onOrder, selectMode, setSelectMode, disabled, showBanner }: TacticsBtnProps) {
+function TacticsBar({ view, onOrder, selectMode, setSelectMode, disabled, showBanner, lastOrder }: TacticsBtnProps) {
   const isPlayerBatting = view.isPlayerBatting;
   const bannerInfo = showBanner && view.pauseReason ? pauseKindLabel(view) : null;
+
+  // Phase 12-M/hotfix-4: 継続中の詳細采配ラベル
+  const hasContinuingDetailedOrder =
+    lastOrder !== undefined &&
+    lastOrder !== null &&
+    (lastOrder.type === 'batter_detailed' || lastOrder.type === 'pitcher_detailed');
 
   const handleNone = useCallback(() => {
     onOrder({ type: 'none' });
@@ -459,6 +467,28 @@ function TacticsBar({ view, onOrder, selectMode, setSelectMode, disabled, showBa
       ) : (
         <div className={styles.cardTitle}>采配</div>
       )}
+      {/* Phase 12-M/hotfix-4: 継続中の詳細采配バッジ */}
+      {hasContinuingDetailedOrder && (
+        <div style={{
+          margin: '4px 0 8px',
+          padding: '4px 8px',
+          background: 'rgba(33, 150, 243, 0.15)',
+          border: '1px solid rgba(33, 150, 243, 0.4)',
+          borderRadius: 4,
+          fontSize: 12,
+          color: '#64b5f6',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+        }}>
+          <span style={{ fontSize: 14 }}>📋</span>
+          <span>
+            継続中の詳細采配：<strong>
+              {lastOrder?.type === 'batter_detailed' ? '打者への指示' : '投手への指示'}
+            </strong>（打者交代まで維持）
+          </span>
+        </div>
+      )}
       <div className={styles.tacticsGrid}>
         {/* 何もしない */}
         <button
@@ -467,7 +497,9 @@ function TacticsBar({ view, onOrder, selectMode, setSelectMode, disabled, showBa
           disabled={disabled}
         >
           そのまま
-          <span className={styles.tacticsBtnLabel}>サインなし</span>
+          <span className={styles.tacticsBtnLabel}>
+            {hasContinuingDetailedOrder ? '前回の指示を継続' : 'サインなし'}
+          </span>
         </button>
 
         {/* バント */}
@@ -1913,6 +1945,7 @@ function MatchPageInner({
               setSelectMode={setSelectMode}
               disabled={isProcessing}
               showBanner={isPaused}
+              lastOrder={lastOrder}
             />
           </div>
         )}

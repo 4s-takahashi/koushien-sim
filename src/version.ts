@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.32.2';
+export const VERSION = '0.32.3';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-23 11:35 UTC';
-export const GIT_SHA = '81b540f-dirty';
+export const BUILD_DATE = '2026-04-23 11:44 UTC';
+export const GIT_SHA = '96064c1-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,18 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.32.3',
+    date: '2026-04-23',
+    changes: [
+      '✨ Phase 12-M/hotfix-4: 詳細采配の継続表示を明確化',
+      '  📋 采配パネル上部に「継続中の詳細采配」バッジを追加',
+      '  📝 「そのまま」ボタンのサブラベルを文脈依存に変更',
+      '    継続中あり → 「前回の指示を継続」',
+      '    継続中なし → 「サインなし」',
+      '  (挙動は変えず、UI の明確化のみ。打者交代まで詳細采配は維持される仕様)',
+    ],
+  },
   {
     version: '0.32.2',
     date: '2026-04-23',
