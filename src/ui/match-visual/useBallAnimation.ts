@@ -1315,16 +1315,33 @@ export function useBallAnimation(): UseBallAnimationReturn {
   }, [stopHomeRunEffect]);
 
   // アンマウント時のクリーンアップ
-  // Phase 12-L: mountedRef.current = false にしてアンマウント後の setBallState を防ぐ
+  // Phase 12-M (hotfix): mountedRef 管理は完全に1回だけにする。
+  // Phase 12-L では dependency に stopXxx コールバックを入れていたが、
+  // これらは useCallback 内で別 useCallback を dep に含むため、
+  // イニング切替/state 変化で再生成 → cleanup 連鎖 →
+  // mountedRef.current = false の瞬間があり、その間の setBallState が抑止されて
+  // 「3回表からアニメーションが止まる」バグを誘発していた。
+  // 空 dependency にしてマウント/アンマウント時のみ発火させる。
+  // stop*** 参照は ref を経由した最新版を呼ぶ必要がないため、初期値の closure で十分。
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
-      stopAnimation();
-      stopHomeRunEffect();
-      stopPlaySequence();
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+      if (homeRunRafRef.current !== null) {
+        cancelAnimationFrame(homeRunRafRef.current);
+        homeRunRafRef.current = null;
+      }
+      if (seqRafRef.current !== null) {
+        cancelAnimationFrame(seqRafRef.current);
+        seqRafRef.current = null;
+      }
     };
-  }, [stopAnimation, stopHomeRunEffect, stopPlaySequence]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return {
     ballState,
