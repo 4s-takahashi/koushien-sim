@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.31.0';
+export const VERSION = '0.32.0';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-23 10:36 UTC';
-export const GIT_SHA = '34bcbc9-dirty';
+export const BUILD_DATE = '2026-04-23 10:52 UTC';
+export const GIT_SHA = '72ba07a';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,19 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.32.0',
+    date: '2026-04-23',
+    changes: [
+      '✅ Phase 12-M: Bug #1-2 修正 + Feature #3-4 実装',
+      '  🐛 Bug #1: 夏大会で「試合へ進む」ボタンが出ない → pendingInteractiveMatch auto-sim 防止で修正',
+      '  🐛 Bug #2: 試合中断時に夏大会が終わらない → stale activeTournament 削除 + phase 遷移で修正',
+      '  ✨ Feature #3: ホーム画面に練習メニュー常時表示',
+      '  ✨ Feature #4: ニュース画面で選手詳細表示可能',
+      '  🐛 Bug #5 (hotfix): 3回表からアニメーション停止 → useEffect dependency を空配列に修正',
+      '📝 新規テスト: interactive-match-bug12m.test.ts (store-level regression test)',
+    ],
+  },
   {
     version: '0.31.0',
     date: '2026-04-23',
