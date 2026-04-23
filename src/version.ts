@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.32.0';
+export const VERSION = '0.32.1';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-23 11:03 UTC';
-export const GIT_SHA = '56d76be-dirty';
+export const BUILD_DATE = '2026-04-23 11:19 UTC';
+export const GIT_SHA = '79c4812-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,18 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.32.1',
+    date: '2026-04-23',
+    changes: [
+      '🐛 Phase 12-M/hotfix-2: アニメーション停止 + アナリスト未動作バグ修正',
+      '  🐛 Bug: 2回表からアニメーションが止まる（pitchLog 50件 cap）',
+      '    → pitchLog.length 依存を pitchLog (reference equality) に変更',
+      '    → lastProcessedPitchRef で同一エントリへの再発火防止',
+      '  🐛 Bug: アナリスト分析が機能しない（PauseReason に inning_end が存在しない）',
+      '    → pitchLog の inning/half 切替を検出してコメント生成するように修正',
+    ],
+  },
   {
     version: '0.32.0',
     date: '2026-04-23',

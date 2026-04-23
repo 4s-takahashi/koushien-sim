@@ -1487,26 +1487,33 @@ export default function MatchPage() {
   // ── Phase 12-K: イニング終了時にアナリストコメントを生成 ──
   const prevInningRef = useRef<{ inning: number; half: 'top' | 'bottom' } | null>(null);
   useEffect(() => {
-    if (!initialized || !pauseReason || pauseReason.kind !== 'inning_end') return;
-    const view = getMatchView();
-    if (!view) return;
-    // 現在のイニング・表裏を取得（inning_end 時は次のイニング開始前なので、
-    // view から推定するより pitchLog の最後のエントリを参照する）
+    if (!initialized) return;
+    // pitchLog が空なら何もしない
+    if (pitchLog.length === 0) return;
+    // 現在のイニング・表裏を取得（最新エントリから）
     const lastPitch = pitchLog[pitchLog.length - 1];
     if (!lastPitch) return;
-    const inning = lastPitch.inning;
-    const half = lastPitch.half;
-    // 同じイニング・同じ表裏で二重生成しない
-    const key = `${inning}-${half}`;
+    // Phase 12-M/hotfix-2: ハーフイニング切替を検出する
+    // 直前のエントリと比較して inning or half が変化した場合、
+    // 「直前の half が終了した」とみなして addAnalystComment を呼ぶ
+    const prevPitch = pitchLog[pitchLog.length - 2];
+    if (!prevPitch) return;
+    // 同じイニング・同じ表裏なら何もしない（打席内の投球）
+    if (prevPitch.inning === lastPitch.inning && prevPitch.half === lastPitch.half) return;
+    // 直前のエントリの inning/half が「終了した half」
+    const endedInning = prevPitch.inning;
+    const endedHalf = prevPitch.half;
+    // 同じハーフを二重生成しない
+    const key = `${endedInning}-${endedHalf}`;
     const prevKey = prevInningRef.current
       ? `${prevInningRef.current.inning}-${prevInningRef.current.half}`
       : null;
     if (key === prevKey) return;
-    prevInningRef.current = { inning, half };
+    prevInningRef.current = { inning: endedInning, half: endedHalf };
     // プレイヤー校のマネージャーを取得
     const managers = worldState?.managerStaff?.members ?? [];
-    addAnalystComment(inning, half, managers);
-  }, [pauseReason, initialized]); // eslint-disable-line react-hooks/exhaustive-deps
+    addAnalystComment(endedInning, endedHalf, managers);
+  }, [pitchLog, initialized]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const view = getMatchView();
 
@@ -1664,12 +1671,21 @@ function MatchPageInner({
   );
   const lastBatterIdRef = { current: '' };
 
+  // ===== Phase 12-M/hotfix-2: 最後に処理したピッチを識別するための ref =====
+  // pitchLog.length 単体では 50件 cap で増加が止まるため、
+  // アニメーション useEffect が 2回目以降のイニングで発火しなくなる。
+  // 最新エントリを参照比較（オブジェクト同一性）で検出する。
+  const lastProcessedPitchRef = useRef<PitchLogEntry | null>(null);
+
   // ===== Phase 12: 投球ログ変化を検出してマーカー・アニメーションを更新 =====
   useEffect(() => {
     const latest = pitchLog[pitchLog.length - 1];
     const prev = pitchLog[pitchLog.length - 2];
 
     if (!latest) return;
+    // Phase 12-M/hotfix-2: 同じエントリへの再発火を防止
+    if (lastProcessedPitchRef.current === latest) return;
+    lastProcessedPitchRef.current = latest;
 
     // 打者交代検出
     if (prev && prev.batterId !== latest.batterId) {
@@ -1756,7 +1772,7 @@ function MatchPageInner({
       }, delay);
       return () => clearTimeout(timer);
     }
-  }, [pitchLog.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pitchLog]); // Phase 12-M/hotfix-2: pitchLog (reference equality) に変更
 
   // スコアボードの表示状態（HUDの薄さ制御用）
   const [scoreboardPhaseVisible, setScoreboardPhaseVisible] = useState(false);
