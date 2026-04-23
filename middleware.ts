@@ -29,6 +29,8 @@ const PUBLIC_PATHS = [
   '/api/auth/',
   '/_next/',
   '/favicon.ico',
+  // v0.34.0: 効果音ファイル（public/sounds/）
+  '/sounds/',
 ];
 
 function isPublicPath(pathname: string): boolean {
