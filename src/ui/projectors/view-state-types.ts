@@ -146,6 +146,13 @@ export interface HomeViewState {
   tournament?: HomeTournamentInfo;
   /** 大会開始前の情報（大会期間前のみ設定） */
   tournamentStart?: HomeTournamentStartInfo;
+  /**
+   * チーム全体の練習メニューID（Feature #3 Phase 12-M）。
+   * 未設定の場合は null。
+   */
+  teamPracticeMenuId?: string | null;
+  /** チーム全体の練習メニュー名（Feature #3 Phase 12-M） */
+  teamPracticeMenuLabel?: string | null;
 }
 
 /** チーム状態サマリー (Phase 11.5-A) */

@@ -350,10 +350,43 @@ function OwnSchoolTab({ view, isAdvancing, onAdvanceDay, onAdvanceWeek }: {
           </span>
           <span style={{ fontSize: 13, color: '#37474f' }}>{view.todayTask.detail}</span>
         </div>
-        <div style={{ fontSize: 11, color: '#90a4ae', marginTop: 4 }}>
-          ※ 練習メニューは{' '}
-          <Link href="/play/team" style={{ color: '#1565c0' }}>チーム画面</Link>
-          {' '}で設定できます
+        {/* Feature #3 Phase 12-M: 現在の練習メニューを常時表示 */}
+        <div style={{ marginTop: 8, borderTop: '1px solid #f0f0f0', paddingTop: 8 }}>
+          <div style={{ fontSize: 11, color: '#666', marginBottom: 4 }}>現在の練習メニュー</div>
+          {view.teamPracticeMenuLabel ? (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <span style={{
+                padding: '2px 8px',
+                borderRadius: 3,
+                fontSize: 12,
+                fontWeight: 600,
+                background: '#e8f5e9',
+                color: '#2e7d32',
+                border: '1px solid #a5d6a7',
+              }}>
+                🏋 {view.teamPracticeMenuLabel}
+              </span>
+              <Link href="/play/team" style={{ fontSize: 11, color: '#1565c0' }}>変更 →</Link>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <span style={{ fontSize: 12, color: '#888' }}>未設定</span>
+              <Link
+                href="/play/team"
+                style={{
+                  padding: '3px 10px',
+                  background: '#1565c0',
+                  color: '#fff',
+                  borderRadius: 3,
+                  fontSize: 12,
+                  textDecoration: 'none',
+                  fontWeight: 600,
+                }}
+              >
+                練習メニューを設定する
+              </Link>
+            </div>
+          )}
         </div>
       </div>
 

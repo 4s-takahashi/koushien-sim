@@ -568,6 +568,23 @@ export function projectHome(
   const scoutBudgetRemaining = scoutState.monthlyScoutBudget - scoutState.usedScoutThisMonth;
   const todayTask = buildTodayTask(phase, scoutBudgetRemaining);
 
+  // チーム練習メニュー (Feature #3 Phase 12-M)
+  const teamPracticeMenuId = playerSchool?.practiceMenu ?? null;
+  const PRACTICE_MENU_LABELS: Record<string, string> = {
+    batting_basic:    '打撃基礎練習',
+    batting_live:     'ライブBP',
+    pitching_basic:   '投球基礎練習',
+    pitching_bullpen: 'ブルペン投球',
+    fielding_drill:   '守備ドリル',
+    running:          '走塁・走り込み',
+    strength:         '体力強化',
+    mental:           'メンタルトレーニング',
+    rest:             '休養',
+  };
+  const teamPracticeMenuLabel = teamPracticeMenuId
+    ? (PRACTICE_MENU_LABELS[teamPracticeMenuId] ?? teamPracticeMenuId)
+    : null;
+
   // 注目選手
   const featuredPlayers = buildFeaturedPlayers(players);
 
@@ -604,6 +621,8 @@ export function projectHome(
     isInTournamentSeason,
     tournament,
     tournamentStart,
+    teamPracticeMenuId,
+    teamPracticeMenuLabel,
   };
 }
 

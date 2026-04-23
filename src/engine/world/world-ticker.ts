@@ -517,6 +517,25 @@ export function advanceWorldDay(
     activeTournament = null;
   }
 
+  // 【Bug #2 修正 Phase 12-M】isCompleted=false のまま残った activeTournament で
+  // 日付が大会期間外になっている場合の救済処理。
+  // Bug #1 が引き起こしたセーブ破損で、大会が期間を過ぎても activeTournament に
+  // 残り続けるケースを日次進行時にも検出・修正する。
+  if (activeTournament && !activeTournament.isCompleted) {
+    const tournType = activeTournament.type;
+    const { month, day } = date;
+    const summerStale = tournType === 'summer' && (month > 7 || (month === 7 && day > 30));
+    const autumnStale = tournType === 'autumn' &&
+      ((month === 10 && day > 14) || month > 10 || month < 7);
+    if (summerStale || autumnStale) {
+      const alreadyInHistory = tournamentHistory.some((t) => t.id === activeTournament!.id);
+      if (!alreadyInHistory) {
+        tournamentHistory = [...tournamentHistory, { ...activeTournament, isCompleted: true }].slice(-10);
+      }
+      activeTournament = null;
+    }
+  }
+
   // 大会が進行中なら今日のラウンドを消化する
   if (activeTournament && !activeTournament.isCompleted) {
     const tournamentType: 'summer' | 'autumn' =

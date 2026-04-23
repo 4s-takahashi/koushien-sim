@@ -37,10 +37,11 @@ interface NewsItemViewProps {
   item: WorldNewsItem;
   index: number;
   schoolNameMap: Map<string, string>;
+  playerNameMap: Map<string, string>;
   playerSchoolId: string;
 }
 
-function NewsItemView({ item, index, schoolNameMap, playerSchoolId }: NewsItemViewProps) {
+function NewsItemView({ item, index, schoolNameMap, playerNameMap, playerSchoolId }: NewsItemViewProps) {
   const [expanded, setExpanded] = useState(false);
 
   const icon = getNewsIcon(item.type, item.headline);
@@ -52,7 +53,10 @@ function NewsItemView({ item, index, schoolNameMap, playerSchoolId }: NewsItemVi
   const involvedSchools = item.involvedSchoolIds
     .map(id => ({ id, name: schoolNameMap.get(id) ?? id }));
 
-  const hasDetail = involvedSchools.length > 0 || item.involvedPlayerIds.length > 0;
+  const involvedPlayers = item.involvedPlayerIds
+    .map(pid => ({ id: pid, name: playerNameMap.get(pid) ?? `選手(${pid.slice(0, 6)})` }));
+
+  const hasDetail = involvedSchools.length > 0 || involvedPlayers.length > 0;
 
   return (
     <li className={`${styles.newsItem} ${importanceClass}`}>
@@ -93,17 +97,17 @@ function NewsItemView({ item, index, schoolNameMap, playerSchoolId }: NewsItemVi
               </div>
             </div>
           )}
-          {item.involvedPlayerIds.length > 0 && (
+          {involvedPlayers.length > 0 && (
             <div className={styles.detailSection}>
               <span className={styles.detailLabel}>関連選手：</span>
               <div className={styles.detailLinks}>
-                {item.involvedPlayerIds.map((pid) => (
+                {involvedPlayers.map(({ id, name }) => (
                   <Link
-                    key={pid}
-                    href={`/player/${pid}`}
+                    key={id}
+                    href={`/player/${id}`}
                     className={styles.playerLink}
                   >
-                    選手詳細
+                    {name}
                   </Link>
                 ))}
               </div>
@@ -136,6 +140,14 @@ export default function NewsPage() {
   const schoolNameMap = new Map<string, string>();
   for (const school of worldState.schools) {
     schoolNameMap.set(school.id, school.name);
+  }
+
+  // Feature #4 Phase 12-M: 選手名マップ（全校の選手をインデックス化）
+  const playerNameMap = new Map<string, string>();
+  for (const school of worldState.schools) {
+    for (const player of school.players) {
+      playerNameMap.set(player.id, `${player.lastName}${player.firstName}`);
+    }
   }
 
   const playerSchoolId = worldState.playerSchoolId;
@@ -191,6 +203,7 @@ export default function NewsPage() {
                   item={item}
                   index={i}
                   schoolNameMap={schoolNameMap}
+                  playerNameMap={playerNameMap}
                   playerSchoolId={playerSchoolId}
                 />
               ))}

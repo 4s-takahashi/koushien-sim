@@ -395,16 +395,27 @@ export const useWorldStore = create<WorldStore>()(
       const currentWorld = get().worldState;
       if (!currentWorld) break;
 
+      // Bug #1 修正 (Phase 12-M): インタラクティブ試合が既に待機中の場合は即座に停止。
+      // 旧実装では i=0 で pre-check をスキップして advanceDay を呼び、
+      // advanceDay の auto-sim ブロックが pendingInteractiveMatch を消費してしまっていた。
+      if (currentWorld.pendingInteractiveMatch) {
+        // 結果なしで停止（UI には pendingInteractiveMatch があるので「試合へ進む」が表示される）
+        break;
+      }
+
       // 大会が開催中で、自校がまだ残っている場合
       if (currentWorld.activeTournament && !currentWorld.activeTournament.isCompleted) {
         const playerStillIn = isPlayerSchoolInTournament(currentWorld);
+        // Bug #1 修正: i > 0 の条件を撤廃し、初日（i=0）も含めて試合日チェックを行う。
+        // ただし、advanceDay() 呼び出し前に break すると試合日の pendingInteractiveMatch
+        // セットが行われないため、i=0 は advanceDay() に任せて waitingForInteractiveMatch
+        // で停止させる（advanceDay 内で pendingInteractiveMatch がセットされる）。
         if (playerStillIn && i > 0) {
-          // 初日以降で、次の日が試合日かチェック
           const bracket = currentWorld.activeTournament;
           const type: 'summer' | 'autumn' = bracket.type === 'summer' ? 'summer' : 'autumn';
           const { month, day } = currentWorld.currentDate;
           if (isTournamentMatchDay(month, day, type)) {
-            // 今日が試合日 → 停止（試合結果を表示するため）
+            // 今日が試合日 → 停止（advanceDay を呼ばずに止める）
             break;
           }
         }
@@ -1013,6 +1024,40 @@ export const useWorldStore = create<WorldStore>()(
                 };
               } else {
                 parsed.state.worldState = deserialized;
+              }
+
+              // 【セーブ移行 Bug #2 Phase 12-M】
+              // activeTournament が isCompleted=false のまま残っているが、
+              // 日付が大会期間ウィンドウを超えている場合の救済処理。
+              // Bug #1 が引き起こしたセーブ破損: 試合が auto-sim されたが
+              // 大会が正常完了せず activeTournament が残り続ける。
+              {
+                const ws2 = parsed.state.worldState as typeof deserialized;
+                if (ws2?.activeTournament && !ws2.activeTournament.isCompleted && ws2.currentDate) {
+                  const { month, day } = ws2.currentDate;
+                  const tournType = ws2.activeTournament.type;
+                  // 夏大会 (7/10-7/30) が 8月以降に残っている場合
+                  const summerStale = tournType === 'summer' && (month > 7 || (month === 7 && day > 30));
+                  // 秋大会 (9/15-10/14) が 10/15 以降または 11月以降に残っている場合
+                  const autumnStale = tournType === 'autumn' &&
+                    ((month === 10 && day > 14) || month > 10 || month < 7);
+                  if (summerStale || autumnStale) {
+                    const stale2 = ws2.activeTournament;
+                    const history2 = ws2.tournamentHistory ?? [];
+                    const alreadyIn = history2.some((t: { id: string }) => t.id === stale2.id);
+                    const newHistory2 = alreadyIn ? history2 : [...history2, { ...stale2, isCompleted: true }].slice(-10);
+                    parsed.state.worldState = {
+                      ...ws2,
+                      activeTournament: null,
+                      tournamentHistory: newHistory2,
+                    };
+                    // eslint-disable-next-line no-console
+                    console.warn(
+                      `[SaveRecovery Bug#2] Stale ${tournType} tournament (isCompleted=false) detected ` +
+                        `at ${month}/${day} — force-completed and moved to history`,
+                    );
+                  }
+                }
               }
 
               // 【セーブ移行 2026-04-22】大会期間内なのに activeTournament が null のセーブを救済。
