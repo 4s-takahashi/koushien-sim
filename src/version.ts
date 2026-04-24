@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.38.0';
+export const VERSION = '0.40.0';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-24 03:20 UTC';
-export const GIT_SHA = '4be38a3-dirty';
+export const BUILD_DATE = '2026-04-24 03:22 UTC';
+export const GIT_SHA = '8588499-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
