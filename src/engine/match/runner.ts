@@ -442,10 +442,12 @@ export class MatchRunner {
 
     if (isStrikeout) {
       // 三振: アウト加算、カウントリセット、打者交代
+      // v0.40.0: 打席内投球履歴もクリア
       this.state = {
         ...this.state,
         outs: Math.min(this.state.outs + 1, 3),
         count: { balls: 0, strikes: 0 },
+        currentAtBatPitches: [],
       };
       this.advanceBatterIndex();
       this.pendingPlayerOrder = null;
@@ -453,12 +455,13 @@ export class MatchRunner {
     } else if (isWalk) {
       // 四球: 押し出し走者処理、カウントリセット、打者交代
       this.applyWalkInline();
+      this.state = { ...this.state, currentAtBatPitches: [] };
       this.advanceBatterIndex();
       this.pendingPlayerOrder = null;
       atBatEnded = true;
     } else if (isInPlay) {
       // インプレー: processPitch 内で outs/bases/score 更新済み
-      this.state = { ...this.state, count: { balls: 0, strikes: 0 } };
+      this.state = { ...this.state, count: { balls: 0, strikes: 0 }, currentAtBatPitches: [] };
       this.advanceBatterIndex();
       this.pendingPlayerOrder = null;
       atBatEnded = true;

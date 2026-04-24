@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.37.0';
+export const VERSION = '0.38.0';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-23 14:41 UTC';
-export const GIT_SHA = 'dcaefab-dirty';
+export const BUILD_DATE = '2026-04-24 03:20 UTC';
+export const GIT_SHA = '4be38a3-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,39 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.40.0',
+    date: '2026-04-24',
+    changes: [
+      '🧠 v0.40.0: 配球学習システム導入 + バランス大調整',
+      '  📚 [1] 配球学習ロジック (pitch-sequence.ts 新規)',
+      '    MatchState.currentAtBatPitches に打席内の投球履歴を保持 (最大10球, 打席切替でクリア)',
+      '    - 緩急効果: 前球との球速差 Δv≥10km/h で接触率 -0〜-0.08',
+      '    - 出し入れ効果: 前球とのコース距離 ≥1.5 で接触率 -0〜-0.04',
+      '    - 同一コース連続: 直近2-3球同コースで接触率 +0.08〜+0.15（投手不利・目付け）',
+      '    - 高めの甘い球ブースト: row≤1 & col 1-3 & 遅い球で fly/line_drive +0.18',
+      '  ⚙️ [2] バランス再調整 (balance.test.ts 3→全8件 pass)',
+      '    STRIKE_ZONE_TARGET_BASE: 0.745→0.68 (四球率 3.9→6.0%)',
+      '    select-pitch.ts のゾーン外狙い座標を確実にゾーン外へ',
+      '    batter-action.ts: ゾーン内見逃し率を増加 (初球+0.10→+0.22)',
+      '    FLY_CATCH_BASE: 0.85→0.80 (打率 .227→.242)',
+      '    GROUND_OUT_BASE: 0.60→0.55 (得点 3.5→4.1)',
+      '  📊 バランス検証結果 (100試合シミュ):',
+      '    得点 4.1 ✅ / 打率 .242 ✅ / K率 15.9% ✅ / BB率 6.0% ✅',
+      '    投球数 211 ✅ / ERA 2.08 ✅ / HR率 2.5% ✅',
+      '  🧪 新規テスト pitch-sequence.test.ts 23件追加 (合計 71/71 pass)',
+      '  📁 更新ファイル:',
+      '    src/engine/match/types.ts (PitchHistoryEntry 型追加)',
+      '    src/engine/match/pitch/pitch-sequence.ts (新規)',
+      '    src/engine/match/pitch/bat-contact.ts (timing 計算拡張)',
+      '    src/engine/match/pitch/swing-result.ts (history 引数追加)',
+      '    src/engine/match/pitch/process-pitch.ts (履歴 append)',
+      '    src/engine/match/pitch/select-pitch.ts (ゾーン外狙い確実化)',
+      '    src/engine/match/pitch/batter-action.ts (見逃し率調整)',
+      '    src/engine/match/runner.ts / inning.ts (打席切替で履歴クリア)',
+      '    src/engine/match/constants.ts (ゾーン率 + 守備率調整)',
+    ],
+  },
   {
     version: '0.37.0',
     date: '2026-04-23',

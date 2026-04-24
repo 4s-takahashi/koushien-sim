@@ -5,6 +5,7 @@ import type {
   BatterAction,
   MatchPlayer,
   MatchState,
+  PitchHistoryEntry,
   PitchResult,
   PitcherParams,
   PitchOutcome,
@@ -485,7 +486,15 @@ export function processPitch(
     }
   } else {
     // swing
-    const swingResult = calculateSwingResult(batter, selection, actualLocation, state.count, rng);
+    // v0.40.0: 打席内の投球履歴を渡して配球学習を有効化
+    const swingResult = calculateSwingResult(
+      batter,
+      selection,
+      actualLocation,
+      state.count,
+      rng,
+      state.currentAtBatPitches,
+    );
     outcome = swingResult.outcome;
     if (swingResult.contact) {
       batContactWithoutFieldResult = swingResult.contact;
@@ -566,6 +575,24 @@ export function processPitch(
 
   // カウント・アウト・走者・得点を更新
   nextState = updateMatcherAfterPitch(nextState, outcome, batContact);
+
+  // v0.40.0: 打席内の投球履歴を更新する（配球学習用）
+  //   毎回 append する。打席終了時のクリアは runner.ts 側で行う。
+  {
+    const prevHistory = state.currentAtBatPitches ?? [];
+    const historyEntry: PitchHistoryEntry = {
+      pitchType: selection.type,
+      velocity: selection.velocity,
+      location: actualLocation,
+      batterAction,
+      outcome,
+    };
+    const appended = [...prevHistory, historyEntry];
+    nextState = {
+      ...nextState,
+      currentAtBatPitches: appended.length > 10 ? appended.slice(-10) : appended,
+    };
+  }
 
   // ログに追加
   const logEntry = {

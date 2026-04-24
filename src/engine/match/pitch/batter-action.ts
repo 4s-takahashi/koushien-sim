@@ -44,16 +44,19 @@ export function decideBatterAction(
   }
 
   // (3) ストライクゾーン内: 見逃し判定
-  // contact=100 → 0%見逃し, contact=50 → 12.5%見逃し, contact=0 → 25%
-  let takeStrike = (100 - batter.contact) / 400;
+  // v0.40.0: 見逃し率を上げて三振率を 15% 以上へ
+  // contact=100 → 0%見逃し, contact=50 → 10%見逃し, contact=0 → 20%
+  let takeStrike = (100 - batter.contact) / 500;
 
   // カウント補正
   if (count.strikes === 0) {
-    takeStrike += 0.10; // 余裕があるので見る
+    takeStrike += 0.22; // 初球見逃しで投球数稼ぎ
   } else if (count.strikes === 1) {
-    takeStrike += 0.03;
+    takeStrike += 0.08;
+  } else if (count.strikes === 2) {
+    // 2ストライク時も見逃し三振の可能性を残す
+    takeStrike += 0.02;
   }
-  // 2ストライク → ほぼ振る
 
   return rng.chance(takeStrike) ? 'take' : 'swing';
 }

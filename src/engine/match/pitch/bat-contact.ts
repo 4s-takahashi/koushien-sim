@@ -1,6 +1,7 @@
 import type { RNG } from '../../core/rng';
-import type { BatContactResult, BatContactType, BatterParams, HitSpeed, PitchLocation, PitchSelection } from '../types';
+import type { BatContactResult, BatContactType, BatterParams, HitSpeed, PitchHistoryEntry, PitchLocation, PitchSelection } from '../types';
 import { MATCH_CONSTANTS } from '../constants';
+import { computeHighMiddleBoost, computeVelocityChangeEffect } from './pitch-sequence';
 
 /**
  * v0.37.0: スイングのタイミング
@@ -26,6 +27,7 @@ export function generateBatContact(
   pitch: PitchSelection,
   location: PitchLocation,
   rng: RNG,
+  history?: readonly PitchHistoryEntry[],
 ): Omit<BatContactResult, 'fieldResult'> & { isFoul?: boolean } {
   const powerFactor = batter.power / 100;
   const contactFactor = batter.contact / 100;
@@ -36,7 +38,8 @@ export function generateBatContact(
   // アウトコース速球: late（流れる）
   // チェンジアップ/カーブなど低速: early（早く振って泳ぐ）
   // ゾーン外ボール球: timing ずれやすい
-  const timing = computeSwingTiming(batter, pitch, location, rng);
+  // v0.40.0: 前球との球速差（緩急）もタイミングに影響
+  const timing = computeSwingTiming(batter, pitch, location, rng, history);
 
   // ── (B) 打球種類 ──
   // base distribution at powerFactor=0.5
@@ -76,6 +79,15 @@ export function generateBatContact(
     pGround -= 0.05;
   }
 
+  // v0.40.0: 高めの甘い球ブースト — line_drive / fly_ball が強くなる
+  const highMiddleBoost = computeHighMiddleBoost(location, pitch);
+  if (highMiddleBoost > 0) {
+    pLine += highMiddleBoost * 0.5;
+    pFly += highMiddleBoost * 0.5;
+    pGround -= highMiddleBoost * 0.6;
+    pPopup -= highMiddleBoost * 0.4;
+  }
+
   // 正規化
   pGround = Math.max(0, pGround);
   pLine = Math.max(0, pLine);
@@ -104,6 +116,11 @@ export function generateBatContact(
   if (timing === 'early') base *= 0.75;   // 詰まりは弱い
   else if (timing === 'late') base *= 0.80; // 振り遅れも弱い
   // perfect はそのまま
+
+  // v0.40.0: 高めの甘い球は打球速度も上がる（HR リスク UP）
+  if (highMiddleBoost > 0 && timing === 'perfect') {
+    base *= 1 + highMiddleBoost * 0.8; // 最大 +15%
+  }
 
   let speed: HitSpeed;
   if (base < 0.25) {
@@ -219,6 +236,7 @@ function computeSwingTiming(
   pitch: PitchSelection,
   location: PitchLocation,
   rng: RNG,
+  history?: readonly PitchHistoryEntry[],
 ): SwingTiming {
   const timingSkill = (batter.contact + batter.technique) / 200; // 0-1
   // ベース perfect 率: 0.35 (timingSkill=0) 〜 0.65 (timingSkill=1)
@@ -261,6 +279,23 @@ function computeSwingTiming(
     pPerfect -= 0.15;
     pEarly += 0.08;
     pLate += 0.07;
+  }
+
+  // v0.40.0: 緩急効果（前球との球速差）
+  const velChange = computeVelocityChangeEffect(pitch.velocity, history);
+  if (velChange > 0 && history && history.length > 0) {
+    const prev = history[history.length - 1];
+    const faster = pitch.velocity > prev.velocity;
+    pPerfect -= velChange * 1.2;
+    if (faster) {
+      // 前より速くなった → 振り遅れ傾向
+      pLate += velChange * 1.0;
+      pEarly += velChange * 0.2;
+    } else {
+      // 前より遅くなった → 早打ち傾向（泳ぐ）
+      pEarly += velChange * 1.0;
+      pLate += velChange * 0.2;
+    }
   }
 
   // クランプ + 正規化

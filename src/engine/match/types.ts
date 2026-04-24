@@ -261,6 +261,20 @@ export type MatchEventType =
   | 'inning_end'
   | 'game_end';
 
+/** v0.40.0: 打席内の直近投球履歴エントリ（配球学習用） */
+export interface PitchHistoryEntry {
+  /** 球種（'fastball' | 'curve' | 'slider' | ...） */
+  pitchType: string;
+  /** 球速 (km/h) */
+  velocity: number;
+  /** 実際の投球コース（制球誤差込み） */
+  location: PitchLocation;
+  /** 打者のアクション */
+  batterAction: BatterAction;
+  /** 結果 */
+  outcome: PitchOutcome;
+}
+
 /** 試合の現在状態 */
 export interface MatchState {
   config: MatchConfig;
@@ -280,6 +294,12 @@ export interface MatchState {
   result: MatchResult | null;
   /** Phase 7-A: 試合進行モード（1球ごと停止 on/off） */
   runnerMode?: { time: 'standard' | 'short'; pitch: 'on' | 'off' };
+  /**
+   * v0.40.0: 現在の打席内の投球履歴（配球学習用）
+   * 打席が切り替わったらクリアされる。
+   * optional フィールド（旧セーブデータ互換性のため）
+   */
+  currentAtBatPitches?: PitchHistoryEntry[];
 }
 
 /** 試合結果 */

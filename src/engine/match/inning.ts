@@ -71,8 +71,9 @@ export function processHalfInning(
     runsScored += scoreAfter - scoreBefore;
 
     // 打順を進める（0-8をループ）
+    // v0.40.0: 打席内投球履歴をクリア（配球学習）
     const newBatterIndex = (nextState.currentBatterIndex + 1) % 9;
-    currentState = { ...nextState, currentBatterIndex: newBatterIndex };
+    currentState = { ...nextState, currentBatterIndex: newBatterIndex, currentAtBatPitches: [] };
   }
 
   // イニングスコアの当該回スロットが未初期化の場合は0で埋める
@@ -201,8 +202,9 @@ function processHalfInningSayonara(
     atBats.push(result);
     runsScored += nextState.score.home - scoreBefore;
 
+    // v0.40.0: 打席切替で currentAtBatPitches をクリア
     const newBatterIndex = (nextState.currentBatterIndex + 1) % 9;
-    currentState = { ...nextState, currentBatterIndex: newBatterIndex };
+    currentState = { ...nextState, currentBatterIndex: newBatterIndex, currentAtBatPitches: [] };
 
     // サヨナラ判定: ホームがリードしたら即座に終了
     if (checkSayonara && currentState.score.home > currentState.score.away) {

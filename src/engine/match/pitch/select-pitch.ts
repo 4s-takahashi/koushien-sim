@@ -83,21 +83,43 @@ export function selectPitch(
   }
 
   // コース選択
+  // v0.40.0: ゾーン外を狙う場合は確実にゾーン外コースへ（以前はランダムで偶然ゾーン内に入ることがあった）
   const strikeZoneTargetRate =
     MATCH_CONSTANTS.STRIKE_ZONE_TARGET_BASE +
     (balls === 3 ? 0.15 : 0) + // フルカウント → ゾーン必須
-    (strikes === 2 ? 0.1 : 0); // 2ストライク → ゾーン際を狙う
+    (strikes === 2 ? 0.08 : 0); // 2ストライク → ゾーン際を狙う
 
   const targetInZone = rng.chance(strikeZoneTargetRate);
-  const target: PitchLocation = targetInZone
-    ? {
-        row: rng.intBetween(1, 3),
+  // ゾーン外狙いの場合は、必ず row または col のいずれか一方は 0 or 4 にする（確実にゾーン外）
+  let target: PitchLocation;
+  if (targetInZone) {
+    target = {
+      row: rng.intBetween(1, 3),
+      col: rng.intBetween(1, 3),
+    };
+  } else {
+    // ゾーン外コース: 50% row が 0/4、25% col が 0/4、25% 両方
+    const r = rng.next();
+    if (r < 0.5) {
+      // row だけ外す
+      target = {
+        row: rng.chance(0.5) ? 0 : 4,
         col: rng.intBetween(1, 3),
-      }
-    : {
-        row: rng.intBetween(0, 4),
-        col: rng.intBetween(0, 4),
       };
+    } else if (r < 0.75) {
+      // col だけ外す
+      target = {
+        row: rng.intBetween(1, 3),
+        col: rng.chance(0.5) ? 0 : 4,
+      };
+    } else {
+      // 両方外す（完全ボール球）
+      target = {
+        row: rng.chance(0.5) ? 0 : 4,
+        col: rng.chance(0.5) ? 0 : 4,
+      };
+    }
+  }
 
   return { selection, target };
 }

@@ -1,7 +1,8 @@
 export const MATCH_CONSTANTS = {
   // === 投球 ===
   FASTBALL_BASE_RATIO: 0.40,
-  STRIKE_ZONE_TARGET_BASE: 0.745,
+  // v0.40.0: 0.745 → 0.68（投手が積極的にゾーンを攻めすぎていたのを緩和、四球率向上）
+  STRIKE_ZONE_TARGET_BASE: 0.68,
   CONTROL_ERROR_SCALE: 2.0,
 
   // === 打撃 ===
@@ -16,10 +17,11 @@ export const MATCH_CONSTANTS = {
   FLY_MAX_DISTANCE: 130,
 
   // === 守備 ===
-  FLY_CATCH_BASE: 0.85,
-  GROUND_OUT_BASE: 0.60,
-  DOUBLE_PLAY_BASE: 0.25,        // was 0.30
-  ERROR_POPUP_RATE: 0.03,        // was 0.05
+  // v0.40.0: 得点を 3.6 → 4.0+ にするため守備率を微調整
+  FLY_CATCH_BASE: 0.80,          // was 0.85（フライのヒット率 UP）
+  GROUND_OUT_BASE: 0.55,         // was 0.60（ゴロのヒット率 UP）
+  DOUBLE_PLAY_BASE: 0.25,
+  ERROR_POPUP_RATE: 0.03,
 
   // === 投手スタミナ ===
   STAMINA_PER_PITCH_BASE: 1.0,

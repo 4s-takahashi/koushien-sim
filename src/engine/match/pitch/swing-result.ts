@@ -1,7 +1,8 @@
 import type { RNG } from '../../core/rng';
-import type { BatContactResult, BatterParams, Count, PitchLocation, PitchSelection } from '../types';
+import type { BatContactResult, BatterParams, Count, PitchHistoryEntry, PitchLocation, PitchSelection } from '../types';
 import { MATCH_CONSTANTS } from '../constants';
 import { generateBatContact } from './bat-contact';
+import { computeContactRateAdjustment } from './pitch-sequence';
 
 export interface SwingResultDetail {
   outcome: 'swinging_strike' | 'foul' | 'in_play';
@@ -10,13 +11,8 @@ export interface SwingResultDetail {
 
 /**
  * スイングの結果を判定する
- * v0.37.0 改訂:
- *   1. 接触判定 → 空振り or 接触
- *   2. 接触した場合 → generateBatContact が打球を生成（方向にファール情報含む）
- *   3. isFoul フラグで outcome = 'foul' または 'in_play'
- *
- * ファール/フェアの判定は bat-contact 側で打者の左右・コース・タイミングに
- * 基づいて行う（ランダムではなく打球方向の自然な結果として）。
+ * v0.37.0: 打球方向・タイミング実装
+ * v0.40.0: 配球学習（緩急・出し入れ・同一コース連続）
  */
 export function calculateSwingResult(
   batter: BatterParams,
@@ -24,6 +20,7 @@ export function calculateSwingResult(
   location: PitchLocation,
   count: Count,
   rng: RNG,
+  history?: readonly PitchHistoryEntry[],
 ): SwingResultDetail {
   // ── (1) 接触判定 ──
   let contactChance = MATCH_CONSTANTS.BASE_CONTACT_RATE * (0.50 + 0.50 * (batter.contact / 100));
@@ -48,6 +45,10 @@ export function calculateSwingResult(
     contactChance -= 0.03;
   }
 
+  // v0.40.0: 配球学習補正（緩急・出し入れ・同一コース連続）
+  const seqAdjust = computeContactRateAdjustment(location, pitch, history);
+  contactChance += seqAdjust.delta;
+
   contactChance = Math.max(0, contactChance);
 
   if (!rng.chance(contactChance)) {
@@ -55,7 +56,7 @@ export function calculateSwingResult(
   }
 
   // ── (2) 打球生成（ファール判定も内包） ──
-  const contact = generateBatContact(batter, pitch, location, rng);
+  const contact = generateBatContact(batter, pitch, location, rng, history);
 
   // v0.37.0: 追い込み時はカットファール増加（2ストライクで粘る）
   let isFoul = contact.isFoul ?? false;
