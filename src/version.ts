@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.41.0';
+export const VERSION = '0.41.1';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-24 06:05 UTC';
-export const GIT_SHA = 'd3fc57a-dirty';
+export const BUILD_DATE = '2026-04-24 07:24 UTC';
+export const GIT_SHA = '866ca09-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,21 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.41.1',
+    date: '2026-04-24',
+    changes: [
+      '🐛 v0.41.1: ポジション割り当てバグ修正 (マウンド上と表示選手名の不一致)',
+      '  症状: ストライクゾーン表記「投手: 渡部」なのにマウンド上のマーカーは「新井」(1番打者)',
+      '  原因: buildMatchTeam / practice-game で battingOrder[0]=pitcher, [1]=catcher と',
+      '        打順順に機械的にポジション割り当て → 投手が打順1番でない場合ズレる',
+      '  修正: buildFieldPositions(battingOrder, currentPitcherId, players) を共通ヘルパー化',
+      '    1) currentPitcherId を必ず pitcher ポジションに固定',
+      '    2) 他選手は player.position を尊重',
+      '    3) 残りポジションを順番に割り当て',
+      '  適用箇所: match-team-builder.ts (大会), practice-game.ts (練習試合/紅白戦)',
+    ],
+  },
   {
     version: '0.41.0',
     date: '2026-04-24',

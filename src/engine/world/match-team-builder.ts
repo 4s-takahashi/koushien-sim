@@ -6,6 +6,65 @@
 
 import type { HighSchool } from './world-state';
 import type { MatchTeam } from '../match/types';
+import type { Position, Player } from '../types/player';
+
+/**
+ * v0.40.2: ポジション割り当てロジック（共通）
+ *
+ * 旧バグ: battingOrder[0] → pitcher, [1] → catcher と機械的に割り当てており、
+ *         投手が打順1番でない場合、投手の fieldPositions が 'pitcher' にならず
+ *         UI (グラウンド図) で別人がマウンド表示された。
+ *
+ * 新ロジック:
+ *   1) currentPitcherId を必ず 'pitcher' ポジションに固定
+ *   2) 残り選手は player.position を可能な限り尊重
+ *   3) ネイティブポジションが無い/衝突する選手には残りポジションを順番に割り当て
+ */
+export function buildFieldPositions(
+  battingOrder: string[],
+  currentPitcherId: string,
+  players: Player[],
+): Map<string, Position> {
+  const fieldPositions = new Map<string, Position>();
+  const allFieldPositions: Position[] = [
+    'pitcher', 'catcher', 'first', 'second',
+    'third', 'shortstop', 'left', 'center', 'right',
+  ];
+
+  // 1) 投手を pitcher に固定
+  if (currentPitcherId) {
+    fieldPositions.set(currentPitcherId, 'pitcher');
+  }
+
+  // 2) 他8選手のネイティブポジションを尊重して割り当て
+  const assignedPositions = new Set<Position>(['pitcher']);
+  const needsAssignment: string[] = [];
+  for (const pid of battingOrder) {
+    if (pid === currentPitcherId) continue;
+    const p = players.find((pl) => pl.id === pid);
+    const nativePos = p?.position as Position | undefined;
+    if (
+      nativePos &&
+      nativePos !== 'pitcher' &&
+      !assignedPositions.has(nativePos) &&
+      allFieldPositions.includes(nativePos)
+    ) {
+      fieldPositions.set(pid, nativePos);
+      assignedPositions.add(nativePos);
+    } else {
+      needsAssignment.push(pid);
+    }
+  }
+
+  // 3) 残りポジションを順番に割り当て
+  const remainingPositions = allFieldPositions.filter((pos) => !assignedPositions.has(pos));
+  needsAssignment.forEach((pid, i) => {
+    const pos = remainingPositions[i];
+    if (pos) fieldPositions.set(pid, pos);
+  });
+
+  return fieldPositions;
+}
 
 /**
  * HighSchool から quick-game / runGame 用の MatchTeam を構築する。
@@ -108,16 +167,8 @@ export function buildMatchTeam(school: HighSchool): MatchTeam {
     });
   }
 
-  const fieldPositions = new Map<string, import('../types/player').Position>();
-  const defaultPositions: import('../types/player').Position[] = [
-    'pitcher', 'catcher', 'first', 'second',
-    'third', 'shortstop', 'left', 'center', 'right',
-  ];
-  battingOrder.forEach((pid, i) => {
-    if (i < defaultPositions.length) {
-      fieldPositions.set(pid, defaultPositions[i]);
-    }
-  });
+  // v0.40.2: 打順順に機械的にポジションを割り当てていたバグ修正 (buildFieldPositions ヘルパーで共通化)
+  const fieldPositions = buildFieldPositions(battingOrder, currentPitcherId, school.players);
 
   const benchPlayerIds = players
     .filter((p) => !battingOrder.includes(p.id))

@@ -16,6 +16,7 @@ import type {
 } from '../types/practice-game';
 import { quickGame } from '../match/quick-game';
 import type { MatchTeam, MatchConfig } from '../match/types';
+import { buildFieldPositions } from './match-team-builder';
 
 // ============================================================
 // 定数
@@ -89,16 +90,8 @@ function buildMatchTeam(school: HighSchool): MatchTeam {
 
   const currentPitcherId = pitcherPlayer?.id ?? players[0]?.id ?? '';
 
-  const fieldPositions = new Map<string, import('../types/player').Position>();
-  const defaultPositions: import('../types/player').Position[] = [
-    'pitcher', 'catcher', 'first', 'second',
-    'third', 'shortstop', 'left', 'center', 'right',
-  ];
-  battingOrder.forEach((pid, i) => {
-    if (i < defaultPositions.length) {
-      fieldPositions.set(pid, defaultPositions[i]);
-    }
-  });
+  // v0.40.2: ポジション割り当てバグ修正 (buildFieldPositions 共通ヘルパー)
+  const fieldPositions = buildFieldPositions(battingOrder, currentPitcherId, players);
 
   const benchPlayerIds = players
     .filter((p) => !battingOrder.includes(p.id))
@@ -139,14 +132,12 @@ function buildIntraSquadTeams(school: HighSchool): [MatchTeam, MatchTeam] {
       subset.find((p) => p.stats.pitching !== null) ??
       subset[0];
 
-    const fieldPositions = new Map<string, import('../types/player').Position>();
-    const defaultPositions: import('../types/player').Position[] = [
-      'pitcher', 'catcher', 'first', 'second',
-      'third', 'shortstop', 'left', 'center', 'right',
-    ];
-    battingOrder.forEach((pid, i) => {
-      if (i < defaultPositions.length) fieldPositions.set(pid, defaultPositions[i]);
-    });
+    // v0.40.2: ポジション割り当てバグ修正 (buildFieldPositions 共通ヘルパー)
+    const fieldPositions = buildFieldPositions(
+      battingOrder,
+      pitcher?.id ?? subset[0]?.id ?? '',
+      subset,
+    );
 
     return {
       id: `${school.id}-${suffix}`,
