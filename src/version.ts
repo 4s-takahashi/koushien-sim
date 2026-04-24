@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.41.1';
+export const VERSION = '0.42.0';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-24 07:24 UTC';
-export const GIT_SHA = '866ca09-dirty';
+export const BUILD_DATE = '2026-04-24 22:49 UTC';
+export const GIT_SHA = 'd391c54-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,30 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.42.0',
+    date: '2026-04-24',
+    changes: [
+      '⚾ v0.42.0: アウト/セーフ判定をエンジン結果と物理タイミングで一元化',
+      '  【問題】v0.41.0 の物理シミュが守備捕球・送球より先に打者が塁到達しているのに',
+      '           エンジン判定が out → アウト表示という矛盾（高橋さん報告）',
+      '  【解決】build*Sequence の送球到達 ETA / 走者到達 ETA を engine 判定に逆算で合わせる:',
+      '    buildGroundOutSequence():',
+      '      isOut=true  → throwEnd = batterEnd - 150ms (送球が確実に先着、ギリギリアウト)',
+      '      isOut=false → batterEnd = throwEnd - 150ms (走者が確実に先着、ギリギリセーフ)',
+      '    buildInfieldHitSequence():',
+      '      常にセーフ → batterEnd = throwEnd - 150ms に強制',
+      '  【物理時刻の意味】',
+      '    engine が out を返した場合 → 「ギリギリ送球先着のアウト」に見える自然なアニメ',
+      '    engine が single (内野安打) → 「ギリギリ走者先着のセーフ」に見える自然なアニメ',
+      '    足の速い打者でも engine が out なら送球が 150ms 先着として表示（野球的に妥当）',
+      '  【追加テスト】tests/ui/match-visual/outcome-timing.test.ts 新規作成',
+      '    - out: throwEnd < batterEnd (送球先着)',
+      '    - infield_hit: batterEnd < throwEnd (走者先着)',
+      '    - 足の速い打者(speed=95) / 遅い打者(speed=20) 両ケース',
+      '    - 各 build*Sequence の先着マージン ≥ 100ms を検証',
+    ],
+  },
   {
     version: '0.41.1',
     date: '2026-04-24',

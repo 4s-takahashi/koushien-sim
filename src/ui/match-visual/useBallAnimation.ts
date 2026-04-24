@@ -20,6 +20,12 @@
  * - buildSacrificeFlySequence(): 犠牲フライ（バックホーム）
  * - buildInfieldHitSequence(): 内野安打
  * - buildPopupSequence(): ポップフライ（内野ポップアップ）
+ *
+ * v0.42.0 変更:
+ * - アウト/セーフ判定を engine 結果と物理タイミングで一元化
+ *   buildGroundOutSequence / buildInfieldHitSequence において、
+ *   engine 判定 (isOut) に応じて送球到達 ETA / 走者到達 ETA を逆算調整する。
+ *   これにより「捕球前に走者が塁到達しているのにアウト」という物理矛盾が解消される。
  */
 
 import { useState, useRef, useCallback, useEffect } from 'react';
@@ -300,12 +306,47 @@ export function buildGroundOutSequence(
   // 打者走者: BATTER_START_DELAY_MS から走り出し
   const runTimes = batterRunTimes(batterSpeed);
   const batterStart = runTimes.start;
-  const batterEnd = runTimes.t1; // 1塁到達
 
-  // 判定: 送球到着 vs 打者走者1塁到達
-  const resultStart = throwEnd;
+  // ─── v0.42.0: engine 判定に逆算でタイミングを合わせる ───
+  // 「送球到達 vs 走者到達」の先着順を engine 判定と整合させることで、
+  // 「捕球前に走者が塁到達しているのにアウト」という物理矛盾を解消する。
+  //
+  // isOut=true  → 送球が先着する必要あり: throwEnd = batterEnd - 150ms
+  //               (ギリギリ送球先着のアウト演出)
+  // isOut=false → 走者が先着する必要あり: batterEnd = throwEnd - 150ms
+  //               (ギリギリ走者先着のセーフ演出)
+  //
+  // 150ms は野球でアウトかセーフかが決まる "数フレーム" 相当。
+  // この調整により足が速い打者がアウトでも不自然にならない
+  // (プロでも数十ms の差でアウト/セーフが決まる)。
+  const TIMING_MARGIN_MS = 150;
+  let adjustedBatterEnd: number;
+  let adjustedThrowEnd: number;
+
+  if (isOut) {
+    // アウト: 送球が走者より先に到達 → throwEnd を batterEnd より前に固定
+    adjustedBatterEnd = runTimes.t1;
+    adjustedThrowEnd = adjustedBatterEnd - TIMING_MARGIN_MS;
+    // throwEnd が throwStart より後になるよう保証（最低でも 200ms の送球時間）
+    if (adjustedThrowEnd <= throwStart + 200) {
+      adjustedThrowEnd = throwStart + 200;
+      adjustedBatterEnd = adjustedThrowEnd + TIMING_MARGIN_MS;
+    }
+  } else {
+    // セーフ: 走者が送球より先に到達 → batterEnd を throwEnd より前に固定
+    adjustedThrowEnd = throwEnd;
+    adjustedBatterEnd = adjustedThrowEnd - TIMING_MARGIN_MS;
+    // batterEnd が batterStart より後になるよう保証（最低でも 300ms の走塁時間）
+    if (adjustedBatterEnd <= batterStart + 300) {
+      adjustedBatterEnd = batterStart + 300;
+      adjustedThrowEnd = adjustedBatterEnd + TIMING_MARGIN_MS;
+    }
+  }
+
+  // 判定: 先着したほう (throwEnd or batterEnd) のタイミングで result 表示
+  const resultStart = isOut ? adjustedThrowEnd : adjustedBatterEnd;
   const resultEnd = resultStart + 600;
-  const totalMs = Math.max(resultEnd, batterEnd + 200);
+  const totalMs = Math.max(resultEnd, Math.max(adjustedBatterEnd, adjustedThrowEnd) + 200);
 
   const phases: PlayPhase[] = [
     {
@@ -323,13 +364,13 @@ export function buildGroundOutSequence(
     {
       kind: 'throw',
       startMs: throwStart,
-      endMs: throwEnd,
+      endMs: adjustedThrowEnd,
       data: { kind: 'throw', from: ballLandPos, to: firstBasePlayer },
     },
     {
       kind: 'batterRun',
       startMs: batterStart,
-      endMs: batterEnd,
+      endMs: adjustedBatterEnd,
       data: { kind: 'batterRun', from: home, to: firstBase },
     },
     {
@@ -661,10 +702,22 @@ export function buildInfieldHitSequence(
 
   const runTimes = batterRunTimes(batterSpeed);
 
+  // ─── v0.42.0: engine 判定に逆算でタイミングを合わせる ───
+  // 内野安打は常にセーフ → 走者が送球より先に到達するよう強制
+  // batterEnd = throwEnd - 150ms (ギリギリ走者先着のセーフ演出)
+  const TIMING_MARGIN_MS = 150;
+  const batterStart = runTimes.start;
+  let adjustedBatterEnd = throwEnd - TIMING_MARGIN_MS;
+  // batterEnd が batterStart より後になるよう保証（最低でも 300ms の走塁時間）
+  if (adjustedBatterEnd <= batterStart + 300) {
+    adjustedBatterEnd = batterStart + 300;
+  }
+  const adjustedThrowEnd = adjustedBatterEnd + TIMING_MARGIN_MS;
+
   // 内野安打: バッターが1塁到達してからセーフ表示
-  const resultStart = runTimes.t1;
+  const resultStart = adjustedBatterEnd;
   const resultEnd = resultStart + 600;
-  const totalMs = Math.max(resultEnd, throwEnd + 100);
+  const totalMs = Math.max(resultEnd, adjustedThrowEnd + 100);
 
   const phases: PlayPhase[] = [
     {
@@ -682,13 +735,13 @@ export function buildInfieldHitSequence(
     {
       kind: 'throw',
       startMs: throwStart,
-      endMs: throwEnd,
+      endMs: adjustedThrowEnd,
       data: { kind: 'throw', from: ballLandPos, to: firstBasePlayer },
     },
     {
       kind: 'batterRun',
-      startMs: runTimes.start,
-      endMs: runTimes.t1,
+      startMs: batterStart,
+      endMs: adjustedBatterEnd,
       data: { kind: 'batterRun', from: home, to: first },
     },
     {
