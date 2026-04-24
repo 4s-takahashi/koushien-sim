@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.40.1';
+export const VERSION = '0.41.0';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-24 05:54 UTC';
-export const GIT_SHA = '10f56c9-dirty';
+export const BUILD_DATE = '2026-04-24 06:05 UTC';
+export const GIT_SHA = 'd3fc57a-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,28 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.41.0',
+    date: '2026-04-24',
+    changes: [
+      '✨ v0.41.0: 打球・守備・走塁の「俯瞰リアルタイム物理シミュ」',
+      '  src/ui/match-visual/physics.ts を新規作成:',
+      '    - playerSpeedFtPerSec(stat): 走力 stat → feet/sec',
+      '    - ballSpeedFtPerSec(hitSpeed): 打球速度',
+      '    - throwSpeedFtPerSec(armStrength): 送球速度',
+      '    - distanceFt(p1,p2): 2点間距離',
+      '    - etaMs(p1,p2,speed): 移動所要時間(ms)',
+      '    - ballFlightMs(contactType,dist): 打球滞空/転がり時間',
+      '    - batterRunTimes(statSpeed): 走者の累積到達時刻テーブル',
+      '  useBallAnimation.ts 全 build*Sequence 関数を物理ベースに書き換え:',
+      '    - buildGroundOutSequence / buildFlyoutSequence / buildPopupSequence',
+      '    - buildHitSequence / buildInfieldHitSequence',
+      '    - buildDoubleSequence / buildTripleSequence',
+      '    - buildSacrificeFlySequence / buildHomeRunSequence',
+      '  各 phase の start/end を 距離÷速度×1000(ms) から算出。',
+      '  打球・守備・走塁が同じタイムラインで同時並行で動く絵になる。',
+    ],
+  },
   {
     version: '0.40.1',
     date: '2026-04-24',
