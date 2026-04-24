@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.40.0';
+export const VERSION = '0.40.1';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-24 03:22 UTC';
-export const GIT_SHA = '8588499-dirty';
+export const BUILD_DATE = '2026-04-24 05:54 UTC';
+export const GIT_SHA = '10f56c9-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,17 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.40.1',
+    date: '2026-04-24',
+    changes: [
+      '🐛 v0.40.1: 継投後にグラウンド表示のピッチャー名が旧投手のまま残るバグ修正',
+      '  applyPitchingChange() で currentPitcherId は更新されるが',
+      '  fieldPositions マップが古いままで defenseLineup が旧投手を返していた',
+      '  → 新投手を fieldPositions に set、旧投手を delete で同期',
+      '  ※ v0.41.0 として別タスクで物理シミュレーションに書き換え中（サブエージェント作業）',
+    ],
+  },
   {
     version: '0.40.0',
     date: '2026-04-24',

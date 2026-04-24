@@ -144,10 +144,19 @@ export function applyPitchingChange(
 
   const newUsed = new Set([...fieldingTeam.usedPlayerIds, oldPitcherId]);
 
+  // v0.41.0: グラウンド表示で旧投手名が残るバグ修正
+  //   fieldPositions マップも currentPitcherId と同期する
+  const newFieldPositions = new Map(fieldingTeam.fieldPositions);
+  // 旧投手のポジション記録を削除（ベンチ入り）
+  newFieldPositions.delete(oldPitcherId);
+  // 新投手を 'pitcher' ポジションに登録
+  newFieldPositions.set(newPitcherId, 'pitcher');
+
   const updatedTeam: MatchTeam = {
     ...fieldingTeam,
     currentPitcherId: newPitcherId,
     usedPlayerIds: newUsed,
+    fieldPositions: newFieldPositions,
     players: fieldingTeam.players.map((mp) =>
       mp.player.id === newPitcherId
         ? { ...mp, stamina: 100, isWarmedUp: true }
