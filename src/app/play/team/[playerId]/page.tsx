@@ -1,11 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useWorldStore } from '../../../../stores/world-store';
 import type { PlayerDetailViewState, StatRowView } from '../../../../ui/projectors/view-state-types';
 import { POSITION_LABELS } from '../../../../ui/labels/position-labels';
 import type { Position } from '../../../../engine/types/player';
+import { analyzePitcherStyle, analyzeBatterStyle } from '../../../../engine/player/playStyle';
 import styles from './page.module.css';
 
 function StatBar({ stat }: { stat: StatRowView }) {
@@ -26,7 +27,31 @@ function StatBar({ stat }: { stat: StatRowView }) {
   );
 }
 
-function PlayerDetail({ view }: { view: PlayerDetailViewState }) {
+import type { Player } from '../../../../engine/types/player';
+
+interface PlayerDetailProps {
+  view: PlayerDetailViewState;
+  prevPlayerId: string | null;
+  nextPlayerId: string | null;
+  rawPlayer: Player | null;
+}
+
+function PlayerDetail({ view, prevPlayerId, nextPlayerId, rawPlayer }: PlayerDetailProps) {
+  const router = useRouter();
+
+  // プレイスタイル分析
+  const pitcherStyle = rawPlayer && view.position === 'pitcher'
+    ? analyzePitcherStyle(rawPlayer)
+    : null;
+  const batterStyle = rawPlayer ? analyzeBatterStyle(rawPlayer) : null;
+
+  const handlePrev = () => {
+    if (prevPlayerId) router.push(`/play/team/${prevPlayerId}`);
+  };
+  const handleNext = () => {
+    if (nextPlayerId) router.push(`/play/team/${nextPlayerId}`);
+  };
+
   return (
     <div className={styles.page}>
       <header className={styles.header}>
@@ -34,9 +59,46 @@ function PlayerDetail({ view }: { view: PlayerDetailViewState }) {
           <span className={styles.headerTitle}>
             {view.fullName}（{view.gradeLabel} / {view.positionLabel}）
           </span>
-          <Link href="/play/team" style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12 }}>
-            ← チームに戻る
-          </Link>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {/* 前/次 ナビゲーション矢印 */}
+            <button
+              type="button"
+              onClick={handlePrev}
+              disabled={!prevPlayerId}
+              aria-label="前の選手"
+              style={{
+                padding: '3px 10px',
+                background: prevPlayerId ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.06)',
+                border: 'none',
+                borderRadius: 4,
+                color: prevPlayerId ? '#fff' : 'rgba(255,255,255,0.35)',
+                fontSize: 14,
+                cursor: prevPlayerId ? 'pointer' : 'not-allowed',
+              }}
+            >
+              ←
+            </button>
+            <button
+              type="button"
+              onClick={handleNext}
+              disabled={!nextPlayerId}
+              aria-label="次の選手"
+              style={{
+                padding: '3px 10px',
+                background: nextPlayerId ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.06)',
+                border: 'none',
+                borderRadius: 4,
+                color: nextPlayerId ? '#fff' : 'rgba(255,255,255,0.35)',
+                fontSize: 14,
+                cursor: nextPlayerId ? 'pointer' : 'not-allowed',
+              }}
+            >
+              →
+            </button>
+            <Link href="/play/team" style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12 }}>
+              ← チームに戻る
+            </Link>
+          </div>
         </div>
       </header>
       <nav className={styles.nav}>
@@ -384,6 +446,182 @@ function PlayerDetail({ view }: { view: PlayerDetailViewState }) {
             </ul>
           </div>
         )}
+
+        {/* プレイスタイル分析 (v0.43.0) */}
+        {(pitcherStyle || batterStyle) && (
+          <div className={styles.section}>
+            <div className={styles.sectionTitle}>🎯 プレイスタイル分析</div>
+
+            {/* 投手スタイル */}
+            {pitcherStyle && (
+              <div style={{ marginBottom: 14 }}>
+                <div style={{
+                  fontSize: 14, fontWeight: 700,
+                  color: 'var(--color-accent)',
+                  marginBottom: 8,
+                }}>
+                  ⚾ 投球スタイル: {pitcherStyle.pitchingStyle}
+                </div>
+                {pitcherStyle.bestPitch && (
+                  <div style={{ fontSize: 13, marginBottom: 4, color: 'var(--color-text)' }}>
+                    🏆 得意球種: <strong>{pitcherStyle.bestPitch.label}</strong>
+                    （習得度{pitcherStyle.bestPitch.level}）
+                  </div>
+                )}
+                <div style={{ fontSize: 13, marginBottom: 8, color: 'var(--color-text-sub)' }}>
+                  🎯 制球: {pitcherStyle.controlStyle}
+                </div>
+                {pitcherStyle.strengths.length > 0 && (
+                  <div style={{ marginBottom: 6 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#2e7d32', marginBottom: 3 }}>✅ 強み</div>
+                    <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                      {pitcherStyle.strengths.map((s, i) => (
+                        <li key={i} style={{ fontSize: 12, padding: '2px 0', color: 'var(--color-text)' }}>
+                          ・{s}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {pitcherStyle.weaknesses.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#c62828', marginBottom: 3 }}>⚠️ 弱み・課題</div>
+                    <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                      {pitcherStyle.weaknesses.map((w, i) => (
+                        <li key={i} style={{ fontSize: 12, padding: '2px 0', color: 'var(--color-text-sub)' }}>
+                          ・{w}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 打撃スタイル */}
+            {batterStyle && (
+              <div style={{ marginBottom: 14 }}>
+                <div style={{
+                  fontSize: 14, fontWeight: 700,
+                  color: 'var(--color-accent)',
+                  marginBottom: 8,
+                }}>
+                  🏏 打撃スタイル: {batterStyle.battingStyle}
+                </div>
+                <div style={{ fontSize: 13, marginBottom: 8, color: 'var(--color-text-sub)' }}>
+                  🎯 打球傾向: {batterStyle.pullTendency}
+                </div>
+                {batterStyle.strengths.length > 0 && (
+                  <div style={{ marginBottom: 6 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#2e7d32', marginBottom: 3 }}>✅ 強み</div>
+                    <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                      {batterStyle.strengths.map((s, i) => (
+                        <li key={i} style={{ fontSize: 12, padding: '2px 0', color: 'var(--color-text)' }}>
+                          ・{s}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {batterStyle.weaknesses.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#c62828', marginBottom: 3 }}>⚠️ 弱み・課題</div>
+                    <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                      {batterStyle.weaknesses.map((w, i) => (
+                        <li key={i} style={{ fontSize: 12, padding: '2px 0', color: 'var(--color-text-sub)' }}>
+                          ・{w}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 特性の説明 */}
+            {(pitcherStyle?.traitDescriptions ?? batterStyle?.traitDescriptions ?? []).length > 0 && (
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-sub)', marginBottom: 4 }}>
+                  ⭐ 特性
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {(pitcherStyle?.traitDescriptions ?? batterStyle?.traitDescriptions ?? []).map((desc, i) => {
+                    const traitLabel = view.traits[i] ?? '';
+                    return (
+                      <div key={i} style={{
+                        fontSize: 12,
+                        padding: '4px 8px',
+                        background: 'rgba(255,255,255,0.04)',
+                        borderRadius: 4,
+                        borderLeft: '2px solid var(--color-accent)',
+                        color: 'var(--color-text)',
+                      }}>
+                        <strong style={{ marginRight: 6 }}>{traitLabel}</strong>
+                        {desc}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ページ下部ナビゲーション (v0.43.0) */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '16px 0',
+          marginTop: 8,
+          borderTop: '1px solid rgba(255,255,255,0.08)',
+        }}>
+          <button
+            type="button"
+            disabled={!prevPlayerId}
+            onClick={() => prevPlayerId && router.push(`/play/team/${prevPlayerId}`)}
+            style={{
+              padding: '8px 16px',
+              background: prevPlayerId ? 'var(--color-accent)' : 'rgba(255,255,255,0.06)',
+              border: 'none',
+              borderRadius: 6,
+              color: prevPlayerId ? '#fff' : 'rgba(255,255,255,0.3)',
+              fontSize: 13,
+              cursor: prevPlayerId ? 'pointer' : 'not-allowed',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            ← 前の選手
+          </button>
+          <Link href="/play/team" style={{
+            fontSize: 12,
+            color: 'var(--color-text-sub)',
+            textDecoration: 'none',
+          }}>
+            チーム一覧へ
+          </Link>
+          <button
+            type="button"
+            disabled={!nextPlayerId}
+            onClick={() => nextPlayerId && router.push(`/play/team/${nextPlayerId}`)}
+            style={{
+              padding: '8px 16px',
+              background: nextPlayerId ? 'var(--color-accent)' : 'rgba(255,255,255,0.06)',
+              border: 'none',
+              borderRadius: 6,
+              color: nextPlayerId ? '#fff' : 'rgba(255,255,255,0.3)',
+              fontSize: 13,
+              cursor: nextPlayerId ? 'pointer' : 'not-allowed',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            次の選手 →
+          </button>
+        </div>
       </main>
     </div>
   );
@@ -404,6 +642,25 @@ export default function PlayerDetailPage() {
     );
   }
 
+  // 打順ベースのナビゲーション (lineup.battingOrder) または選手リスト順
+  const playerSchool = worldState.schools?.find((s) => s.id === worldState.playerSchoolId);
+  const allPlayers = playerSchool?.players ?? [];
+  const battingOrder = playerSchool?.lineup?.battingOrder ?? [];
+
+  // 打順が設定されていればその順、なければ全選手の登録順
+  const navIds: string[] = battingOrder.length > 0 ? battingOrder : allPlayers.map((p) => p.id);
+
+  const currentIndex = navIds.indexOf(playerId);
+  const prevPlayerId = navIds.length > 1 && currentIndex >= 0
+    ? navIds[(currentIndex - 1 + navIds.length) % navIds.length]
+    : null;
+  const nextPlayerId = navIds.length > 1 && currentIndex >= 0
+    ? navIds[(currentIndex + 1) % navIds.length]
+    : null;
+
+  // raw player for play style analysis
+  const rawPlayer = allPlayers.find((p) => p.id === playerId) ?? null;
+
   const view = getPlayerView(playerId);
   if (!view) {
     return (
@@ -414,5 +671,12 @@ export default function PlayerDetailPage() {
     );
   }
 
-  return <PlayerDetail view={view} />;
+  return (
+    <PlayerDetail
+      view={view}
+      prevPlayerId={prevPlayerId}
+      nextPlayerId={nextPlayerId}
+      rawPlayer={rawPlayer}
+    />
+  );
 }

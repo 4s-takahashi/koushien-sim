@@ -3,8 +3,9 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useWorldStore } from '../../../stores/world-store';
-import type { TeamViewState } from '../../../ui/projectors/view-state-types';
+import type { TeamViewState, PlayerRowView } from '../../../ui/projectors/view-state-types';
 import type { PracticeMenuId } from '../../../engine/types/calendar';
+import type { Player } from '../../../engine/types/player';
 import styles from './page.module.css';
 
 const TEAM_MENU_OPTIONS: Array<{ id: PracticeMenuId; label: string }> = [
@@ -53,6 +54,350 @@ const MENU_OPTIONS: Array<{ id: string; label: string }> = [
   { id: 'rest', label: '休養' },
 ];
 
+// ── 能力値タブの種別 ──────────────────────────────────────
+
+type PlayerListTab = '一覧' | '基礎能力値' | '打撃能力値' | '投手能力値' | '通算成績';
+
+const PLAYER_LIST_TABS: PlayerListTab[] = ['一覧', '基礎能力値', '打撃能力値', '投手能力値', '通算成績'];
+
+// ── 能力値を0-100スケールのバー表示するミニヘルパー ──────────────────
+
+function StatMini({ value }: { value: number }) {
+  const pct = Math.min(100, Math.max(0, value));
+  const color = pct >= 70 ? '#1565c0' : pct >= 50 ? '#2e7d32' : '#546e7a';
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
+      <span style={{ color, fontWeight: 600 }}>{value}</span>
+    </span>
+  );
+}
+
+// ── 個別練習プルダウン ──────────────────────────────────────
+
+function PracticeDropdown({ playerId, currentMenu, onChange }: {
+  playerId: string;
+  currentMenu: string | null | undefined;
+  onChange: (playerId: string, menuId: string) => void;
+}) {
+  return (
+    <select
+      value={currentMenu ?? ''}
+      onChange={(e) => onChange(playerId, e.target.value)}
+      style={{
+        fontSize: 11,
+        padding: '2px 4px',
+        borderRadius: 3,
+        border: '1px solid #cfd8dc',
+        background: currentMenu ? '#e3f2fd' : '#fff',
+        cursor: 'pointer',
+      }}
+      title={currentMenu ? '個別メニュー設定中' : 'チーム共通メニュー'}
+    >
+      {MENU_OPTIONS.map((m) => (
+        <option key={m.id} value={m.id}>{m.label}</option>
+      ))}
+    </select>
+  );
+}
+
+// ── タブ別テーブル ──────────────────────────────────────
+
+interface PlayerListTableProps {
+  tab: PlayerListTab;
+  rows: PlayerRowView[];
+  players: Player[];  // raw engine data for stats
+  onMenuChange: (playerId: string, menuId: string) => void;
+}
+
+function PlayerListTable({ tab, rows, players, onMenuChange }: PlayerListTableProps) {
+  const playerMap = new Map(players.map((p) => [p.id, p]));
+
+  if (tab === '一覧') {
+    return (
+      <table className={styles.playerTable}>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>名前</th>
+            <th>学年</th>
+            <th>ポジション</th>
+            <th>総合力</th>
+            <th>状態</th>
+            <th>やる気</th>
+            <th>打順</th>
+            <th>個別練習</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((p) => (
+            <tr key={p.id}>
+              <td style={{ color: 'var(--color-text-sub)', fontSize: 11 }}>{p.uniformNumber}</td>
+              <td>
+                <Link href={`/play/team/${p.id}`} className={styles.playerLink}>
+                  {p.lastName}{p.firstName}
+                </Link>
+              </td>
+              <td>
+                <span className={`${styles.gradeTag} ${getGradeClass(p.grade)}`}>
+                  {p.gradeLabel}
+                </span>
+              </td>
+              <td style={{ fontSize: 12 }}>{p.positionLabel}</td>
+              <td>
+                <span className={getRankClass(p.overallRank)}>{p.overall}</span>
+                {' '}
+                <span className={getRankClass(p.overallRank)} style={{ fontSize: 11 }}>
+                  {p.overallRank}
+                </span>
+              </td>
+              <td className={getCondClass(p.conditionBrief)}>
+                {p.conditionBrief}
+                {p.isResting && (
+                  <span style={{ marginLeft: 4, fontSize: 11, color: '#ff9800' }} title="翌日まで休養中">
+                    🛌
+                  </span>
+                )}
+              </td>
+              <td title={`モチベーション: ${p.motivation}`}>
+                <span style={{ fontSize: 13, marginRight: 2 }}>
+                  {p.motivation >= 70 ? '🔥' : p.motivation <= 30 ? '😢' : ''}
+                </span>
+                <span style={{
+                  fontSize: 11,
+                  color: p.motivation >= 70 ? '#e65100' : p.motivation <= 30 ? '#1565c0' : 'var(--color-text-sub)',
+                  fontWeight: (p.motivation >= 70 || p.motivation <= 30) ? 600 : 400,
+                }}>
+                  {p.motivation}
+                </span>
+              </td>
+              <td>
+                {p.battingOrderNumber !== null
+                  ? <span className={styles.lineupOrder}>{p.battingOrderNumber}</span>
+                  : <span style={{ color: 'var(--color-text-sub)', fontSize: 11 }}>-</span>
+                }
+              </td>
+              <td>
+                <PracticeDropdown
+                  playerId={p.id}
+                  currentMenu={p.individualMenu}
+                  onChange={onMenuChange}
+                />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  }
+
+  if (tab === '基礎能力値') {
+    return (
+      <table className={styles.playerTable}>
+        <thead>
+          <tr>
+            <th>名前</th>
+            <th>体力</th>
+            <th>走力</th>
+            <th>肩力</th>
+            <th>守備</th>
+            <th>集中</th>
+            <th>精神</th>
+            <th>個別練習</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((p) => {
+            const raw = playerMap.get(p.id);
+            const base = raw?.stats.base;
+            return (
+              <tr key={p.id}>
+                <td>
+                  <Link href={`/play/team/${p.id}`} className={styles.playerLink}>
+                    {p.lastName}{p.firstName}
+                  </Link>
+                  <span style={{ fontSize: 11, color: 'var(--color-text-sub)', marginLeft: 4 }}>
+                    {p.positionLabel}
+                  </span>
+                </td>
+                <td><StatMini value={base?.stamina ?? 0} /></td>
+                <td><StatMini value={base?.speed ?? 0} /></td>
+                <td><StatMini value={base?.armStrength ?? 0} /></td>
+                <td><StatMini value={base?.fielding ?? 0} /></td>
+                <td><StatMini value={base?.focus ?? 0} /></td>
+                <td><StatMini value={base?.mental ?? 0} /></td>
+                <td>
+                  <PracticeDropdown
+                    playerId={p.id}
+                    currentMenu={p.individualMenu}
+                    onChange={onMenuChange}
+                  />
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    );
+  }
+
+  if (tab === '打撃能力値') {
+    return (
+      <table className={styles.playerTable}>
+        <thead>
+          <tr>
+            <th>名前</th>
+            <th>パワー</th>
+            <th>ミート</th>
+            <th>選球眼</th>
+            <th>テク</th>
+            <th>個別練習</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((p) => {
+            const raw = playerMap.get(p.id);
+            const bat = raw?.stats.batting;
+            return (
+              <tr key={p.id}>
+                <td>
+                  <Link href={`/play/team/${p.id}`} className={styles.playerLink}>
+                    {p.lastName}{p.firstName}
+                  </Link>
+                  <span style={{ fontSize: 11, color: 'var(--color-text-sub)', marginLeft: 4 }}>
+                    {p.positionLabel}
+                  </span>
+                </td>
+                <td><StatMini value={bat?.power ?? 0} /></td>
+                <td><StatMini value={bat?.contact ?? 0} /></td>
+                <td><StatMini value={bat?.eye ?? 0} /></td>
+                <td><StatMini value={bat?.technique ?? 0} /></td>
+                <td>
+                  <PracticeDropdown
+                    playerId={p.id}
+                    currentMenu={p.individualMenu}
+                    onChange={onMenuChange}
+                  />
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    );
+  }
+
+  if (tab === '投手能力値') {
+    // 投手のみ表示（投手でない選手はハイフン）
+    return (
+      <table className={styles.playerTable}>
+        <thead>
+          <tr>
+            <th>名前</th>
+            <th>球速</th>
+            <th>制球</th>
+            <th>スタミナ</th>
+            <th>変化球</th>
+            <th>個別練習</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((p) => {
+            const raw = playerMap.get(p.id);
+            const pit = raw?.stats.pitching;
+            const isPitcher = p.position === 'pitcher';
+            const pitchCount = pit ? Object.keys(pit.pitches).length : 0;
+            return (
+              <tr key={p.id} style={{ opacity: isPitcher ? 1 : 0.55 }}>
+                <td>
+                  <Link href={`/play/team/${p.id}`} className={styles.playerLink}>
+                    {p.lastName}{p.firstName}
+                  </Link>
+                  <span style={{ fontSize: 11, color: 'var(--color-text-sub)', marginLeft: 4 }}>
+                    {p.positionLabel}
+                  </span>
+                </td>
+                <td>{isPitcher && pit ? <StatMini value={pit.velocity} /> : <span style={{ color: '#bbb', fontSize: 11 }}>—</span>}</td>
+                <td>{isPitcher && pit ? <StatMini value={pit.control} /> : <span style={{ color: '#bbb', fontSize: 11 }}>—</span>}</td>
+                <td>{isPitcher && pit ? <StatMini value={pit.pitchStamina} /> : <span style={{ color: '#bbb', fontSize: 11 }}>—</span>}</td>
+                <td>{isPitcher && pit ? <span style={{ fontSize: 12 }}>{pitchCount}種</span> : <span style={{ color: '#bbb', fontSize: 11 }}>—</span>}</td>
+                <td>
+                  <PracticeDropdown
+                    playerId={p.id}
+                    currentMenu={p.individualMenu}
+                    onChange={onMenuChange}
+                  />
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    );
+  }
+
+  if (tab === '通算成績') {
+    return (
+      <table className={styles.playerTable}>
+        <thead>
+          <tr>
+            <th>名前</th>
+            <th>試合</th>
+            <th>打数</th>
+            <th>安打</th>
+            <th>本塁打</th>
+            <th>打率</th>
+            <th>投球回</th>
+            <th>勝/敗</th>
+            <th>防御率</th>
+            <th>個別練習</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((p) => {
+            const raw = playerMap.get(p.id);
+            const cs = raw?.careerStats;
+            const avg = cs && cs.atBats > 0
+              ? (cs.hits / cs.atBats).toFixed(3).replace(/^0/, '')
+              : '.000';
+            const era = cs && cs.inningsPitched > 0
+              ? ((cs.earnedRuns * 9) / cs.inningsPitched).toFixed(2)
+              : '—';
+            return (
+              <tr key={p.id}>
+                <td>
+                  <Link href={`/play/team/${p.id}`} className={styles.playerLink}>
+                    {p.lastName}{p.firstName}
+                  </Link>
+                  <span style={{ fontSize: 11, color: 'var(--color-text-sub)', marginLeft: 4 }}>
+                    {p.positionLabel}
+                  </span>
+                </td>
+                <td style={{ fontSize: 12 }}>{cs?.gamesPlayed ?? 0}</td>
+                <td style={{ fontSize: 12 }}>{cs?.atBats ?? 0}</td>
+                <td style={{ fontSize: 12 }}>{cs?.hits ?? 0}</td>
+                <td style={{ fontSize: 12 }}>{cs?.homeRuns ?? 0}</td>
+                <td style={{ fontSize: 12, fontWeight: 600 }}>{avg}</td>
+                <td style={{ fontSize: 12 }}>{cs?.inningsPitched?.toFixed(1) ?? '0.0'}</td>
+                <td style={{ fontSize: 12 }}>{cs?.wins ?? 0}/{cs?.losses ?? 0}</td>
+                <td style={{ fontSize: 12, fontWeight: 600 }}>{era}</td>
+                <td>
+                  <PracticeDropdown
+                    playerId={p.id}
+                    currentMenu={p.individualMenu}
+                    onChange={onMenuChange}
+                  />
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    );
+  }
+
+  return null;
+}
+
 function TeamPage({ view }: { view: TeamViewState }) {
   const restAllInjuredAndWarned = useWorldStore((s) => s.restAllInjuredAndWarned);
   const setIndividualMenu = useWorldStore((s) => s.setIndividualMenu);
@@ -61,6 +406,12 @@ function TeamPage({ view }: { view: TeamViewState }) {
   const worldState = useWorldStore((s) => s.worldState);
   const [restToast, setRestToast] = useState<string | null>(null);
   const [menuToast, setMenuToast] = useState<string | null>(null);
+  const [playerListTab, setPlayerListTab] = useState<PlayerListTab>('一覧');
+
+  // Raw players from worldState for stats tabs
+  const rawPlayers: Player[] = worldState?.schools?.find(
+    (s) => s.id === worldState.playerSchoolId
+  )?.players ?? [];
 
   // 現在のチーム練習メニュー
   const playerSchool = worldState?.schools.find((s) => s.id === worldState.playerSchoolId);
@@ -302,7 +653,7 @@ function TeamPage({ view }: { view: TeamViewState }) {
           </div>
         )}
 
-        {/* 選手一覧 */}
+        {/* 選手一覧 (タブ切り替え) */}
         <div className={styles.section}>
           <div className={styles.sectionTitle}>
             選手一覧（{view.players.length}名）
@@ -313,6 +664,35 @@ function TeamPage({ view }: { view: TeamViewState }) {
             )}
           </div>
 
+          {/* タブナビゲーション */}
+          <div style={{
+            display: 'flex',
+            borderBottom: '2px solid #e0e0e0',
+            marginBottom: 12,
+            gap: 0,
+            flexWrap: 'wrap',
+          }}>
+            {PLAYER_LIST_TABS.map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setPlayerListTab(tab)}
+                style={{
+                  padding: '6px 14px',
+                  background: 'none',
+                  border: 'none',
+                  borderBottom: playerListTab === tab ? '2px solid #1565c0' : '2px solid transparent',
+                  marginBottom: -2,
+                  fontSize: 12,
+                  fontWeight: playerListTab === tab ? 700 : 400,
+                  color: playerListTab === tab ? '#1565c0' : '#546e7a',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
 
           {/* 個別練習一括クリア (Phase 11-A1 Issue #4) */}
           {individualMenuCount > 0 && (
@@ -335,95 +715,12 @@ function TeamPage({ view }: { view: TeamViewState }) {
             </div>
           )}
 
-          <table className={styles.playerTable}>
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>名前</th>
-                <th>学年</th>
-                <th>ポジション</th>
-                <th>総合力</th>
-                <th>状態</th>
-                <th>やる気</th>
-                <th>打順</th>
-                <th>個別練習</th>
-              </tr>
-            </thead>
-            <tbody>
-              {view.players.map((p) => (
-                <tr key={p.id}>
-                  <td style={{ color: 'var(--color-text-sub)', fontSize: 11 }}>{p.uniformNumber}</td>
-                  <td>
-                    <Link href={`/team/${p.id}`} className={styles.playerLink}>
-                      {p.lastName}{p.firstName}
-                    </Link>
-                  </td>
-                  <td>
-                    <span className={`${styles.gradeTag} ${getGradeClass(p.grade)}`}>
-                      {p.gradeLabel}
-                    </span>
-                  </td>
-                  <td style={{ fontSize: 12 }}>{p.positionLabel}</td>
-                  <td>
-                    <span className={getRankClass(p.overallRank)}>{p.overall}</span>
-                    {' '}
-                    <span className={getRankClass(p.overallRank)} style={{ fontSize: 11 }}>
-                      {p.overallRank}
-                    </span>
-                  </td>
-                  <td className={getCondClass(p.conditionBrief)}>
-                    {p.conditionBrief}
-                    {p.isResting && (
-                      <span style={{
-                        marginLeft: 4,
-                        fontSize: 11,
-                        color: '#ff9800',
-                      }} title="翌日まで休養中">
-                        🛌
-                      </span>
-                    )}
-                  </td>
-                  <td title={`モチベーション: ${p.motivation}`}>
-                    <span style={{ fontSize: 13, marginRight: 2 }}>
-                      {p.motivation >= 70 ? '🔥' : p.motivation <= 30 ? '😢' : ''}
-                    </span>
-                    <span style={{
-                      fontSize: 11,
-                      color: p.motivation >= 70 ? '#e65100' : p.motivation <= 30 ? '#1565c0' : 'var(--color-text-sub)',
-                      fontWeight: (p.motivation >= 70 || p.motivation <= 30) ? 600 : 400,
-                    }}>
-                      {p.motivation}
-                    </span>
-                  </td>
-                  <td>
-                    {p.battingOrderNumber !== null
-                      ? <span className={styles.lineupOrder}>{p.battingOrderNumber}</span>
-                      : <span style={{ color: 'var(--color-text-sub)', fontSize: 11 }}>-</span>
-                    }
-                  </td>
-                  <td>
-                    <select
-                      value={p.individualMenu ?? ''}
-                      onChange={(e) => handleMenuChange(p.id, e.target.value)}
-                      style={{
-                        fontSize: 11,
-                        padding: '2px 4px',
-                        borderRadius: 3,
-                        border: '1px solid #cfd8dc',
-                        background: p.individualMenu ? '#e3f2fd' : '#fff',
-                        cursor: 'pointer',
-                      }}
-                      title={p.individualMenu ? '個別メニュー設定中' : 'チーム共通メニュー'}
-                    >
-                      {MENU_OPTIONS.map((m) => (
-                        <option key={m.id} value={m.id}>{m.label}</option>
-                      ))}
-                    </select>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <PlayerListTable
+            tab={playerListTab}
+            rows={view.players}
+            players={rawPlayers}
+            onMenuChange={handleMenuChange}
+          />
         </div>
       </main>
     </div>

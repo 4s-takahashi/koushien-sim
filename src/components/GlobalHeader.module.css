@@ -145,6 +145,52 @@
   to { transform: translateX(0); }
 }
 
+/* ── クイックナビ (デスクトップ用) ──────────────────── */
+
+.quickNav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.quickNavLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: rgba(255, 255, 255, 0.9);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.12);
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+
+.quickNavLink:hover {
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
+
+/* ── メニューボタンのバッジ (未読あり時の赤点) ──────────────────── */
+
+.menuBtn {
+  position: relative;
+}
+
+.menuBtnBadge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #e53935;
+  border: 2px solid var(--color-primary, #2e7d32);
+}
+
 /* ── モバイル対応 ──────────────────── */
 
 @media (max-width: 600px) {
@@ -168,6 +214,9 @@
     width: 32px;
     height: 32px;
     font-size: 14px;
+  }
+  .quickNav {
+    display: none; /* モバイルではクイックナビ非表示 */
   }
 }
 

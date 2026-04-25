@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.42.0';
+export const VERSION = '0.43.0';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-24 22:49 UTC';
-export const GIT_SHA = 'd391c54-dirty';
+export const BUILD_DATE = '2026-04-25 00:27 UTC';
+export const GIT_SHA = '458943c-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,43 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.43.0',
+    date: '2026-04-25',
+    changes: [
+      '🎨 v0.43.0: UI改善5件（高橋さん指示）',
+      '',
+      '【1】ヘッダーに「練習」「スタッフ」ナビリンクを追加',
+      '  GlobalHeader.tsx: デスクトップ幅でクイックナビ（練習・スタッフ・試合）をヘッダー中央に表示',
+      '  モバイルでは非表示（ハンバーガーメニューから引き続きアクセス可能）',
+      '',
+      '【2】メニューアイテムにバッジ通知を追加',
+      '  MenuBadge コンポーネント新設（赤丸＋白数字）',
+      '  練習バッジ: 個別練習未設定の選手数',
+      '  スタッフバッジ: 雇用枠の空き数',
+      '  試合バッジ: 次の試合まで14日以内の場合に残り日数',
+      '  ハンバーガーメニュー項目にもバッジを表示',
+      '  メニューボタンに未読あり赤点バッジ',
+      '',
+      '【3】選手一覧にタブ切り替えを追加',
+      '  チーム画面の選手一覧に 一覧/基礎能力値/打撃能力値/投手能力値/通算成績 タブを追加',
+      '  各タブで対応する能力値を一覧表示',
+      '  全タブに個別練習プルダウンを配置',
+      '  worldState から直接 stats を読み取り表示（ViewState の変更なし）',
+      '',
+      '【4】選手詳細画面に前後ナビゲーション矢印を追加',
+      '  ヘッダー右端と画面下部に ← → ボタン',
+      '  打順（lineup.battingOrder）の順で循環ナビ',
+      '  打順未設定の場合は登録順で代替',
+      '',
+      '【5】選手詳細画面にプレイスタイル分析を追加',
+      '  src/engine/player/playStyle.ts 新規作成',
+      '  analyzePitcherStyle(): 投球スタイル・得意球種・制球スタイル・強み弱み',
+      '  analyzeBatterStyle(): 打撃スタイル・打球傾向・強み弱み',
+      '  TRAIT_DESCRIPTIONS: 全35特性の日本語説明文',
+      '  選手詳細画面に「🎯 プレイスタイル分析」セクションを追加',
+    ],
+  },
   {
     version: '0.42.0',
     date: '2026-04-24',
