@@ -17,10 +17,19 @@ import { selectPitch } from './select-pitch';
 import { applyControlError } from './control-error';
 import { decideBatterAction } from './batter-action';
 import { calculateSwingResult } from './swing-result';
+// Phase R4: バントのみ legacy field-result を使用（Resolver はスイング用）
 import { resolveFieldResult } from './field-result';
 import { MATCH_CONSTANTS } from '../constants';
 import { getMotivation, getMatchPerformanceMultiplier } from '../../growth/motivation';
 import type { MatchOverrides } from '../runner-types';
+// Phase R4: Resolver 統合
+import { resolveBatBall } from '../../physics/bat-ball/index';
+import { computePerceivedPitchQuality } from '../../physics/bat-ball/perceived-quality';
+import {
+  sprayAngleToDirection,
+  exitVelocityToHitSpeed,
+} from './legacy-adapter';
+import type { BatBallContext } from '../../physics/types';
 
 // ============================================================
 // メンタル補正ヘルパー（Phase 7-E1）
@@ -151,6 +160,101 @@ function calcStaminaCost(
   let cost = MATCH_CONSTANTS.STAMINA_PER_PITCH_BASE * pitchTypeCost * fullPower;
   cost /= pitchStamina / 50;
   return cost;
+}
+
+// ============================================================
+// Phase R4: Resolver 統合ヘルパー
+// ============================================================
+
+/**
+ * 打席状況から BatBallContext を構築する（R4 Resolver 呼び出し用）
+ *
+ * timingError は 0（R4 では swing-result.ts でのタイミング判定を通ったあとの in_play に対して呼ぶため、
+ * タイミングはすでに swing 成立として扱う）。
+ */
+function buildBatBallContext(
+  pitcher: PitcherParams,
+  batter: BatterParams,
+  selection: import('../types').PitchSelection & { breakLevel?: number },
+  actualLocation: import('../types').PitchLocation,
+  state: MatchState,
+  pitcherMP: MatchPlayer,
+  order: TacticalOrder,
+): BatBallContext {
+  // 直前の投球球速を取得（打席内履歴の最後から1つ前）
+  const history = state.currentAtBatPitches ?? [];
+  const previousPitchVelocity = history.length > 0
+    ? history[history.length - 1].velocity
+    : null;
+
+  // 投球キレ
+  const pitchBreakLevel = selection.type !== 'fastball'
+    ? (selection.breakLevel ?? 0)
+    : 0;
+
+  // 打者認知品質
+  const perceivedPitch = computePerceivedPitchQuality({
+    pitchVelocity: selection.velocity,
+    pitchType: selection.type,
+    pitchBreakLevel,
+    pitchActualLocation: actualLocation,
+    pitcher,
+    previousPitchVelocity,
+    previousPitchType: history.length > 0 ? history[history.length - 1].pitchType : null,
+    pitcherStaminaPct: pitcherMP.stamina,
+    pitcherConfidence: pitcherMP.confidence,
+  });
+
+  // 采配から focusArea / aggressiveness を抽出
+  let orderFocusArea: BatBallContext['orderFocusArea'] = 'none';
+  let orderAggressiveness: BatBallContext['orderAggressiveness'] = 'normal';
+  if (order.type === 'batter_detailed') {
+    orderFocusArea = order.focusArea ?? 'none';
+    orderAggressiveness = order.aggressiveness ?? 'normal';
+  }
+
+  // batterSwingType: 特性（trait）未実装のため spray を基本とする
+  const batterSwingType: 'pull' | 'spray' | 'opposite' = 'spray';
+
+  // batterMood: Mood enum → -1〜+1 の数値へ変換
+  const moodToNumber = (mood: import('../../types/player').Mood): number => {
+    switch (mood) {
+      case 'excellent': return 1.0;
+      case 'good':      return 0.5;
+      case 'normal':    return 0.0;
+      case 'poor':      return -0.5;
+      case 'terrible':  return -1.0;
+      default:          return 0.0;
+    }
+  };
+
+  const scoreDiff = state.score.home - state.score.away;
+  // 攻撃側の視点での点差（攻撃チームが home なら +、away なら - を引っくり返す）
+  const attackingTeamScoreDiff = state.currentHalf === 'bottom' ? scoreDiff : -scoreDiff;
+
+  return {
+    pitcher,
+    perceivedPitch,
+    pitchVelocity: selection.velocity,
+    pitchType: selection.type,
+    pitchBreakLevel,
+    pitchActualLocation: actualLocation,
+    batter,
+    batterSwingType,
+    timingError: 0, // swing が成立した後なので 0（中立タイミング）
+    ballOnBat: 0.5, // デフォルト芯ズレなし
+    previousPitchVelocity,
+    count: state.count,
+    inning: state.currentInning,
+    scoreDiff: attackingTeamScoreDiff,
+    outs: state.outs,
+    bases: state.bases,
+    isKeyMoment: false,
+    orderFocusArea,
+    orderAggressiveness,
+    batterTraits: [],
+    batterMood: moodToNumber(batter.mood),
+  };
 }
 
 // ============================================================
@@ -501,18 +605,71 @@ export function processPitch(
     }
   }
 
-  // ── (5) インプレーの場合 → 打球処理 ──
+  // ── (5) インプレーの場合 → 打球処理（Phase R4: Resolver 経由） ──
   let batContact: BatContactResult | null = null;
   if (outcome === 'in_play' && batContactWithoutFieldResult) {
-    const fieldResult = resolveFieldResult(
-      batContactWithoutFieldResult,
-      state.bases,
-      state.outs,
-      fieldingTeam,
-      batter,
-      rng,
-    );
-    batContact = { ...batContactWithoutFieldResult, fieldResult };
+    // バントはシンプルモデルのまま（Resolver は通常スイング用）
+    if (batContactWithoutFieldResult.contactType === 'bunt_ground') {
+      const fieldResult = resolveFieldResult(
+        batContactWithoutFieldResult,
+        state.bases,
+        state.outs,
+        fieldingTeam,
+        batter,
+        rng,
+      );
+      batContact = { ...batContactWithoutFieldResult, fieldResult };
+    } else {
+      // 通常スイング: Phase R4 - resolveBatBall で物理モデルに基づく打球方向・速度を生成し、
+      // calculateSwingResult の contactType（統計モデル）と組み合わせる。
+      //
+      // 設計:
+      //  - contactType: 旧 bat-contact.ts の確率分布（ground/line/fly/popup）を流用
+      //    → fly_ball 約 30%、home_run 率 2-8% の適切なバランスを維持
+      //  - direction: resolveBatBall の sprayAngle から物理的に正確な打球方向
+      //  - speed: resolveBatBall の exitVelocity から打球速度クラス
+      //  - distance: resolveBatBall の exitVelocity を旧モデルと同じスケール（m）に変換
+      //    → resolveFieldResult の閾値（60m=double, 90m=triple, 100m=HR）に適合
+      const batBallCtx = buildBatBallContext(
+        pitcher,
+        batter,
+        selection,
+        actualLocation,
+        state,
+        pitcherMP,
+        order,
+      );
+      const { trajectory: rawTrajectory } = resolveBatBall(batBallCtx, rng.derive('bat-ball'));
+
+      // Phase R4: sprayAngle クランプ（calculateSwingResult が in_play を返した後は
+      // フェア確定なので [0,90] に収める）
+      const trajectory = {
+        ...rawTrajectory,
+        sprayAngle: Math.max(0, Math.min(90, rawTrajectory.sprayAngle)),
+      };
+
+      // Phase R4: calculateSwingResult の打球結果に resolveBatBall の方向を上書きする。
+      //
+      //  - contactType / speed / distance: calculateSwingResult の旧統計モデルを使用
+      //    → fly_ball 比率・HR 距離閾値・ライナー出塁率などのバランスを維持
+      //  - direction: resolveBatBall の sprayAngle で上書き
+      //    → 投球コース・打者の意図を反映した物理的に正確な打球方向
+      const legacyContact: Omit<BatContactResult, 'fieldResult'> = {
+        ...batContactWithoutFieldResult,                          // contactType / speed / distance
+        direction: sprayAngleToDirection(trajectory.sprayAngle), // physics-based direction
+      };
+
+      const fieldResult = resolveFieldResult(
+        legacyContact,
+        state.bases,
+        state.outs,
+        fieldingTeam,
+        batter,
+        rng,
+      );
+
+      batContact = { ...legacyContact, fieldResult };
+    }
   }
   // v0.36.0: ファール打球は view-state に別ルートで渡す（batContact は null のまま）
   // UI 側で latest.outcome === 'foul' のとき、batContactForFoul を見て軌道を描画

@@ -1,3 +1,14 @@
+/**
+ * @deprecated Phase R4 で resolver/* に置換済み（バント処理除く）。
+ *
+ * 通常スイングのフィールド結果は `engine/physics/resolver/index.ts` の `resolvePlay()` 経由で
+ * `PlayResolution.fieldResult` として取得されるようになった。
+ *
+ * 本ファイルは以下の目的でのみ引き続き使用される:
+ * - バント打球（bunt_ground）の守備結果処理（process-pitch.ts より呼び出し）
+ *
+ * 削除は Phase R5 以降（バント処理も Resolver 統合後）に行う予定。
+ */
 import type { RNG } from '../../core/rng';
 import type {
   BaseState,

@@ -1,3 +1,13 @@
+/**
+ * @deprecated Phase R4 で resolver/* に置換済み。
+ *
+ * 通常スイングの打球生成は `engine/physics/resolver/index.ts` の `resolvePlay()` が
+ * `engine/physics/bat-ball/index.ts` の `resolveBatBall()` を経由して担当する。
+ * 本ファイルは互換層（legacy-adapter.ts）からは現在参照されていないが、
+ * 削除は Phase R5 以降に行う（後方互換テスト・バント処理がある場合の参照用に残す）。
+ *
+ * バント打球（bunt_ground）は引き続き process-pitch.ts → field-result.ts 経由で処理される。
+ */
 import type { RNG } from '../../core/rng';
 import type { BatContactResult, BatContactType, BatterParams, HitSpeed, PitchHistoryEntry, PitchLocation, PitchSelection } from '../types';
 import { MATCH_CONSTANTS } from '../constants';

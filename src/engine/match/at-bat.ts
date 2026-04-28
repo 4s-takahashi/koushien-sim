@@ -133,6 +133,19 @@ export function calculateRBI(
 
 /**
  * 1打席を処理する
+ *
+ * ## Phase R4 不変条件（V3 §10.3）
+ *
+ * この関数の戻り値 `nextState` は以下を**必ず**満たす:
+ * 1. `nextState.count` は `{ balls: 0, strikes: 0 }` にリセット済み
+ * 2. 打席がアウト・ヒット・四死球で終了している（打席継続中での返却なし）
+ * 3. アウト数 (`outs`) は processPitch / HBP 処理で正しく更新済み
+ *    （ただし 3アウト到達時のイニング切替は runner.ts / inning.ts 側で行う）
+ * 4. スコア・塁状態は打席内の全プレーを反映済み
+ *
+ * 注意: `currentBatterIndex` はこの関数では更新しない。
+ *   打順進行は呼び出し元（runner.ts の advanceBatterIndex / inning.ts の newBatterIndex）が担当する。
+ *
  * @param overrides Phase 7-E1: 心理システムからのメンタル補正（省略可）。
  *   省略時は従来通りの挙動。
  */
@@ -318,6 +331,22 @@ export function processAtBat(
   // 投手・打者の confidence 更新
   let finalState = currentState;
   finalState = updateConfidenceAfterAtBat(finalState, atBatOutcome, batterMP, pitcherMP, rbiCount);
+
+  // ── Phase R4 不変条件アサーション ──
+  // count が必ずリセットされていること（デバッグ時にのみ有効）
+  // 本番ビルドで消えるよう if (process.env.NODE_ENV !== 'production') でガードも可だが、
+  // vitest 環境では NODE_ENV が 'test' なのでチェックが走る → バグ早期発見に有効
+  if (finalState.count.balls !== 0 || finalState.count.strikes !== 0) {
+    // 不変条件違反: count がリセットされていない
+    // これが発生した場合はどこかのブランチでリセットが漏れている
+    console.warn(
+      `[at-bat.ts] 不変条件違反: processAtBat 終了時に count がリセットされていない`,
+      finalState.count,
+      `outcome: ${atBatOutcome.type}`,
+    );
+    // 防衛的にリセット（互換性維持）
+    finalState = { ...finalState, count: { balls: 0, strikes: 0 } };
+  }
 
   return {
     nextState: finalState,

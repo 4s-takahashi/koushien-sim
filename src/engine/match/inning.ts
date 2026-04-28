@@ -22,6 +22,13 @@ import { MATCH_CONSTANTS } from './constants';
  * 1ハーフイニングを処理する。
  * 3アウトになるまで打席を繰り返す。
  *
+ * ## Phase R4 責務（V3 §10.2）
+ *
+ * inning.ts はイニング進行のみを担当する:
+ * - `processAtBat` を繰り返してアウトカウントを 3 まで積み上げる
+ * - `processAtBat` の不変条件（count リセット・スコア更新済み）に依存できる
+ * - 試合終了判定は `processFullInning` / runner.ts が担当
+ *
  * @returns 更新された MatchState と InningResult
  */
 export function processHalfInning(

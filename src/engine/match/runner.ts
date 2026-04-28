@@ -20,7 +20,7 @@ import type {
 } from './types';
 import { EMPTY_BASES } from './types';
 import { processPitch } from './pitch/process-pitch';
-import { processAtBat } from './at-bat';
+import { processAtBat, advanceRunnerOnWalk } from './at-bat';
 import { processHalfInning } from './inning';
 import {
   validateOrder,
@@ -488,6 +488,7 @@ export class MatchRunner {
 
   // ----------------------------------------------------------
   // ヘルパー: 四球処理（走者進塁 + 得点）
+  // Phase R4: at-bat.ts の advanceRunnerOnWalk を委譲して重複ロジックを削除
   // ----------------------------------------------------------
   private applyWalkInline(): void {
     const state = this.state;
@@ -502,34 +503,10 @@ export class MatchRunner {
       speed: batterMP.player.stats.base.speed,
     };
 
-    let { bases, score, inningScores } = state;
-    let scoredRuns = 0;
+    const { bases: newBases, scoredRuns } = advanceRunnerOnWalk(state.bases, batterInfo);
 
-    // 押し出し判定
-    if (bases.first !== null) {
-      if (bases.second !== null) {
-        if (bases.third !== null) {
-          scoredRuns = 1;
-          bases = {
-            third: bases.second,
-            second: bases.first,
-            first: batterInfo,
-          };
-        } else {
-          bases = {
-            third: bases.second,
-            second: bases.first,
-            first: batterInfo,
-          };
-        }
-      } else {
-        bases = { ...bases, second: bases.first, first: batterInfo };
-      }
-    } else {
-      bases = { ...bases, first: batterInfo };
-    }
+    let { score, inningScores } = state;
 
-    // 得点加算
     if (scoredRuns > 0) {
       const isBottom = state.currentHalf === 'bottom';
       const idx = state.currentInning - 1;
@@ -543,7 +520,7 @@ export class MatchRunner {
 
     this.state = {
       ...state,
-      bases,
+      bases: newBases,
       score,
       inningScores,
       count: { balls: 0, strikes: 0 },
@@ -694,11 +671,9 @@ export class MatchRunner {
     }
 
     const { nextState, result } = processAtBat(this.state, order, rng, overrides);
-    // ⚠️ 打席終了時にカウントを必ずリセット（防衛コード）
-    // processAtBat 内でもリセットするが、全ケースでの確実性を保証するため。
-    // これを怠ると次の打席に前の打席のカウントが引き継がれ、
-    // 「2ストライクで三振した」ように見えるバグになる (2026-04-19 修正)
-    this.state = { ...nextState, count: { balls: 0, strikes: 0 } };
+    // Phase R4: processAtBat の不変条件（V3 §10.3）により count は必ずリセット済み
+    // 防衛コードの重複 count リセットを削除（at-bat.ts が保証する）
+    this.state = nextState;
 
     // 使用した采配をクリア
     this.pendingPlayerOrder = null;
