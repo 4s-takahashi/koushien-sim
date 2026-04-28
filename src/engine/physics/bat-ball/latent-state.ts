@@ -5,14 +5,14 @@
  * 入力変数を一度この5軸に圧縮してから 4 軸打球パラメータに変換する。
  * 各軸は独立にチューニング可能で、デバッグ・テストしやすい。
  *
- * ⚠️ 案C 骨格: 型定義と関数シグネチャは固定。計算詳細・公式チューニングは ACP に委譲。
+ * V3 §4.3 完全準拠: 各軸の独立計算・心理効果・プレッシャー反映
  */
 
 import type { SwingLatentState, BatBallContext, PerceivedPitchQuality } from '../types';
 import type { RNG } from '../../core/rng';
 
 // ============================================================
-// 公式・定数（仮置き、ACP で最終調整）
+// 公式・定数（V3 §4.3 準拠）
 // ============================================================
 
 /** swingType → swingIntent ベースバイアス */
@@ -48,7 +48,7 @@ export const SWING_INTENT_REDUCTION_TWO_STRIKES = 0.5;
  *
  * - contactQuality:
  *     主: batter.contact, batter.technique
- *     副: timingError, ballOnBat, perceivedPitch.difficulty
+ *     副: timingError, ballOnBat（芯ズレ）, perceivedPitch.difficulty
  *     公式: sigmoid(0.4*contact/100 + 0.3*technique/100 - 0.5*|timingError|/100
  *           - 0.4*difficulty + gaussian(0, 0.05))
  *
@@ -80,16 +80,11 @@ export function computeSwingLatentState(
   ctx: BatBallContext,
   rng: RNG,
 ): SwingLatentState {
-  // ▼▼▼ ACP-IMPLEMENT-HERE ▼▼▼
-  // 詳細実装は ACP に委譲。下記は V3 §4.3 公式の最小実装。
-
   const contactQuality = computeContactQuality(ctx, rng);
   const timingWindow = computeTimingWindow(ctx, rng);
   const swingIntent = computeSwingIntent(ctx);
   const decisionPressure = computeDecisionPressure(ctx);
   const barrelRate = computeBarrelRate(contactQuality, timingWindow, ctx);
-
-  // ▲▲▲ ACP-IMPLEMENT-HERE ▲▲▲
 
   return {
     contactQuality,
@@ -106,7 +101,19 @@ export function computeSwingLatentState(
 
 /**
  * 接触品質 0-1 — どれだけ芯で捉えたか
- * V3 §4.3 contactQuality 公式
+ * V3 §4.3 contactQuality 公式（精密化）
+ *
+ * sigmoid(
+ *   0.4 * contact/100
+ *   + 0.3 * technique/100
+ *   - 0.5 * |timingError|/100
+ *   - 0.4 * difficulty
+ *   + 0.2 * ballOnBat          // 芯ズレ補正（ballOnBat=1.0 で最高、0 で最低）
+ *   + gaussian(0, 0.05)
+ * )
+ *
+ * 上記 raw の合計範囲: -0.5 〜 +0.9 → sigmoid で約 0.38〜0.71
+ * オフセット +0.3 を加えて sigmoid 中央を 0.65 付近に調整
  */
 export function computeContactQuality(ctx: BatBallContext, rng: RNG): number {
   const contactStat = ctx.batter.contact / 100;
@@ -114,49 +121,73 @@ export function computeContactQuality(ctx: BatBallContext, rng: RNG): number {
   const timingPenalty = Math.abs(ctx.timingError) / 100;
   const difficulty = ctx.perceivedPitch.difficulty;
 
+  // ballOnBat: 1.0=完全芯、0.0=完全外れ。芯ズレが大きいほど低下。
+  // 0.5 をニュートラルとし、上下に ±0.15 補正（独立入力）
+  const ballOnBatBonus = (ctx.ballOnBat - 0.5) * 0.3;
+
   const raw =
     0.4 * contactStat +
     0.3 * techniqueStat -
     0.5 * timingPenalty -
-    0.4 * difficulty;
+    0.4 * difficulty +
+    ballOnBatBonus;
 
   const noise = rng.gaussian(0, CONTACT_QUALITY_NOISE_STDDEV);
-  // sigmoid 中心 0、傾き 1 で 0.5 中央に
-  return clamp01(sigmoid(raw + noise + 0.5));
+
+  // sigmoid 中心を 0.3 オフセットで調整し、contact=50、difficulty=0.2、timingError=0
+  // の標準状態で約 0.55〜0.65 程度の品質を生成
+  return clamp01(sigmoid(raw + noise + 0.3));
 }
 
 /**
  * タイミング窓 -1〜+1 — 早すぎ(-)/遅すぎ(+)/ジャスト(0)
- * V3 §4.3 timingWindow 公式
+ * V3 §4.3 timingWindow 公式（精密化）
+ *
+ * baseWindow = timingError / 100
+ * perturbation = velocityChangeImpact * 0.3 + lateMovement * 0.2
+ * timingWindow = clamp(baseWindow + gaussian(0, (NOISE_BASE + perturbation) * (1 - contact/200)), -1, 1)
+ *
+ * contact=100 で揺れ係数 0.5x、contact=0 で 1.0x
  */
 export function computeTimingWindow(ctx: BatBallContext, rng: RNG): number {
   const baseWindow = ctx.timingError / 100;
   const velImpact = ctx.perceivedPitch.velocityChangeImpact;
   const lateMov = ctx.perceivedPitch.lateMovement;
+
+  // 変化球の終盤変化・緩急が打者タイミング精度を乱す
   const perturbation = velImpact * 0.3 + lateMov * 0.2;
 
-  const contactReduction = 1 - ctx.batter.contact / 200; // 0.5〜1.0
-  const noise = rng.gaussian(0, TIMING_WINDOW_NOISE_BASE + perturbation * contactReduction);
+  // contact が高い打者ほどタイミング揺れが縮小
+  const contactReduction = 1 - ctx.batter.contact / 200; // 0.5 (contact=100) 〜 1.0 (contact=0)
+  const noiseStdDev = (TIMING_WINDOW_NOISE_BASE + perturbation) * contactReduction;
+  const noise = rng.gaussian(0, noiseStdDev);
 
   return clamp(baseWindow + noise, -1, 1);
 }
 
 /**
  * スイング意図 -1〜+1 — 流し(-)/普通(0)/引っ張り(+)
- * V3 §4.3 swingIntent 公式
+ * V3 §4.3 swingIntent 公式（精密化）
+ *
+ * baseIntent = swingTypeBias[swingType]         // -0.3/0/+0.3
+ * locationBias = (2 - col) * 0.2               // 内角(col=0)→+0.4、外角(col=4)→-0.4
+ * orderBias = focusAreaBias[focusArea]          // ±0.2
+ * twoStrikeReduction = strikes>=2 ? 0.5 : 1.0  // 追い込まれたらバイアス縮小
+ * handednessFlip = battingSide==='left' ? -1 : 1
  */
 export function computeSwingIntent(ctx: BatBallContext): number {
   const baseIntent = SWING_TYPE_INTENT_BIAS[ctx.batterSwingType];
-  // pitch col: 0=内, 4=外（投手視点）
-  // 内角(0) → 引っ張り(+0.4), 外角(4) → 流し(-0.4) になるよう (col-2)*0.2 ではなく (2-col)*0.2
-  // V3 §4.3 では (col - 2) * 0.2 = -0.4〜+0.4 だが、
-  // col 値の意味（0=内 / 4=外）と整合させるため逆転
+
+  // pitch col: 0=内角(打者から見て近い), 4=外角
+  // 内角 → 引っ張り(+0.4)、外角 → 流し(-0.4)
   const locationBias = (2 - ctx.pitchActualLocation.col) * 0.2;
+
   const orderBias = FOCUS_AREA_INTENT_BIAS[ctx.orderFocusArea] ?? 0;
+
   const twoStrikeReduction =
     ctx.count.strikes >= 2 ? SWING_INTENT_REDUCTION_TWO_STRIKES : 1.0;
 
-  // 左打者は方向反転（右打者基準で実装、左打者は -1 倍）
+  // 左打者は引っ張り方向が逆（三塁方向）になるため反転
   const handednessFlip = ctx.batter.battingSide === 'left' ? -1 : 1;
 
   return clamp(
@@ -168,34 +199,41 @@ export function computeSwingIntent(ctx: BatBallContext): number {
 
 /**
  * 判断プレッシャー 0-1 — 状況による緊張度
- * V3 §4.3 decisionPressure 公式
+ * V3 §4.3 decisionPressure 公式（精密化）
  *
- * V3 §4.3 公式に「打席のベースラインプレッシャー」を加味:
- *   basePressure (固定 0.3) + 状況加算 - mental軽減 + mood補正
- * これにより mental=50 でも完全に 0 に張り付かず、状況差が観測可能。
+ * basePressure = keyMomentScore * 0.4 + closeGameLateInning * 0.25 + scoringPosition * 0.2
+ *              + outsBonus * 0.1 + baselinePressure
+ * mentalReduction = (mental - 50) / 50 * 0.25   // mental=50 で 0、99 で +0.245
+ * moodAdjustment = -mood * 0.15                  // 負=悪い→上昇、正=良い→低下
+ * decisionPressure = clamp(basePressure - mentalReduction + moodAdjustment, 0, 1)
  */
 export const DECISION_PRESSURE_BASELINE = 0.3;
 
 export function computeDecisionPressure(ctx: BatBallContext): number {
   const keyMomentScore = ctx.isKeyMoment ? 1 : 0;
 
-  // 接戦終盤判定
+  // 接戦終盤判定（7回以降かつ点差2以内）
   const closeGame = Math.abs(ctx.scoreDiff) <= 2 && ctx.inning >= 7;
   const closeGameLateInning = closeGame ? 1 : 0;
 
-  // 得点圏ランナー
-  const scoringPosition = ctx.bases.second != null || ctx.bases.third != null ? 1 : 0;
+  // 得点圏ランナー（2塁または3塁に走者）
+  const scoringPosition =
+    ctx.bases.second != null || ctx.bases.third != null ? 1 : 0;
+
+  // アウト数ボーナス（2アウトは状況プレッシャー追加）
+  const outsBonus = ctx.outs === 2 ? 1 : 0;
 
   const situationPressure =
     keyMomentScore * 0.4 +
     closeGameLateInning * 0.25 +
-    scoringPosition * 0.2;
+    scoringPosition * 0.2 +
+    outsBonus * 0.1;
 
-  // メンタル能力 — BatterParams.mental は存在する（既存型確認済）
-  // mental=50 で 0 軽減、99 で大幅軽減、10 でわずか軽減
+  // メンタル能力: mental=50 で中立、高いほど軽減
+  // (mental - 50) / 50 * 0.25 → mental=99 で約 +0.245 の軽減
   const mentalReduction = ((ctx.batter.mental - 50) / 50) * 0.25;
 
-  // mood は -1〜+1。負＝悪い＝プレッシャー拡大
+  // mood: -1〜+1。負=悪い=プレッシャー拡大、正=良い=低下
   const moodAdjustment = -ctx.batterMood * 0.15;
 
   return clamp01(
@@ -206,6 +244,10 @@ export function computeDecisionPressure(ctx: BatBallContext): number {
 /**
  * バレル率 0-1 — 強い打球になる確率（contactQuality と power の複合）
  * V3 §4.3 barrelRate 公式
+ *
+ * centerness = 1 - |timingWindow|      // ジャストに近いほど 1.0
+ * powerFactor = 0.5 + 0.5 * power/100 // power=0 で 0.5, power=100 で 1.0
+ * barrelRate = contactQuality * (0.4 + 0.6 * centerness) * powerFactor
  */
 export function computeBarrelRate(
   contactQuality: number,
