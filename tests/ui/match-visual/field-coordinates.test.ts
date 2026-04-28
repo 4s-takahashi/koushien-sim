@@ -52,10 +52,11 @@ describe('fieldToCanvas', () => {
   });
 
   it('一塁のX距離はフィールドスケールで計算できる', () => {
-    // Phase 12-F: 一塁は (63.64, 63.64) に変更。スケール = min(W,H) / 800
+    // 実装側 FIELD_MAX_RADIUS_FT = 325 → 分母は 325*2 = 650
+    // 一塁は (63.64, 63.64)
     const home = fieldToCanvas(FIELD_POSITIONS.home, W, H);
     const first = fieldToCanvas(FIELD_POSITIONS.first, W, H);
-    const scale = Math.min(W, H) / 800;
+    const scale = Math.min(W, H) / 650;
     // 一塁の x 座標: 63.64 feet * scale
     expect(first.cx - home.cx).toBeCloseTo(FIELD_POSITIONS.first.x * scale, 1);
   });

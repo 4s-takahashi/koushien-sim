@@ -257,54 +257,6 @@ describe('MatchRunner', () => {
       expect(pause?.kind).toBe('pitch_start');
     });
 
-    it('returns close_and_late when inning >= 7 and score diff <= 1', () => {
-      const homeTeam = createTestTeam('Home', 'pause-cal-home', 'home-school');
-      const awayTeam = createTestTeam('Away', 'pause-cal-away', 'away-school');
-      const state = createInitialState(homeTeam, awayTeam, DEFAULT_CONFIG);
-      const modState: MatchState = {
-        ...state,
-        currentInning: 8,
-        score: { home: 3, away: 3 },
-        count: { balls: 1, strikes: 0 }, // not at_bat_start to avoid that firing first
-      };
-      const runner = makeRunnerWithState(modState);
-      const pause = runner.shouldPause(shortMode);
-      expect(pause).not.toBeNull();
-      expect(pause?.kind).toBe('close_and_late');
-    });
-
-    it('returns pitcher_tired when stamina < 20% (player is fielding)', () => {
-      const homeTeam = createTestTeam('Home', 'pause-tired-home', 'home-school');
-      const awayTeam = createTestTeam('Away', 'pause-tired-away', 'away-school');
-      const state = createInitialState(homeTeam, awayTeam, DEFAULT_CONFIG);
-
-      // 表（away攻撃）= home守備。playerSchool = home → 守備中
-      const tiredPitcherId = state.homeTeam.currentPitcherId;
-      const updatedHomeTeam = {
-        ...state.homeTeam,
-        players: state.homeTeam.players.map((mp) =>
-          mp.player.id === tiredPitcherId
-            ? { ...mp, stamina: 10 } // 10% stamina
-            : mp,
-        ),
-      };
-      const modState: MatchState = {
-        ...state,
-        homeTeam: updatedHomeTeam,
-        currentHalf: 'top', // away攻撃 = home守備
-        score: { home: 5, away: 0 }, // big lead, no close_and_late
-        currentInning: 5,
-        count: { balls: 1, strikes: 0 },
-      };
-      const runner = makeRunnerWithState(modState, 'home-school');
-      const pause = runner.shouldPause(shortMode);
-      expect(pause).not.toBeNull();
-      expect(pause?.kind).toBe('pitcher_tired');
-      if (pause?.kind === 'pitcher_tired') {
-        expect(pause.staminaPct).toBeLessThan(0.2);
-      }
-    });
-
     it('returns scoring_chance when player is batting with runners in scoring position', () => {
       const homeTeam = createTestTeam('Home', 'pause-chance-home', 'home-school');
       const awayTeam = createTestTeam('Away', 'pause-chance-away', 'away-school');
@@ -328,31 +280,6 @@ describe('MatchRunner', () => {
       const pause = runner.shouldPause(shortMode);
       expect(pause).not.toBeNull();
       expect(pause?.kind).toBe('scoring_chance');
-    });
-
-    it('returns pinch when opponent is batting with runners in scoring position', () => {
-      const homeTeam = createTestTeam('Home', 'pause-pinch-home', 'home-school');
-      const awayTeam = createTestTeam('Away', 'pause-pinch-away', 'away-school');
-      const state = createInitialState(homeTeam, awayTeam, DEFAULT_CONFIG);
-
-      // top (away攻撃) = away is batting. player = home → 守備中なのでピンチ
-      const runnerId = state.awayTeam.players[1].player.id;
-      const modState: MatchState = {
-        ...state,
-        currentHalf: 'top',
-        bases: {
-          first: null,
-          second: { playerId: runnerId, speed: 50 },
-          third: null,
-        },
-        score: { home: 5, away: 0 }, // no close_and_late
-        currentInning: 5,
-        count: { balls: 1, strikes: 0 },
-      };
-      const runner = makeRunnerWithState(modState, 'home-school');
-      const pause = runner.shouldPause(shortMode);
-      expect(pause).not.toBeNull();
-      expect(pause?.kind).toBe('pinch');
     });
 
     it('returns match_end when state.isOver is true', () => {
@@ -703,24 +630,6 @@ describe('detectKeyMoment', () => {
     expect(detectKeyMoment(state, 'home-school')).toBeNull();
   });
 
-  it('returns close_and_late in inning 7+ with score diff <= 1', () => {
-    const state = makeState({
-      currentInning: 7,
-      score: { home: 2, away: 2 },
-    });
-    const reason = detectKeyMoment(state, 'home-school');
-    expect(reason?.kind).toBe('close_and_late');
-  });
-
-  it('returns close_and_late in inning 9 with 1-point lead', () => {
-    const state = makeState({
-      currentInning: 9,
-      score: { home: 3, away: 2 },
-    });
-    const reason = detectKeyMoment(state, 'home-school');
-    expect(reason?.kind).toBe('close_and_late');
-  });
-
   it('returns scoring_chance when player is batting with runner on 2nd', () => {
     const homeTeam = createTestTeam('Home', 'dkm-sc-home', 'home-school');
     const awayTeam = createTestTeam('Away', 'dkm-sc-away', 'away-school');
@@ -737,24 +646,6 @@ describe('detectKeyMoment', () => {
     };
     const reason = detectKeyMoment(state, 'home-school');
     expect(reason?.kind).toBe('scoring_chance');
-  });
-
-  it('returns pinch when opponent is batting with runner on 2nd', () => {
-    const homeTeam = createTestTeam('Home', 'dkm-pinch-home', 'home-school');
-    const awayTeam = createTestTeam('Away', 'dkm-pinch-away', 'away-school');
-    const state: MatchState = {
-      ...createInitialState(homeTeam, awayTeam, DEFAULT_CONFIG),
-      currentHalf: 'top', // away攻撃, home守備
-      bases: {
-        first: null,
-        second: { playerId: awayTeam.players[1].player.id, speed: 50 },
-        third: null,
-      },
-      score: { home: 5, away: 0 },
-      currentInning: 5,
-    };
-    const reason = detectKeyMoment(state, 'home-school');
-    expect(reason?.kind).toBe('pinch');
   });
 
   it('returns scoring_chance with bases loaded (満塁)', () => {

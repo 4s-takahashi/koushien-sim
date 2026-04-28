@@ -225,7 +225,22 @@ describe('シーズンフェーズ — 大会終了後の修正確認', () => {
   it('夏大会終了後（7/29-7/30）は post_summer フェーズを返す', () => {
     // 夏大会完了後、activeTournament = null の状態で 7/28 から進める
     const world = make48SchoolWorld({ year: 1, month: 7, day: 28 });
-    const worldNoTournament = { ...world, activeTournament: null, seasonState: { ...world.seasonState, phase: 'summer_tournament' as const } };
+    // tournamentHistory に year=1 の夏大会を追加し、新規生成を防ぐ
+    const dummySummerTournament: Tournament = {
+      id: 'tournament-summer-1',
+      type: 'summer',
+      year: 1,
+      bracket: 'double-elimination',
+      isCompleted: true,
+      rounds: [],
+      champion: 'dummy-school',
+    };
+    const worldNoTournament = {
+      ...world,
+      activeTournament: null,
+      tournamentHistory: [...(world.tournamentHistory ?? []), dummySummerTournament],
+      seasonState: { ...world.seasonState, phase: 'summer_tournament' as const },
+    };
 
     const rng1 = createRNG('phase-fix-1');
     const { nextWorld: w29 } = advanceWorldDay(worldNoTournament, 'batting_basic', rng1);
@@ -242,7 +257,22 @@ describe('シーズンフェーズ — 大会終了後の修正確認', () => {
   it('秋大会終了後（10/11-10/14）は off_season フェーズを返す', () => {
     // 秋大会完了後、activeTournament = null の状態で 10/10 から進める
     const world = make48SchoolWorld({ year: 1, month: 10, day: 10 });
-    const worldNoTournament = { ...world, activeTournament: null, seasonState: { ...world.seasonState, phase: 'autumn_tournament' as const } };
+    // tournamentHistory に year=1 の秋大会を追加し、新規生成を防ぐ
+    const dummyAutumnTournament: Tournament = {
+      id: 'tournament-autumn-1',
+      type: 'autumn',
+      year: 1,
+      bracket: 'double-elimination',
+      isCompleted: true,
+      rounds: [],
+      champion: 'dummy-school',
+    };
+    const worldNoTournament = {
+      ...world,
+      activeTournament: null,
+      tournamentHistory: [...(world.tournamentHistory ?? []), dummyAutumnTournament],
+      seasonState: { ...world.seasonState, phase: 'autumn_tournament' as const },
+    };
 
     const rng = createRNG('phase-fix-3');
     const { nextWorld: w11 } = advanceWorldDay(worldNoTournament, 'batting_basic', rng);
