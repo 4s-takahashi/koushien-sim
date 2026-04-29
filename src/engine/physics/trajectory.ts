@@ -31,8 +31,13 @@ export const GRAVITY_FT_PER_SEC2 = 32.174;
 /** km/h → ft/s 変換 */
 export const KMH_TO_FT_PER_SEC = 0.911344;
 
-/** 空気抵抗の減衰係数（簡易版）— 飛距離に対する縮小率 */
-export const AIR_DRAG_COEFFICIENT = 0.0005;
+/**
+ * 空気抵抗の減衰係数（簡易版）— 飛距離に対する縮小率
+ * R8-3: 0.0005 → 0.0012（高校野球は木製バット使用+球場小さめで飛距離短め）
+ * 旧: v0 = 136 ft/s → dist = 136^2 * sin(30°) / 32.174 * (1 - 0.0005*136) = 250ft
+ * 新: v0 = 136 ft/s → dist ≈ 250ft * (1 - 0.0012*136) = 250 * 0.837 = 209ft
+ */
+export const AIR_DRAG_COEFFICIENT = 0.0012; // R8-3: 0.0005 → 0.0012
 
 /** バックスピンによる滞空時間延長係数 — rpm あたりの効果 */
 export const BACKSPIN_HANG_FACTOR = 0.0001;

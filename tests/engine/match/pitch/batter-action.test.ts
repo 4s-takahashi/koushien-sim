@@ -80,9 +80,10 @@ describe('decideBatterAction', () => {
       const action = decideBatterAction(batter, fastball, ballLocation, zeroCount, noOrder, rng);
       if (action === 'swing') swingCount++;
     }
-    // eye=0: ボール球振る確率=50%
-    expect(swingCount).toBeGreaterThan(35);
-    expect(swingCount).toBeLessThan(65);
+    // R8-3: eye=0: ボール球振る確率 ≈ 30%（旧 ≈ 43%）。BB% 改善のため見極めを強化。
+    // eye=100 → 2%, eye=50 → 15%, eye=0 → 30%
+    expect(swingCount).toBeGreaterThan(15);
+    expect(swingCount).toBeLessThan(50);
   });
 
   it('追い込まれるとボール球を振りやすくなる', () => {

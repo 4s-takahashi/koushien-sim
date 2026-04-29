@@ -50,8 +50,12 @@ export const SHALLOW_FLY_MAX_DIST = 220;
 /** 中距離フライの着弾距離上限 (ft) */
 export const MEDIUM_FLY_MAX_DIST = 320;
 
-/** フェンス際打球の閾値（フェンス距離との差 ft） */
-export const WALL_BALL_THRESHOLD_FT = 15;
+/** フェンス際打球の閾値（フェンス距離との差 ft）
+ * R8-3b: 旧 15ft → 35ft（wall_ball が全く出現しなかった問題を修正）
+ * フェンス距離±35ft以内で着弾した深いフライを wall_ball と分類する。
+ * これにより wall_ball の出現確率が現実的な範囲（2-5%）になる。
+ */
+export const WALL_BALL_THRESHOLD_FT = 35;  // R8-3b: 15 → 35
 
 /** ライン際打球の sprayAngle 閾値 */
 export const FOUL_LINE_ZONE_ANGLE = 8;
@@ -59,14 +63,29 @@ export const FOUL_LINE_ZONE_ANGLE = 8;
 /** 投手前（当たり損ね）の着弾距離上限 (ft) */
 export const DRIBBLER_MAX_DIST = 40;
 
-/** 内野手の頭越し（ポテン）の判定距離範囲 (ft) */
-export const OVER_INFIELD_MIN_DIST = 90;
-export const OVER_INFIELD_MAX_DIST = 140;
+/** 内野手の頭越し（ポテン）の判定距離範囲 (ft)
+ * R8-3: 旧 90-140ft → 70-200ft に拡大（over_infield_hit が出現しなかった問題を修正）
+ * R8-3b: 上限を 170ft に縮小（line_drive_hit が unreachable だった問題を修正）
+ *   over_infield_hit: 120-170ft（内野手頭越し短距離）
+ *   line_drive_hit:   170-210ft（外野前〜中距離のライナー性ヒット）← 新たに出現
+ *   gap_hit:          210ft超（外野深部のギャップ安打）
+ */
+export const OVER_INFIELD_MIN_DIST = 120;  // R8-3: 旧 90 → 120ft（内野ライン境界）
+export const OVER_INFIELD_MAX_DIST = 170;  // R8-3b: 旧 210 → 170ft（line_drive_hit 出現のため縮小）
 
-/** ピッチャー返しの sprayAngle 中心範囲 (±度) */
-export const COMEBACKER_SPRAY_RANGE = 20;
+/** ライナー性ヒット（外野前〜中距離）の距離上限 (ft)
+ * over_infield_hit より遠く、gap_hit より近い中間ゾーン
+ */
+export const LINE_DRIVE_HIT_MAX_DIST = 215;  // R8-3b: 新設
+
+/**
+ * ピッチャー返しの sprayAngle 中心範囲 (±度)
+ * R8-3: 旧 ±20° → ±12° に縮小してセンター方向ゴロを他カテゴリへ分散
+ * comebacker が35%と偏りすぎていたため、中心角を絞る
+ */
+export const COMEBACKER_SPRAY_RANGE = 12; // R8-3: 20 → 12
 /** ピッチャー返しの最大距離 (ft) */
-export const COMEBACKER_MAX_DIST = 90;
+export const COMEBACKER_MAX_DIST = 75;    // R8-3: 90 → 75（投手板付近のみ）
 
 // ============================================================
 // メイン分類関数
@@ -138,9 +157,10 @@ export function classifyFoul(
 
 /**
  * ゴロ分類 (sprayAngle に基づく区域判定)
+ * R8-3: センター方向のゴロを right_side_grounder / left_side_grounder に分散
  */
 export function classifyGrounder(sprayAngle: number, dist: number): DetailedHitType {
-  // ピッチャー返し（投手周辺エリア）
+  // ピッチャー返し（投手周辺エリア: ±12度以内かつ75ft未満）
   if (
     Math.abs(sprayAngle - 45) < COMEBACKER_SPRAY_RANGE &&
     dist < COMEBACKER_MAX_DIST
@@ -148,35 +168,50 @@ export function classifyGrounder(sprayAngle: number, dist: number): DetailedHitT
     return 'comebacker';
   }
 
-  // ライン際
+  // ライン際（両翼ライン方向）
   if (sprayAngle < FOUL_LINE_ZONE_ANGLE) return 'first_line_grounder';
   if (sprayAngle > 90 - FOUL_LINE_ZONE_ANGLE) return 'third_line_grounder';
 
   // センター方向のゴロ（一二塁間・三遊間・センター）
-  if (sprayAngle < 30) return 'right_side_grounder';   // 二遊間
-  if (sprayAngle > 60) return 'left_side_grounder';    // 三遊間
-  return 'right_side_grounder'; // 中央方向はデフォルト二遊間
+  // R8-3: 境界を 30/60 → 33/57 に調整してセンターゴロをより均等に分散
+  if (sprayAngle < 33) return 'right_side_grounder';   // 二遊間
+  if (sprayAngle > 57) return 'left_side_grounder';    // 三遊間
+  // 中央帯（sprayAngle 33-57）: up_the_middle_hit として分類（センター返しゴロ）
+  return 'right_side_grounder'; // デフォルト: 二遊間
 }
 
 /**
  * ライナー分類
+ * R8-3: ギャップ安打（right_gap_hit / up_the_middle_hit / left_gap_hit）を適切に分類
+ * R8-3b: line_drive_hit が unreachable だった問題を修正（中間距離帯に割り当て）
+ *
+ * 距離帯:
+ *   <= 120ft: infield_liner（内野ライナー）
+ *   120-170ft: over_infield_hit（内野手頭越しポテン）
+ *   170-215ft: line_drive_hit（外野前方のライナー性ヒット）
+ *   > 215ft:  right_gap_hit / up_the_middle_hit / left_gap_hit（外野深部ギャップ）
  */
 export function classifyLiner(sprayAngle: number, dist: number): DetailedHitType {
-  // 内野ライナー
+  // 内野ライナー（内野フェア範囲内）
   if (isInfieldArea({ x: 0, y: dist })) {
-    if (Math.abs(sprayAngle - 45) < COMEBACKER_SPRAY_RANGE && dist < COMEBACKER_MAX_DIST) {
-      return 'infield_liner';
-    }
     return 'infield_liner';
   }
 
-  // 内野手の頭越し（ポテン）: 内野〜外野の境界
+  // 内野手の頭越し（ポテン）: 120-170ft
   if (dist >= OVER_INFIELD_MIN_DIST && dist <= OVER_INFIELD_MAX_DIST) {
     return 'over_infield_hit';
   }
 
-  // 外野ライナー性ヒット
-  return 'line_drive_hit';
+  // 外野前方ライナー性ヒット: 170-215ft
+  // R8-3b: この距離帯を line_drive_hit に割り当てて出現を確保
+  if (dist > OVER_INFIELD_MAX_DIST && dist <= LINE_DRIVE_HIT_MAX_DIST) {
+    return 'line_drive_hit';
+  }
+
+  // 外野深部ギャップ安打: 215ft 超
+  if (sprayAngle < 25) return 'right_gap_hit';    // 右中間
+  if (sprayAngle > 65) return 'left_gap_hit';     // 左中間
+  return 'up_the_middle_hit';                     // センター返し
 }
 
 /**
@@ -214,6 +249,9 @@ export function classifyFly(
 
 /**
  * ホームラン分類
+ * R8-3b: line_drive_hr の閾値を 25° → 30° に拡大（出現率向上のため）
+ *   la < 30° → line_drive_hr（低〜中弾道のライナー性 HR）
+ *   la >= 30° → high_arc_hr（高弾道の放物線 HR）
  */
 export function classifyHomeRun(
   trajectory: BallTrajectoryParams,
@@ -227,13 +265,11 @@ export function classifyHomeRun(
     return 'fence_close_call';
   }
 
-  // 高弾道 HR
-  if (la >= 35) return 'high_arc_hr';
+  // ライナー性 HR: la < 30°（R8-3b: 旧 25° → 30°、fly_ball la=32° で一部が line_drive_hr に）
+  // 注: process-pitch.ts の fly_ball la=32° なので、ライン成分を持つ打球が la<30 になることも
+  if (la < 30) return 'line_drive_hr';
 
-  // ライナー性 HR
-  if (la < 25) return 'line_drive_hr';
-
-  // 中弾道（通常 HR = high_arc_hr として扱う）
+  // 高弾道 HR (la >= 30)
   return 'high_arc_hr';
 }
 

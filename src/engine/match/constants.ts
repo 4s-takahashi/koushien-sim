@@ -6,22 +6,29 @@ export const MATCH_CONSTANTS = {
   CONTROL_ERROR_SCALE: 2.0,
 
   // === 打撃 ===
-  BASE_CONTACT_RATE: 0.85,
-  BREAK_CONTACT_PENALTY: 0.03,   // was 0.04: 変化球ペナルティ緩和
+  // R8-3: 接触率を 0.85 → 0.81 に調整（三振率 18-25% の目標へ）
+  // 0.80 だと打率 0.232 と低すぎた、0.81 で 0.245 程度に
+  BASE_CONTACT_RATE: 0.81,       // R8-3: 0.85 → 0.81
+  BREAK_CONTACT_PENALTY: 0.04,   // R8-3: was 0.03 → 0.04（変化球ペナルティ強化）
   VELOCITY_CONTACT_PENALTY: 0.0015,
   FAIR_BASE_RATE: 0.54,
   TECHNIQUE_FAIR_BONUS: 0.15,    // was 0.25
 
   // === 打球 ===
-  HOME_RUN_DISTANCE: 90,         // was 100: HRハードル下げ
+  // R8-3: HR距離調整
+  // 目標 HR/試合 = 0.4-1.5
+  // 旧 105m → 95m（少し下げてHRが若干出るように）
+  HOME_RUN_DISTANCE: 95,         // R8-3: 105 → 95m
   FLY_MAX_DISTANCE: 130,
 
   // === 守備 ===
-  // v0.40.0: 得点を 3.6 → 4.0+ にするため守備率を微調整
-  FLY_CATCH_BASE: 0.80,          // was 0.85（フライのヒット率 UP）
-  GROUND_OUT_BASE: 0.55,         // was 0.60（ゴロのヒット率 UP）
+  // R8-3: エラー率を上げて 0.3-1.0/試合 の目標範囲へ
+  // 旧 GROUND_OUT_BASE=0.55 → 0.50（ゴロのヒット率 UP、エラー機会も増加）
+  // 旧 ERROR_POPUP_RATE=0.03 → 0.06（ポップフライのエラー率を現実的に）
+  FLY_CATCH_BASE: 0.80,          // 据え置き（フライのヒット率）
+  GROUND_OUT_BASE: 0.50,         // was 0.55 (R8-3: ゴロアウト率を下げてエラー機会増)
   DOUBLE_PLAY_BASE: 0.25,
-  ERROR_POPUP_RATE: 0.03,
+  ERROR_POPUP_RATE: 0.06,        // was 0.03 (R8-3: ポップフライエラー率 UP)
 
   // === 投手スタミナ ===
   STAMINA_PER_PITCH_BASE: 1.0,

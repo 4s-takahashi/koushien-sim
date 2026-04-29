@@ -73,6 +73,16 @@ export function resolveFieldResult(
 
   // ── (4) ライナー ──
   if (contact.contactType === 'line_drive') {
+    // R8-3b: ライナー性ホームラン（低弾道 HR）の判定
+    // ライナーは低弾道（フェンス上を越えにくい）ため、fly_ball より低い距離閾値を使用
+    // 高校野球では bullet 打球のライナー性 HR が年間数本出るリアルな確率に合わせる
+    // bullet: 65m 超（高校トップレベルの強打者が低弾道でフェンスを越える）
+    // hard:   75m 超（強打者が会心のライナーを打った場合）
+    const lineDriveHRThreshold = contact.speed === 'bullet' ? 65 : 75;
+    if ((contact.speed === 'bullet' || contact.speed === 'hard') && contact.distance > lineDriveHRThreshold) {
+      return { type: 'home_run', fielder: nearestFielder, isError: false };
+    }
+
     const outChance =
       contact.speed === 'bullet'
         ? 0.20 + fieldingScore * 0.003
@@ -113,6 +123,14 @@ export function resolveFieldResult(
   }
 
   if (rng.chance(outChance)) {
+    // R8-3: エラー率を適正化（アウト確定の中に守備エラーを混入）
+    // fielding stat が低いほどエラー率が上がる
+    // R8-3b: 0.02 + factor*0.04 → 0.015 + factor*0.03（エラー/試合 1.04 → 0.8 目標）
+    // stat=60 で 1.5%、stat=30 で 2.7%
+    const errorOnOutChance = 0.015 + (1 - fieldingScore / 100) * 0.03;
+    if (rng.chance(errorOnOutChance)) {
+      return { type: 'error', fielder: nearestFielder, isError: true };
+    }
     return { type: 'out', fielder: nearestFielder, isError: false };
   }
 

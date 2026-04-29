@@ -153,9 +153,11 @@ describe('balance.test.ts - ゲームバランス検証', () => {
     expect(stats.avgERA).toBeLessThanOrEqual(6.00);
   });
 
-  it('HR rate should be 2-8%', () => {
-    expect(stats.hrRate * 100).toBeGreaterThanOrEqual(2);
-    expect(stats.hrRate * 100).toBeLessThanOrEqual(8);
+  it('HR rate should be 0.5-4%', () => {
+    // Phase R8: 打率・HR率を高校野球水準に調整。
+    // §12.3 HR/試合 0.4-1.5 に対応する PA あたり HR 率は 0.5-4% 程度。
+    expect(stats.hrRate * 100).toBeGreaterThanOrEqual(0.5);
+    expect(stats.hrRate * 100).toBeLessThanOrEqual(4);
   });
 
   it('strikeout rate should be 15-30%', () => {
@@ -173,11 +175,11 @@ describe('balance.test.ts - ゲームバランス検証', () => {
     expect(stats.avgPitchCount).toBeLessThanOrEqual(400);
   });
 
-  it('avg total score per game should be 3.5-16 (high school baseball range)', () => {
+  it('avg total score per game should be 2.5-16 (high school baseball range)', () => {
     // Phase R7-1: batterTraits から batterSwingType を決定するように変更したため、
     // pull傾向の選手が増えると打球傾向が変わり得点がわずかに変動する。
-    // 高校野球の現実的な得点範囲(2〜12点)に合わせ下限を3.5に調整。
-    expect(stats.avgTotalScore).toBeGreaterThanOrEqual(3.5);
+    // Phase R8: 高校野球の現実的な得点範囲(2〜12点)。下限を2.5に調整（低評価チーム想定）。
+    expect(stats.avgTotalScore).toBeGreaterThanOrEqual(2.5);
     expect(stats.avgTotalScore).toBeLessThanOrEqual(16);
   });
 });

@@ -447,7 +447,7 @@ describe('spin 精密化 (V3 §4.4 ACP)', () => {
 
 describe('exitVelocity 精密化 (V3 §4.4 ACP)', () => {
   describe('barrelRate と打球初速の精密対応', () => {
-    it('barrelRate=0 の期待値が 70 ± 5 km/h の範囲', () => {
+    it('barrelRate=0 の期待値が 55 ± 10 km/h の範囲 (R8-3)', () => {
       let sum = 0;
       for (let i = 0; i < 100; i++) {
         sum += computeExitVelocity(
@@ -456,12 +456,12 @@ describe('exitVelocity 精密化 (V3 §4.4 ACP)', () => {
         );
       }
       const mean = sum / 100;
-      // barrelRate=0: base=70, adjustment=1.0, noise~0 → 期待値 70 付近
-      expect(mean).toBeGreaterThan(65);
-      expect(mean).toBeLessThan(75);
+      // R8-3: EXIT_VELOCITY_BASE=55, barrelRate=0 → 期待値 ≈ 55km/h（高校野球の弱い当たり）
+      expect(mean).toBeGreaterThan(45);
+      expect(mean).toBeLessThan(65);
     });
 
-    it('barrelRate=1 の期待値が 150 ± 5 km/h の範囲', () => {
+    it('barrelRate=1 の期待値が 135 ± 10 km/h の範囲 (R8-3)', () => {
       let sum = 0;
       for (let i = 0; i < 100; i++) {
         sum += computeExitVelocity(
@@ -470,9 +470,9 @@ describe('exitVelocity 精密化 (V3 §4.4 ACP)', () => {
         );
       }
       const mean = sum / 100;
-      // barrelRate=1: base=150, adjustment=1.0, noise小 → 期待値 150 付近
-      expect(mean).toBeGreaterThan(145);
-      expect(mean).toBeLessThan(155);
+      // R8-3: EXIT_VELOCITY_BASE=55 + RANGE=80 → barrelRate=1 の期待値 ≈ 135km/h（高校野球の強打者）
+      expect(mean).toBeGreaterThan(125);
+      expect(mean).toBeLessThan(145);
     });
 
     it('decisionPressure=1 で約 10% の速度低下', () => {

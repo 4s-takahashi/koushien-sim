@@ -27,8 +27,9 @@ export function decideBatterAction(
 
   // (2) ボール球の見極め
   if (!isInZone) {
-    // eye=100 → 0%振る, eye=50 → 21.7%振る, eye=0 → 43.5%振る
-    let swingAtBall = (100 - batter.eye) / 230;
+    // R8-3: eye=100 → 2%振る, eye=50 → 15%振る, eye=0 → 30%振る
+    // 旧: (100 - eye) / 230 → eye=50で21.7% → ボール球を振りすぎて四球少ない
+    let swingAtBall = (100 - batter.eye) / 330;  // R8-3: 230 → 330（ボール見極め改善）
 
     // 変化球補正: キレが高いほど見極めにくい
     if (pitch.type !== 'fastball') {

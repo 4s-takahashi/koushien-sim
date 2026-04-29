@@ -734,11 +734,24 @@ export function processPitch(
       //   line_drive hard(116km/h)  → ~248ft → gap_hit (>215ft)
       //   line_drive bullet(148km/h) → ~390ft → wall_ball / HR → line_drive_hr
       //
+      // EV マッピング（各 contactType × speed の目標飛距離と21種分類）:
+      //   line_drive weak(68km/h)   →  ~92ft → infield_liner (<120ft)
+      //   line_drive normal(86km/h) → ~142ft → over_infield_hit (120-170ft)
+      //   line_drive hard:
+      //     gap方向(sprayAngle<25 or >65, ev=108km/h) → ~220ft → right/left_gap_hit (>215ft)
+      //     center方向(sprayAngle 25-65, ev=98km/h)   → ~185ft → line_drive_hit (170-215ft)
+      //   line_drive bullet(148km/h) → ~390ft → wall_ball / line_drive_hr
+      //   fly_ball weak(68km/h)    → ~140ft → shallow_fly (<=220ft)
+      //   fly_ball normal(96km/h)  → ~226ft → medium_fly (220-320ft)
+      //   fly_ball hard(112km/h)   → ~301ft → medium_fly / approaching deep_fly
+      //   fly_ball bullet(120km/h) → ~342ft → deep_fly (>320ft) or wall_ball
+      const isGapDirection = r6SprayAngle < 25 || r6SprayAngle > 65;
       const r6ExitVelocity = batContact.contactType === 'line_drive' && batContact.speed === 'bullet' ? 148
-        : batContact.speed === 'bullet' ? 120   // fly_ball: フェンス際・HR境界
-        : batContact.contactType === 'line_drive' && batContact.speed === 'hard' ? 116
+        : batContact.speed === 'bullet' ? 120   // fly_ball: deep_fly / HR境界
+        : batContact.contactType === 'line_drive' && batContact.speed === 'hard'
+          ? (isGapDirection ? 108 : 98)   // R8-3b: gap方向→gap_hit、center方向→line_drive_hit
         : batContact.speed === 'hard' ? 112
-        : batContact.contactType === 'line_drive' && batContact.speed === 'normal' ? 86  // R8-3b: over_infield_hit 出現のため
+        : batContact.contactType === 'line_drive' && batContact.speed === 'normal' ? 86  // over_infield_hit
         : batContact.speed === 'normal' ? 96    // fly_ball: medium_fly
         : 68;                                   // weak: shallow_fly / infield_liner
 
@@ -776,6 +789,19 @@ export function processPitch(
         contactTimeMs: 0,
         contactQuality: r6ContactQuality,
       }, state.bases);
+
+      // R8-3b: レガシーフィールド結果がホームランの場合、21種分類をオーバーライド
+      // physics モデルとレガシーモデルの不整合を解消し、全21種の出現を保証する
+      // field-result.ts の HOME_RUN 判定（distance > HOME_RUN_DISTANCE=95m）が出た場合、
+      // 21種分類も対応する HR 種に上書きする。
+      if (batContact.fieldResult.type === 'home_run') {
+        // line_drive は line_drive_hr、fly_ball は high_arc_hr
+        if (batContact.contactType === 'line_drive') {
+          r6DetailedHitType = 'line_drive_hr';
+        } else {
+          r6DetailedHitType = 'high_arc_hr';
+        }
+      }
 
       // NarrativeHook 生成
       r6NarrativeHook = generateNarrativeHook(r6DetailedHitType, r6Trajectory, r6Flight);

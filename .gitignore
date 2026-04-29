@@ -44,3 +44,6 @@ next-env.d.ts
 # VPS uncommitted diff (migration work artifact)
 vps-uncommitted.diff
 public/sounds/generated/*.zip
+
+# balance-sim output JSON files (large simulation data, keep HTML reports only)
+scripts/balance-sim/output/*.json

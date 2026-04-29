@@ -23,6 +23,8 @@ export function calculateSwingResult(
   history?: readonly PitchHistoryEntry[],
 ): SwingResultDetail {
   // ── (1) 接触判定 ──
+  // R8-3: BASE_CONTACT_RATE=0.85 を使用するが、球速・コースで最大 0.65 まで下げる
+  // 目標三振率: 18-25%。接触率が高すぎると三振が少なくなる
   let contactChance = MATCH_CONSTANTS.BASE_CONTACT_RATE * (0.50 + 0.50 * (batter.contact / 100));
 
   // 変化球補正: キレが高いほど接触率低下

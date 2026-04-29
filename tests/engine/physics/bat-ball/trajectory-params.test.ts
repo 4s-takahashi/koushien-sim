@@ -97,24 +97,26 @@ describe('exitVelocity (V3 §4.4)', () => {
     }
   });
 
-  it('barrelRate=0 で 70 km/h 付近', () => {
+  it('barrelRate=0 で 55 km/h 付近 (R8-3: base=55)', () => {
     let sum = 0;
     for (let i = 0; i < 50; i++) {
       const rng = createRNG(`ev-low-${i}`);
       sum += computeExitVelocity(makeLatent({ barrelRate: 0, contactQuality: 0.5 }), rng);
     }
-    expect(sum / 50).toBeGreaterThan(60);
-    expect(sum / 50).toBeLessThan(80);
+    // R8-3: EXIT_VELOCITY_BASE=55 → barrelRate=0 の期待値 ≈ 55km/h
+    expect(sum / 50).toBeGreaterThan(45);
+    expect(sum / 50).toBeLessThan(65);
   });
 
-  it('barrelRate=1 で 150 km/h 付近', () => {
+  it('barrelRate=1 で 135 km/h 付近 (R8-3: base=55, range=80)', () => {
     let sum = 0;
     for (let i = 0; i < 50; i++) {
       const rng = createRNG(`ev-high-${i}`);
       sum += computeExitVelocity(makeLatent({ barrelRate: 1, contactQuality: 0.5 }), rng);
     }
-    expect(sum / 50).toBeGreaterThan(140);
-    expect(sum / 50).toBeLessThan(160);
+    // R8-3: EXIT_VELOCITY_BASE=55 + RANGE=80 → barrelRate=1 の期待値 ≈ 135km/h
+    expect(sum / 50).toBeGreaterThan(120);
+    expect(sum / 50).toBeLessThan(150);
   });
 
   it('barrelRate に対して単調増加 (期待値)', () => {

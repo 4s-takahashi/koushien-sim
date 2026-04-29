@@ -17,11 +17,18 @@ import type { RNG } from '../../core/rng';
 
 /** exitVelocity の値域 (km/h) */
 export const EXIT_VELOCITY_MIN = 30;
-export const EXIT_VELOCITY_MAX = 180;
+export const EXIT_VELOCITY_MAX = 160; // R8-3: 高校野球は最大 160km/h 程度（プロ: 180km/h）
 
-/** exitVelocity ベースレンジ (km/h) — barrelRate 0 で 70, 1 で 150 */
-export const EXIT_VELOCITY_BASE = 70;
-export const EXIT_VELOCITY_RANGE = 80;
+/**
+ * exitVelocity ベースレンジ (km/h)
+ * R8-3 調整: 高校野球らしい exit velocity 分布に
+ *   barrelRate=0 → 55km/h（弱い当たり）
+ *   barrelRate=0.5 → 95km/h（平均的な当たり）
+ *   barrelRate=1.0 → 135km/h（強い当たり）
+ * 旧: base=70, range=80 → barrelRate=1 で 150km/h（プロレベル）
+ */
+export const EXIT_VELOCITY_BASE = 55;  // R8-3: 70 → 55
+export const EXIT_VELOCITY_RANGE = 80; // R8-3: 据え置き
 
 /** launchAngle の値域 (度) */
 export const LAUNCH_ANGLE_MIN = -30;

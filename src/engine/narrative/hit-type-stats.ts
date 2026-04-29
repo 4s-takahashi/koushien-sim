@@ -96,6 +96,8 @@ export interface MatchHitTypeStats {
 export interface AtBatResultWithHitType {
   readonly batterId: string;
   readonly detailedHitType?: DetailedHitType;
+  /** R8-3: ファウル球の detailedHitType (foul_fly) 追跡用 */
+  readonly pitches?: ReadonlyArray<{ outcome: string; detailedHitType?: DetailedHitType }>;
 }
 
 /**
@@ -118,10 +120,26 @@ export function collectHitTypeStats(
 
   // 21種カウント集計
   for (const ab of atBatResults) {
-    if (!ab.detailedHitType) continue;
     const counts = batterMap.get(ab.batterId);
     if (!counts) continue;
-    counts[ab.detailedHitType]++;
+
+    // インプレー打球の21種
+    if (ab.detailedHitType) {
+      counts[ab.detailedHitType]++;
+    }
+
+    // R8-3: ファウル球の foul_fly 集計（pitches 配列から）
+    // foul_fly は process-pitch.ts でファウル球に対して設定される
+    if (ab.pitches) {
+      for (const pitch of ab.pitches) {
+        if (
+          pitch.outcome === 'foul' &&
+          pitch.detailedHitType === 'foul_fly'
+        ) {
+          counts['foul_fly']++;
+        }
+      }
+    }
   }
 
   // チーム合計
