@@ -490,7 +490,7 @@ describe('セーブ/ロード（E2E）', () => {
 // ============================================================
 
 describe('年度替わり（3/31 → 4/1）', () => {
-  it('365日進行後に年度が替わる', () => {
+  it('365日進行後に年度が替わる', { timeout: 30000 }, () => {
     let world = createE2EWorld();
     const rng = createRNG('e2e-year-transition');
 

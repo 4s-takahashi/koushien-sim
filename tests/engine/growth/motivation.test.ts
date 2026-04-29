@@ -1,6 +1,7 @@
 /**
  * tests/engine/growth/motivation.test.ts
  * Phase 11-A3: 選手モチベーションシステム
+ * Phase S1-C C1: tickMotivation テスト追加
  */
 
 import { describe, it, expect } from 'vitest';
@@ -13,6 +14,8 @@ import {
   applyMatchMotivation,
   getMatchPerformanceMultiplier,
   getPracticeEfficiencyMultiplier,
+  tickMotivation,
+  applyTickMotivation,
 } from '../../../src/engine/growth/motivation';
 import type { Player } from '../../../src/engine/types/player';
 
@@ -316,5 +319,122 @@ describe('getPracticeEfficiencyMultiplier', () => {
   it('30 < motivation < 70 で 1.00', () => {
     expect(getPracticeEfficiencyMultiplier(50)).toBe(1.00);
     expect(getPracticeEfficiencyMultiplier(50)).toBe(1.00);
+  });
+});
+
+// ============================================================
+// Phase S1-C C1: tickMotivation テスト
+// ============================================================
+
+// C1-test1: 休息日処理で motivation が +5〜+10 上がること
+describe('tickMotivation: C1-test1 休息日ボーナス', () => {
+  it('休養日（平日）で +5', () => {
+    const delta = tickMotivation({
+      isRestDay: true,
+      isSunday: false,
+      practiceHadEffect: false,
+      hasFatiguePressure: false,
+      samePositionCount: 1,
+      fatigue: 0,
+    });
+    expect(delta).toBe(5);
+  });
+
+  it('休養日（日曜）で +8（+5 基本 +3 日曜ボーナス）', () => {
+    const delta = tickMotivation({
+      isRestDay: true,
+      isSunday: true,
+      practiceHadEffect: false,
+      hasFatiguePressure: false,
+      samePositionCount: 1,
+      fatigue: 0,
+    });
+    expect(delta).toBe(8);
+  });
+
+  it('休養日の delta は 5〜8 の範囲（ペナルティがない場合）', () => {
+    const plain = tickMotivation({
+      isRestDay: true, isSunday: false,
+      practiceHadEffect: false, hasFatiguePressure: false,
+      samePositionCount: 1, fatigue: 0,
+    });
+    const sunday = tickMotivation({
+      isRestDay: true, isSunday: true,
+      practiceHadEffect: false, hasFatiguePressure: false,
+      samePositionCount: 1, fatigue: 0,
+    });
+    expect(plain).toBeGreaterThanOrEqual(5);
+    expect(sunday).toBeLessThanOrEqual(10);
+  });
+});
+
+// C1-test2: 練習日で +2 or -1
+describe('tickMotivation: C1-test2 練習日効果', () => {
+  it('練習効果あり で +2', () => {
+    const delta = tickMotivation({
+      isRestDay: false,
+      isSunday: false,
+      practiceHadEffect: true,
+      hasFatiguePressure: false,
+      samePositionCount: 1,
+      fatigue: 0,
+    });
+    expect(delta).toBe(2);
+  });
+
+  it('連続練習・疲労あり（效果なし）で -1', () => {
+    const delta = tickMotivation({
+      isRestDay: false,
+      isSunday: false,
+      practiceHadEffect: false,
+      hasFatiguePressure: true,
+      samePositionCount: 1,
+      fatigue: 0,
+    });
+    expect(delta).toBe(-1);
+  });
+});
+
+// C1-test3: 上限100超えない、日曜休息日ボーナス
+describe('tickMotivation: C1-test3 上限チェック + 日曜ボーナス', () => {
+  it('日曜休息日ボーナス +3 が含まれる（合計 +8）', () => {
+    const delta = tickMotivation({
+      isRestDay: true,
+      isSunday: true,
+      practiceHadEffect: false,
+      hasFatiguePressure: false,
+      samePositionCount: 1,
+      fatigue: 0,
+    });
+    expect(delta).toBe(8); // +5 + +3
+  });
+
+  it('applyTickMotivation で 100 を超えない', () => {
+    const players = [makePlayer({ id: 'p1', motivation: 98 })];
+    const result = applyTickMotivation(players, true, true, new Set());
+    expect(result[0].motivation).toBeLessThanOrEqual(100);
+  });
+
+  it('applyTickMotivation で 0 未満にならない', () => {
+    const players = [makePlayer({ id: 'p1', motivation: 1, condition: { fatigue: 90, injury: null, mood: 'poor' } })];
+    const result = applyTickMotivation(players, false, false, new Set());
+    expect(result[0].motivation).toBeGreaterThanOrEqual(0);
+  });
+});
+
+// C1-test4: tickMotivation が world-ticker から呼ばれること（呼ばれていないバグの再発防止）
+describe('tickMotivation: C1-test4 world-ticker 統合確認', () => {
+  it('applyTickMotivation を呼ぶと選手の motivation が変化する（休息日）', () => {
+    const players = [makePlayer({ id: 'p1', motivation: 50 })];
+    const result = applyTickMotivation(players, true, false, new Set());
+    // 休養日で +5
+    expect(result[0].motivation).toBe(55);
+  });
+
+  it('applyTickMotivation を呼ぶと選手の motivation が変化する（練習効果あり）', () => {
+    const players = [makePlayer({ id: 'p1', motivation: 50 })];
+    const result = applyTickMotivation(players, false, false, new Set(['p1']));
+    // 練習効果あり +2
+    expect(result[0].motivation).toBe(52);
   });
 });

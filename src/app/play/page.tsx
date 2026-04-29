@@ -8,6 +8,9 @@ import type { HomeViewState } from '../../ui/projectors/view-state-types';
 import type { WorldDayResult } from '../../engine/world/world-ticker';
 import { SaveLoadPanel } from './save/SaveLoadPanel';
 import styles from './page.module.css';
+import { SchoolNewsBoard } from '../../ui/components/SchoolNewsBoard';
+import { buildSchoolNewsList } from '../../engine/news/school-news';
+import type { SchoolNewsItem } from '../../engine/news/school-news';
 
 // ── ナビバッジコンポーネント (B2) ──────────────────────────────────
 
@@ -284,11 +287,13 @@ function TournamentStartBanner({ result, view, onClose }: TournamentStartBannerP
 // 自校タブコンテンツ
 // ============================================================
 
-function OwnSchoolTab({ view, isAdvancing, onAdvanceDay, onAdvanceWeek }: {
+function OwnSchoolTab({ view, isAdvancing, onAdvanceDay, onAdvanceWeek, schoolNewsItems, schoolName }: {
   view: HomeViewState;
   isAdvancing: boolean;
   onAdvanceDay: () => void;
   onAdvanceWeek: () => void;
+  schoolNewsItems: SchoolNewsItem[];
+  schoolName: string;
 }) {
   const cond = view.teamConditionSummary;
 
@@ -511,6 +516,13 @@ function OwnSchoolTab({ view, isAdvancing, onAdvanceDay, onAdvanceWeek }: {
           ))}
         </div>
       )}
+
+      {/* 自校ニュースボード (C2) */}
+      <SchoolNewsBoard
+        schoolId="user"
+        items={schoolNewsItems}
+        schoolName={schoolName}
+      />
     </div>
   );
 }
@@ -1007,6 +1019,8 @@ function HomeContent({ view }: { view: HomeViewState }) {
               isAdvancing={isAdvancing}
               onAdvanceDay={handleAdvanceDay}
               onAdvanceWeek={handleAdvanceWeek}
+              schoolNewsItems={buildSchoolNewsList(worldState?.eventLog ?? [])}
+              schoolName={displayView.team.schoolName}
             />
           )}
           {activeTab === '他校' && <OtherSchoolTab view={displayView} />}

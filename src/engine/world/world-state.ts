@@ -14,6 +14,7 @@ import type { TournamentBracket } from './tournament-bracket';
 import type { ScheduledPracticeGame, PracticeGameRecord } from '../types/practice-game';
 import type { EvaluatorState } from '../types/evaluator';
 import type { ManagerStaff } from '../types/manager-staff';
+import type { GrowthEvent } from '../types/growth';
 
 // ============================================================
 // 計算粒度
@@ -256,6 +257,14 @@ export interface WorldState {
    * null でない場合、ホーム画面に「試合再開」バナーが出る。
    */
   pausedInteractiveMatch?: PausedInteractiveMatch | null;
+
+  // --- 成長イベントログ (Phase S1-C C3) ---
+  /**
+   * 自校選手の成長イベント履歴（最大200件）。
+   * C3 イベント発生時に追記され、自校ニュースに自動投稿される。
+   * 未初期化の場合は undefined（後方互換）。
+   */
+  eventLog?: GrowthEvent[];
 }
 
 /**

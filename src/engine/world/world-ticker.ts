@@ -28,6 +28,9 @@ import type { TournamentBracket, TournamentMatch, TournamentRound } from './tour
 import { processPracticeGameDay } from './practice-game';
 import type { PracticeGameRecord } from '../types/practice-game';
 import type { PendingInteractiveMatch } from './world-state';
+import { applyTickMotivation } from '../growth/motivation';
+import { generateGrowthEvents, applyGrowthEvents } from '../growth/growth-events';
+import type { GrowthEvent } from '../types/growth';
 
 // ============================================================
 // WorldDayResult
@@ -85,6 +88,8 @@ function advanceSchoolFull(
   menuId: PracticeMenuId,
   worldState: WorldState,
   rng: RNG,
+  dayOfWeek: number,
+  isRestDay: boolean,
 ): { school: HighSchool; dayResult: DayResult } {
   // 休養フラグ付き選手のスナップショットを保存 (2026-04-19 Issue #5)
   // これらの選手は processDay 後に能力変化を打ち消し、疲労だけ回復させる。
@@ -153,9 +158,26 @@ function advanceSchoolFull(
     };
   });
 
+  // C1 バグ修正: tickMotivation を world-ticker から確実に呼ぶ
+  // (day-processor.ts の applyDailyMotivation は motivation +3 相当のみ)
+  // world-ticker では設計書仕様の +5〜+8 休養ボーナス + 練習効果ボーナスを適用する
+  const isSunday = dayOfWeek === 0;
+  // 練習効果があった選手IDセット（dayResult の playerChanges から取得）
+  const practiceEffectIds = new Set(
+    dayResult.playerChanges
+      .filter((c) => c.statChanges.some((s) => s.delta > 0))
+      .map((c) => c.playerId),
+  );
+  const motivationPlayers = applyTickMotivation(
+    adjustedPlayers,
+    isRestDay,
+    isSunday,
+    practiceEffectIds,
+  );
+
   const updatedSchool: HighSchool = {
     ...school,
-    players: adjustedPlayers,
+    players: motivationPlayers,
     lineup: nextState.team.lineup,
     reputation: nextState.team.reputation,
     _summary: null, // invalidate cache
@@ -174,12 +196,22 @@ function advanceSchoolStandard(
   seasonMultiplier: number,
   currentYear: number,
   rng: RNG,
+  dayOfWeek: number,
+  isRestDay: boolean,
 ): HighSchool {
   const updatedPlayers = school.players.map((player) =>
     applyBatchGrowth(player, currentYear, school.coachStyle.practiceEmphasis, seasonMultiplier, rng.derive(player.id))
   );
 
-  return { ...school, players: updatedPlayers, _summary: null };
+  // C1: standard tier 校にも tickMotivation を適用
+  const motivationPlayers = applyTickMotivation(
+    updatedPlayers,
+    isRestDay,
+    dayOfWeek === 0,
+    new Set<string>(), // standard tier では練習効果IDは追跡しない
+  );
+
+  return { ...school, players: motivationPlayers, _summary: null };
 }
 
 /**
@@ -454,6 +486,9 @@ export function advanceWorldDay(
   let playerSchoolResult: DayResult | null = null;
   const updatedSchools: HighSchool[] = [];
   const worldNews: WorldNewsItem[] = [];
+  const isRestDay = dayType === 'off_day';
+  // 新規成長イベント（この日に発生したもの）
+  const newGrowthEvents: GrowthEvent[] = [];
 
   // --- 全高校の日次処理 ---
   for (const school of world.schools) {
@@ -466,6 +501,8 @@ export function advanceWorldDay(
           playerMenuId,
           world,
           schoolRng,
+          dayOfWeek,
+          isRestDay,
         );
         updatedSchools.push(updated);
         if (school.id === world.playerSchoolId) {
@@ -475,7 +512,7 @@ export function advanceWorldDay(
       }
       case 'standard': {
         updatedSchools.push(
-          advanceSchoolStandard(school, dayType, seasonMultiplier, currentYear, schoolRng),
+          advanceSchoolStandard(school, dayType, seasonMultiplier, currentYear, schoolRng, dayOfWeek, isRestDay),
         );
         break;
       }
@@ -484,6 +521,24 @@ export function advanceWorldDay(
           advanceSchoolMinimal(school, dayType, dayOfWeek, seasonMultiplier, currentYear, schoolRng),
         );
         break;
+      }
+    }
+  }
+
+  // --- C3: 自校の成長イベント生成（練習日のみ、自校 full tier） ---
+  if (!isRestDay && dayType !== 'tournament_day') {
+    const playerSchool = updatedSchools.find((s) => s.id === world.playerSchoolId);
+    if (playerSchool) {
+      const growthRng = rng.derive('growth-events');
+      const events = generateGrowthEvents(playerSchool.players, date, growthRng);
+      if (events.length > 0) {
+        newGrowthEvents.push(...events);
+        // 成長イベントの効果を選手に適用
+        const { updatedPlayers } = applyGrowthEvents(playerSchool.players, events);
+        const schoolIdx = updatedSchools.findIndex((s) => s.id === world.playerSchoolId);
+        if (schoolIdx >= 0) {
+          updatedSchools[schoolIdx] = { ...updatedSchools[schoolIdx], players: updatedPlayers, _summary: null };
+        }
       }
     }
   }
@@ -773,6 +828,10 @@ export function advanceWorldDay(
   }
 
   // --- WorldState 更新 ---
+  // C3: eventLog に新規成長イベントを追記（最大200件）
+  const existingEventLog: GrowthEvent[] = world.eventLog ?? [];
+  const updatedEventLog = [...existingEventLog, ...newGrowthEvents].slice(-200);
+
   let nextWorld: WorldState = {
     ...world,
     currentDate: newDate,
@@ -782,6 +841,7 @@ export function advanceWorldDay(
     activeTournament,
     tournamentHistory,
     pendingInteractiveMatch: null, // 通常進行時はリセット
+    eventLog: updatedEventLog,
   };
 
   // --- 新日付が大会期間内なら大会を自動作成 ---

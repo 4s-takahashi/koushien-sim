@@ -1,10 +1,14 @@
 /**
  * motivation.ts — 選手モチベーション計算 (Phase 11-A3 2026-04-19)
+ *                  Phase S1-C C1 (2026-04-29): tickMotivation() 追加
  *
  * モチベーション: 0-100、デフォルト 50
  * - 試合出場 → +5（ホームラン +3追加、好投 +5追加）
  * - ベンチ（試合日なのに出場せず）→ -2
- * - 休養日 → +3
+ * - 休養日 → +5〜+10 回復（曜日ボーナス込み）
+ * - 練習日で効果あり → +2
+ * - 連続練習で疲労あり → -1
+ * - 日曜休息ボーナス → +3 追加
  * - 同ポジションライバル多い (同ポジション3人以上) → -1/日
  * - 疲労80以上 → -3/日
  *
@@ -207,4 +211,105 @@ export function getPracticeEfficiencyMultiplier(motivation: number): number {
   if (motivation >= 70) return 1.20;
   if (motivation <= 30) return 0.80;
   return 1.00;
+}
+
+// ============================================================
+// C1: tickMotivation — world-ticker 専用の日次 motivation 更新
+// ============================================================
+
+/**
+ * world-ticker から呼ばれる日次 motivation 更新コンテキスト。
+ * (Phase S1-C C1 2026-04-29)
+ */
+export interface TickMotivationContext {
+  /** 今日が休養日（off_day）か */
+  isRestDay: boolean;
+  /** 今日が日曜日か（0=日曜） */
+  isSunday: boolean;
+  /** 今日が練習日で効果が出たか */
+  practiceHadEffect: boolean;
+  /** 連続練習による疲労蓄積があるか（fatigue >= 60） */
+  hasFatiguePressure: boolean;
+  /** 同じポジションの選手数（自分含む） */
+  samePositionCount: number;
+  /** 現在の疲労度 */
+  fatigue: number;
+}
+
+/**
+ * tickMotivation — 日次 motivation 変化量を計算する。
+ *
+ * world-ticker.ts の全高校処理から呼ばれる。
+ * day-processor.ts の applyDailyMotivation と役割を分離し、
+ * world-ticker 側で確実に呼ばれることを保証する（C1 バグ修正）。
+ *
+ * 変化量:
+ * - 休養日: +5（基本）+ isSunday ? +3 : 0 → 合計 +5〜+8
+ * - 練習日で効果あり: +2
+ * - 連続練習で疲労蓄積: -1
+ * - 同ポジション3人以上: -1
+ * - 疲労80以上: -3
+ */
+export function tickMotivation(ctx: TickMotivationContext): number {
+  let delta = 0;
+
+  if (ctx.isRestDay) {
+    delta += 5; // 休養日基本回復
+    if (ctx.isSunday) {
+      delta += 3; // 日曜休息ボーナス
+    }
+  } else {
+    // 練習日
+    if (ctx.practiceHadEffect) {
+      delta += 2; // 練習効果あり
+    }
+    if (ctx.hasFatiguePressure) {
+      delta -= 1; // 連続練習・疲労蓄積
+    }
+  }
+
+  // 共通ペナルティ
+  if (ctx.samePositionCount >= 3) {
+    delta -= 1;
+  }
+  if (ctx.fatigue >= 80) {
+    delta -= 3;
+  }
+
+  return delta;
+}
+
+/**
+ * 全選手に tickMotivation を適用する。
+ * world-ticker の advanceSchoolFull / advanceSchoolStandard から呼ぶ。
+ *
+ * @param players     全選手リスト
+ * @param isRestDay   今日が休養日か
+ * @param isSunday    今日が日曜か
+ * @param practiceEffectPlayerIds 練習効果が出た選手IDセット
+ */
+export function applyTickMotivation(
+  players: Player[],
+  isRestDay: boolean,
+  isSunday: boolean,
+  practiceEffectPlayerIds: Set<string>,
+): Player[] {
+  // ポジション別人数を集計
+  const positionCount = new Map<import('../types/player').Position, number>();
+  for (const p of players) {
+    positionCount.set(p.position, (positionCount.get(p.position) ?? 0) + 1);
+  }
+
+  return players.map((player) => {
+    const ctx: TickMotivationContext = {
+      isRestDay,
+      isSunday,
+      practiceHadEffect: practiceEffectPlayerIds.has(player.id),
+      hasFatiguePressure: player.condition.fatigue >= 60,
+      samePositionCount: positionCount.get(player.position) ?? 1,
+      fatigue: player.condition.fatigue,
+    };
+    const delta = tickMotivation(ctx);
+    return applyMotivationDelta(player, delta);
+  });
 }
