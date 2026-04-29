@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.45.0';
+export const VERSION = '0.45.1';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-29 14:59 UTC';
-export const GIT_SHA = '6ebc785-dirty';
+export const BUILD_DATE = '2026-04-29 16:00 UTC';
+export const GIT_SHA = '7f4e2cf-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,28 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.45.1',
+    date: '2026-04-29',
+    changes: [
+      '🏠 v0.45.1: Phase S1-B ホーム画面・チームUI拡張（B1-B6）',
+      '',
+      '【B1】ホーム画面ナビ 10項目化（ホーム/チーム/練習/スタッフ/ニュース/スカウト/大会/試合/試合結果/OB）',
+      '  - GlobalHeader から練習/スタッフ/試合を削除して重複防止',
+      '【B2】全ナビ項目にバッジカウント機能',
+      '  - buildNavBadges() で各項目のバッジ数を計算',
+      '【B3】チーム全体練習を3スロット同時選択化',
+      '  - TeamPracticePlan { slots: [3 slot] }、効果は1/3ずつ加算',
+      '【B4】個別練習メニュー6種追加',
+      '  - 走力/守備/配球研究/メンタル/柔軟性/動画分析',
+      '  - 既存9種 + 新規6種 = 計15種',
+      '【B5】選手詳細画面に個別練習ドロップダウン',
+      '【B6】練習成果フィードバック履歴セクション',
+      '  - 「ミート率があがったような気がする」など言葉表現で表示',
+      '',
+      '新規テスト 56件追加 / 全1966テスト合格',
+    ],
+  },
   {
     version: '0.45.0',
     date: '2026-04-29',
