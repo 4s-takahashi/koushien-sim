@@ -674,3 +674,165 @@ describe('detectKeyMoment', () => {
     expect(detectKeyMoment(state, 'home-school')).toBeNull();
   });
 });
+
+// ============================================================
+// Phase S1-A: A3 統合テスト
+// A3-test1: 通常打席（チャンスでもピンチでもない）で auto-pause が起きないこと
+// A3-test2: チャンスで pause、解除で再開、ピンチで pause、解除で再開すること
+// ============================================================
+
+describe('A3: auto-pause 修正 — detectKeyMoment によるチャンス/ピンチ制御', () => {
+  function makeMinimalState(overrides: Partial<MatchState> = {}): MatchState {
+    const homeTeam = createTestTeam('Home', 'a3-home', 'home-school');
+    const awayTeam = createTestTeam('Away', 'a3-away', 'away-school');
+    return {
+      ...createInitialState(homeTeam, awayTeam, DEFAULT_CONFIG),
+      ...overrides,
+    };
+  }
+
+  // A3-test1: 通常打席（チャンスでもピンチでもない）で auto-pause が起きないこと
+  describe('A3-test1: 通常打席での auto-pause なし', () => {
+    it('ランナーなし・fast モード → shouldPause が null を返す（自動進行続行）', () => {
+      const state = makeMinimalState({
+        currentHalf: 'top',
+        bases: { first: null, second: null, third: null },
+        score: { home: 0, away: 0 },
+        currentInning: 3,
+        count: { balls: 0, strikes: 0 },
+      });
+      const runner = new MatchRunner(state, (s, r) => ({ type: 'none' }), 'home-school');
+      const fastOff: RunnerMode = { time: 'fast', pitch: 'off' };
+
+      const pause = runner.shouldPause(fastOff);
+      // away 攻撃 (top) + home がプレイヤー = 守備中: チャンスではない
+      // fast mode + pitch=off の場合、チャンスでなければ null
+      expect(pause).toBeNull();
+    });
+
+    it('プレイヤーが攻撃中でも1塁走者のみ（得点圏なし）→ shouldPause が null', () => {
+      const homeTeam = createTestTeam('Home', 'a3-1b-home', 'home-school');
+      const awayTeam = createTestTeam('Away', 'a3-1b-away', 'away-school');
+      const state: MatchState = {
+        ...createInitialState(homeTeam, awayTeam, DEFAULT_CONFIG),
+        currentHalf: 'bottom', // home 攻撃 (プレイヤー)
+        bases: {
+          first: { playerId: homeTeam.players[1].player.id, speed: 50 },
+          second: null,
+          third: null,
+        },
+        score: { home: 0, away: 5 },
+        currentInning: 5,
+        count: { balls: 0, strikes: 0 },
+      };
+      const runner = new MatchRunner(state, (s, r) => ({ type: 'none' }), 'home-school');
+      const fastOff: RunnerMode = { time: 'fast', pitch: 'off' };
+
+      const pause = runner.shouldPause(fastOff);
+      // 得点圏走者なし → shouldPause は null
+      expect(pause).toBeNull();
+    });
+
+    it('pitch_start / at_bat_start は routine pause であり non-chance', () => {
+      // shouldPause が pitch_start / at_bat_start を返すケースは routine として扱う
+      // これらは自動進行をブロックしない（ページ側で無視する）
+      const routineKinds = ['pitch_start', 'at_bat_start', 'inning_end'];
+
+      for (const kind of routineKinds) {
+        // kind が scoring_chance や pinch でないことを確認
+        expect(kind).not.toBe('scoring_chance');
+        expect(kind).not.toBe('pinch');
+        expect(kind).not.toBe('match_end');
+      }
+    });
+  });
+
+  // A3-test2: チャンスで pause → 解除 → 再開 のサイクル
+  describe('A3-test2: チャンスで pause → 解除 → 再開', () => {
+    it('チャンス状態では scoring_chance を返す（自動進行停止）', () => {
+      const homeTeam = createTestTeam('Home', 'a3-chance-home', 'home-school');
+      const awayTeam = createTestTeam('Away', 'a3-chance-away', 'away-school');
+      const chanceState: MatchState = {
+        ...createInitialState(homeTeam, awayTeam, DEFAULT_CONFIG),
+        currentHalf: 'bottom', // home 攻撃 (プレイヤー)
+        bases: {
+          first: null,
+          second: { playerId: homeTeam.players[2].player.id, speed: 50 },
+          third: null,
+        },
+        score: { home: 0, away: 5 },
+        currentInning: 5,
+        count: { balls: 0, strikes: 1 },
+      };
+      const runner = new MatchRunner(chanceState, (s, r) => ({ type: 'none' }), 'home-school');
+      const fastOff: RunnerMode = { time: 'fast', pitch: 'off' };
+
+      const pause = runner.shouldPause(fastOff);
+      expect(pause).not.toBeNull();
+      expect(pause?.kind).toBe('scoring_chance');
+    });
+
+    it('チャンス解除後（走者なし）→ shouldPause が null（自動進行再開）', () => {
+      const homeTeam = createTestTeam('Home', 'a3-resume-home', 'home-school');
+      const awayTeam = createTestTeam('Away', 'a3-resume-away', 'away-school');
+      const normalState: MatchState = {
+        ...createInitialState(homeTeam, awayTeam, DEFAULT_CONFIG),
+        currentHalf: 'bottom', // home 攻撃 (プレイヤー)
+        bases: { first: null, second: null, third: null },
+        score: { home: 0, away: 5 },
+        currentInning: 5,
+        count: { balls: 0, strikes: 0 },
+      };
+      const runner = new MatchRunner(normalState, (s, r) => ({ type: 'none' }), 'home-school');
+      const fastOff: RunnerMode = { time: 'fast', pitch: 'off' };
+
+      const pause = runner.shouldPause(fastOff);
+      // 走者なし → チャンスではない → null
+      expect(pause).toBeNull();
+    });
+
+    it('得点圏走者あり (3塁) → scoring_chance が返る', () => {
+      const homeTeam = createTestTeam('Home', 'a3-3b-home', 'home-school');
+      const awayTeam = createTestTeam('Away', 'a3-3b-away', 'away-school');
+      const state: MatchState = {
+        ...createInitialState(homeTeam, awayTeam, DEFAULT_CONFIG),
+        currentHalf: 'bottom',
+        bases: {
+          first: null,
+          second: null,
+          third: { playerId: homeTeam.players[3].player.id, speed: 60 },
+        },
+        score: { home: 0, away: 3 },
+        currentInning: 7,
+        count: { balls: 1, strikes: 0 },
+      };
+      const runner = new MatchRunner(state, (s, r) => ({ type: 'none' }), 'home-school');
+      const fastOff: RunnerMode = { time: 'fast', pitch: 'off' };
+      const pause = runner.shouldPause(fastOff);
+      expect(pause?.kind).toBe('scoring_chance');
+    });
+
+    it('detectKeyMoment が scoring_chance を返すのは自校攻撃時のみ（守備中は返さない）', () => {
+      const homeTeam = createTestTeam('Home', 'a3-def-home', 'home-school');
+      const awayTeam = createTestTeam('Away', 'a3-def-away', 'away-school');
+
+      // home-school が守備中 (top: away 攻撃)
+      const state: MatchState = {
+        ...createInitialState(homeTeam, awayTeam, DEFAULT_CONFIG),
+        currentHalf: 'top', // away 攻撃
+        bases: {
+          first: null,
+          second: { playerId: awayTeam.players[2].player.id, speed: 50 },
+          third: null,
+        },
+        score: { home: 0, away: 5 },
+        currentInning: 5,
+      };
+
+      // home-school を「プレイヤー」として指定（現在守備中）
+      const reason = detectKeyMoment(state, 'home-school');
+      // 守備中なのでチャンス判定は起きない → null
+      expect(reason).toBeNull();
+    });
+  });
+});

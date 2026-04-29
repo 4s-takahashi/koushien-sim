@@ -10,6 +10,16 @@
  */
 
 import { useEffect, useState, useCallback, useRef } from 'react';
+// Phase S1-A: 試合演出タイミング制御
+import {
+  getPlayBallDelayMs,
+  getChangeDelayMs,
+  getStrikeoutDelay1Ms,
+  getStrikeoutDelay2Ms,
+  isChangeNarration,
+  isStrikeoutNarration,
+  buildNextBatterLog,
+} from '../../../../ui/match-visual/MatchPlayerHooks';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useWorldStore } from '../../../../stores/world-store';
@@ -1273,6 +1283,19 @@ export default function MatchPage() {
   // Phase 12-H: カウントダウン表示用の再描画トリガー
   const [_countdownTick, setCountdownTick] = useState(0);
   const autoAdvanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Phase S1-A: 演出ディレイ中かどうか (A1/A2/A5 の待機中フラグ)
+  const [isStagingDelay, setIsStagingDelay] = useState(false);
+  const stagingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prevNarrationLengthRef = useRef(0);
+  // Phase S1-A: アンマウント時にステージングタイマーをクリア
+  useEffect(() => {
+    return () => {
+      if (stagingTimerRef.current !== null) {
+        clearTimeout(stagingTimerRef.current);
+        stagingTimerRef.current = null;
+      }
+    };
+  }, []);
 
   // Phase 12-L: hydration タイムアウト
   // match-store の persist が 3 秒以内に完了しない場合、強制的に _hasHydrated を true に設定する。
@@ -1375,6 +1398,13 @@ export default function MatchPage() {
     setShowPlayBall(true);
     // 2.8秒後に演出終了 (CSSアニメーションと同期)
     setTimeout(() => setShowPlayBall(false), 2800);
+    // Phase S1-A A1: プレイボール後3秒（autoSpeedMultiplier 連動）の遅延
+    setIsStagingDelay(true);
+    const playBallDelay = getPlayBallDelayMs(runnerMode.time);
+    const playBallTimer = setTimeout(() => {
+      setIsStagingDelay(false);
+    }, playBallDelay);
+    stagingTimerRef.current = playBallTimer;
     setInitialized(true);
   }, [hasHydrated, matchStoreHasHydrated, matchStoreRunner, worldState, initialized, initMatch, router, consumePausedMatch, restoreFromSnapshot]);
 
@@ -1443,11 +1473,17 @@ export default function MatchPage() {
 
   // ── 旧自動進行タイマー (autoPlayEnabled) ──
   // 後方互換: autoAdvance が OFF のときは旧ロジックで動作
+  // A3: チャンス/ピンチでないのに止まるバグ修正: routine な pauseReason は無視して進行
   useEffect(() => {
     if (!initialized) return;
     if (!autoPlayEnabled) return;
     if (autoAdvance) return; // 新自動進行が ON なら旧ロジックは動かない
-    if (pauseReason !== null) return;
+    // A3: 非 routine な pauseReason のみ停止（match_end / scoring_chance）
+    if (pauseReason !== null) {
+      const routineKinds: string[] = ['pitch_start', 'at_bat_start', 'inning_end'];
+      if (!routineKinds.includes(pauseReason.kind)) return;
+      // routine pause（pitch_start/at_bat_start/inning_end）は無視して自動進行継続
+    }
     if (matchResult !== null) return;
     if (isProcessing) return;
     if (selectMode.type !== 'none') return;
@@ -1476,7 +1512,82 @@ export default function MatchPage() {
     stepOneAtBat,
   ]);
 
+  // ── Phase S1-A: ステージングディレイ (A1/A2/A5) ──
+  // narration の最新エントリを監視し、チェンジ/三振後に追加の遅延を挿入する
+  const appendNarration = useMatchStore((s) => s.appendNarration);
+  useEffect(() => {
+    if (!initialized) return;
+    if (matchResult !== null) return;
+    // ナレーションが増えていない場合はスキップ
+    const len = narration.length;
+    if (len === prevNarrationLengthRef.current) return;
+    prevNarrationLengthRef.current = len;
+
+    const latestEntry = narration[len - 1];
+    if (!latestEntry) return;
+
+    // 前のステージングタイマーをクリア
+    if (stagingTimerRef.current !== null) {
+      clearTimeout(stagingTimerRef.current);
+      stagingTimerRef.current = null;
+    }
+
+    // A2: チェンジイベント検出 → CHANGE_DELAY_MS 遅延
+    if (isChangeNarration(latestEntry.text)) {
+      const changeDelay = getChangeDelayMs(runnerMode.time);
+      setIsStagingDelay(true);
+      stagingTimerRef.current = setTimeout(() => {
+        stagingTimerRef.current = null;
+        setIsStagingDelay(false);
+      }, changeDelay);
+      return;
+    }
+
+    // A5: 三振イベント検出 → 1.5秒待機 → 次打者ログ → 0.5秒待機
+    if (isStrikeoutNarration(latestEntry.text)) {
+      const delay1 = getStrikeoutDelay1Ms(runnerMode.time);
+      const delay2 = getStrikeoutDelay2Ms(runnerMode.time);
+      setIsStagingDelay(true);
+
+      stagingTimerRef.current = setTimeout(() => {
+        // 1.5秒後: 次打者ログを追加
+        const currentView = useMatchStore.getState().runner?.getState();
+        if (currentView) {
+          const battingTeam = currentView.currentHalf === 'top'
+            ? currentView.awayTeam
+            : currentView.homeTeam;
+          const nextBatterId = battingTeam.battingOrder[currentView.currentBatterIndex];
+          const nextBatterMP = battingTeam.players.find((p) => p.player.id === nextBatterId);
+          if (nextBatterMP) {
+            const posJP: Record<string, string> = {
+              pitcher: '投手', catcher: '捕手', first: '一塁手', second: '二塁手',
+              third: '三塁手', shortstop: '遊撃手', left: '左翼手', center: '中堅手', right: '右翼手',
+            };
+            const pos = posJP[nextBatterMP.player.position ?? ''] ?? nextBatterMP.player.position ?? '';
+            const order = currentView.currentBatterIndex + 1;
+            const logText = buildNextBatterLog(nextBatterMP.player.lastName, order, pos);
+            appendNarration({
+              id: `next-batter-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+              text: logText,
+              kind: 'normal',
+              inning: currentView.currentInning,
+              half: currentView.currentHalf,
+              at: Date.now(),
+            });
+          }
+        }
+        // さらに 0.5秒後に staging 解除
+        stagingTimerRef.current = setTimeout(() => {
+          stagingTimerRef.current = null;
+          setIsStagingDelay(false);
+        }, delay2);
+      }, delay1);
+      return;
+    }
+  }, [narration.length, initialized, matchResult]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Phase 12-H: 新自動進行タイマー (autoAdvance) ──
+  // A1: プレイボール後 / A2: チェンジ後 / A5: 三振後 の isStagingDelay が true の間は発火しない
   useEffect(() => {
     // 前のタイマーをクリア
     if (autoAdvanceTimerRef.current !== null) {
@@ -1507,6 +1618,11 @@ export default function MatchPage() {
     }
     if (isProcessing) return;
     if (selectMode.type !== 'none') return;
+    // A1/A2/A5: ステージングディレイ中は次のピッチを発火しない
+    if (isStagingDelay) {
+      setNextAutoAdvanceAt(null);
+      return;
+    }
 
     const delayMs = DELAY_MS[runnerMode.time];
     const fireAt = Date.now() + delayMs;
@@ -1544,6 +1660,7 @@ export default function MatchPage() {
     selectMode.type,
     narration.length,
     pitchLog.length,
+    isStagingDelay,
   ]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Phase 12-H: カウントダウン表示 (100msごとに再描画) ──

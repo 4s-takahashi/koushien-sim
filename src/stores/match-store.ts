@@ -184,6 +184,8 @@ export interface MatchStoreActions {
   setAutoPlaySpeed: (speed: 'slow' | 'normal' | 'fast') => void;
   /** 実況ログをクリア */
   clearNarration: () => void;
+  /** 実況ログに1エントリ追加する（UI 側から演出ログを差し込む用）*/
+  appendNarration: (entry: NarrationEntry) => void;
 
   // --- Phase 12-K: アナリストコメントアクション ---
   /**
@@ -1026,6 +1028,12 @@ export const useMatchStore = create<MatchStore>()(
 
   clearNarration: () => {
     set({ narration: [] });
+  },
+
+  appendNarration: (entry: NarrationEntry) => {
+    const { narration } = get();
+    const newNarration = [...narration, entry].slice(-NARRATION_MAX);
+    set({ narration: newNarration });
   },
 
   // ----------------------------------------------------------------

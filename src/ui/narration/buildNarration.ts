@@ -145,7 +145,7 @@ function batResultJP(atBat: AtBatResult): { text: string; kind: NarrationEntry['
     case 'double':        return { text: '二塁打！', kind: 'highlight' };
     case 'triple':        return { text: '三塁打！！', kind: 'highlight' };
     case 'home_run':      return { text: '🔥 ホームラン！！', kind: 'score' };
-    case 'walk':          return { text: 'フォアボール', kind: 'normal' };
+    case 'walk':          return { text: '🚶 フォアボール！打者は一塁へ！', kind: 'highlight' };
     case 'intentional_walk': return { text: '敬遠', kind: 'normal' };
     case 'hit_by_pitch':  return { text: '死球', kind: 'normal' };
     case 'strikeout': {
@@ -433,8 +433,18 @@ export function buildNarrationForPitch(
       };
     }
   } else {
-    resultText = outcomeJP(pitch.outcome);
-    resultKind = 'normal';
+    // A4: フォアボール検出（4球目のボールで打者交代 + count リセット）
+    const isWalk =
+      pitch.outcome === 'ball' &&
+      stateBefore.count.balls === 3 &&
+      stateAfter.currentBatterIndex !== stateBefore.currentBatterIndex;
+    if (isWalk) {
+      resultText = 'フォアボール！打者は一塁へ！';
+      resultKind = 'highlight';
+    } else {
+      resultText = outcomeJP(pitch.outcome);
+      resultKind = 'normal';
+    }
   }
 
   // 1行で: 投手 → 打者: コース + 球種 + 球速 … 結果
@@ -466,6 +476,22 @@ export function buildNarrationForPitch(
       id: `${baseId}-score`,
       text: scoreLine.text,
       kind: scoreLine.kind,
+      inning: stateBefore.currentInning,
+      half: stateBefore.currentHalf,
+      at: Date.now(),
+    });
+  }
+
+  // A4: フォアボール追加ログ（走者進塁の確認ログ）
+  const isWalkEvent =
+    pitch.outcome === 'ball' &&
+    stateBefore.count.balls === 3 &&
+    stateAfter.currentBatterIndex !== stateBefore.currentBatterIndex;
+  if (isWalkEvent) {
+    entries.push({
+      id: `${baseId}-walk`,
+      text: `🚶 ${batter} フォアボール！打者は一塁へ！`,
+      kind: 'highlight',
       inning: stateBefore.currentInning,
       half: stateBefore.currentHalf,
       at: Date.now(),
