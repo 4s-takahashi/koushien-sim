@@ -743,17 +743,10 @@ function buildNavBadges(
     }
   }
 
-  // 試合結果: 直近の試合結果数（最大9件）
+  // 試合結果: 直近の試合結果数（暫定: WorldState に matchHistory が無いため 0、recentResults はストア側）
+  // TODO: buildNavBadges のシグネチャに recentResults を渡せるよう projector 呼び出し側を改修
   const playerSchool = worldState.schools.find((s) => s.id === worldState.playerSchoolId);
-  const matchHistoryLen = playerSchool
-    ? Math.min(
-        (worldState.matchHistory?.filter(
-          (m) => m.homeTeamId === worldState.playerSchoolId || m.awayTeamId === worldState.playerSchoolId
-        ).length ?? 0),
-        9
-      )
-    : 0;
-  const resultsBadge = matchHistoryLen;
+  const resultsBadge = 0;
 
   // OB: 最近の卒業生数（直近1シーズン）
   const obBadge = Math.min(
