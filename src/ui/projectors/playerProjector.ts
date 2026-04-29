@@ -8,8 +8,9 @@ import type { WorldState } from '../../engine/world/world-state';
 import type { Player } from '../../engine/types/player';
 import type {
   PlayerDetailViewState, StatRowView, ConditionView, AbilityRank, PositionLabel,
-  PracticeHistoryView, PlayerEventView,
+  PracticeHistoryView, PlayerEventView, PracticeFeedbackView,
 } from './view-state-types';
+import { buildFeedbackMessage } from '../../engine/growth/practice-feedback';
 import { computePlayerOverall } from '../../engine/world/career/draft-system';
 import { overallToRank, positionToLabel } from './teamProjector';
 import { getMotivation } from '../../engine/growth/motivation';
@@ -259,7 +260,36 @@ export function projectPlayer(
           icon: EVENT_ICONS[e.type] ?? '📌',
         }))
       : undefined,
+    // 個別練習メニュー (Phase S1-B B5)
+    individualMenu: playerSchool?.individualPracticeMenus?.[player.id] ?? null,
+    // 最近の成長フィードバック (Phase S1-B B6)
+    practiceFeedbacks: buildPracticeFeedbacks(worldState, player.id),
   };
+}
+
+/**
+ * Phase S1-B B6: 練習成果フィードバック履歴を生成する。
+ * worldState.practiceFeedbackHistory から直近10件を返す。
+ */
+function buildPracticeFeedbacks(
+  worldState: WorldState,
+  playerId: string,
+): PracticeFeedbackView[] | undefined {
+  const playerSchool = worldState.schools.find((s) => s.id === worldState.playerSchoolId);
+  const feedbackHistory = (playerSchool as { practiceFeedbackHistory?: Record<string, import('../../engine/types/calendar').PracticeFeedback[]> })
+    ?.practiceFeedbackHistory;
+  if (!feedbackHistory) return undefined;
+
+  const feedbacks = feedbackHistory[playerId];
+  if (!feedbacks || feedbacks.length === 0) return undefined;
+
+  return feedbacks
+    .slice(-10)
+    .map((fb): PracticeFeedbackView => ({
+      dateLabel: `${fb.date.month}月${fb.date.day}日`,
+      practiceType: fb.practiceType,
+      message: fb.message,
+    }));
 }
 
 /**

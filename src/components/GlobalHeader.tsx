@@ -13,7 +13,7 @@
  * (v0.43.0: 練習・スタッフをヘッダーナビに追加、バッジ通知)
  */
 
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { useWorldStore } from '../stores/world-store';
 import { SaveLoadPanel } from '../app/play/save/SaveLoadPanel';
@@ -100,30 +100,6 @@ export default function GlobalHeader({ title, rightSlot }: GlobalHeaderProps) {
   const [showSave, setShowSave] = useState<false | 'save' | 'load'>(false);
   const [showMenu, setShowMenu] = useState(false);
 
-  // バッジ用カウント計算
-  const badgeCounts = useMemo(() => {
-    if (!worldState) return { practice: 0, staff: 0, match: 0 };
-
-    const playerSchool = worldState.schools?.find((s) => s.id === worldState.playerSchoolId);
-    const players = playerSchool?.players ?? [];
-
-    // 練習: 個別練習未設定の選手数
-    const practiceBadge = players.filter((p) => !p.restOverride && !(p as unknown as Record<string, unknown>).individualMenu).length;
-
-    // スタッフ: 役割未割り当てのマネージャー数（staffが未初期化なら0）
-    const staff = worldState.managerStaff;
-    const staffBadge = staff ? Math.max(0, staff.maxMembers - staff.members.length) : 0;
-
-    // 試合: 次の試合までの日数（大会期間中のみ、14日以内）
-    const homeView = getHomeView?.();
-    let matchBadge = 0;
-    if (homeView?.tournament?.nextMatchDaysAway !== undefined && homeView.tournament.nextMatchDaysAway <= 14) {
-      matchBadge = homeView.tournament.nextMatchDaysAway;
-    }
-
-    return { practice: practiceBadge, staff: staffBadge, match: matchBadge };
-  }, [worldState, getHomeView]);
-
   // Hydrate 前は最小表示
   if (!hasHydrated || !worldState) {
     return (
@@ -149,23 +125,7 @@ export default function GlobalHeader({ title, rightSlot }: GlobalHeaderProps) {
             {phaseLabel && <span className={styles.phase}>{phaseLabel}</span>}
           </Link>
 
-          {/* デスクトップ用クイックナビ (中央) */}
-          <nav className={styles.quickNav}>
-            <Link href="/play/practice" className={styles.quickNavLink}>
-              ⚾ 練習
-              <MenuBadge count={badgeCounts.practice} />
-            </Link>
-            <Link href="/play/staff" className={styles.quickNavLink}>
-              👩‍💼 スタッフ
-              <MenuBadge count={badgeCounts.staff} />
-            </Link>
-            {badgeCounts.match > 0 && (
-              <Link href="/play/tournament" className={styles.quickNavLink}>
-                🏆 試合
-                <MenuBadge count={badgeCounts.match} />
-              </Link>
-            )}
-          </nav>
+          {/* デスクトップ用クイックナビ (中央) — B1: 練習・スタッフ・試合はホーム画面のメインナビへ移動 */}
 
           <div className={styles.meta}>
             {dateText && <span className={styles.date}>{dateText}</span>}
@@ -197,9 +157,6 @@ export default function GlobalHeader({ title, rightSlot }: GlobalHeaderProps) {
               aria-expanded={showMenu}
             >
               ☰
-              {(badgeCounts.practice > 0 || badgeCounts.staff > 0 || badgeCounts.match > 0) && (
-                <span className={styles.menuBtnBadge} />
-              )}
             </button>
           </div>
         </div>
@@ -208,16 +165,14 @@ export default function GlobalHeader({ title, rightSlot }: GlobalHeaderProps) {
       {/* サブメニュー (ナビゲーションドロワー) */}
       {showMenu && (
         <div className={styles.menuOverlay} onClick={() => setShowMenu(false)}>
-          <div className={styles.menu} onClick={(e) => e.stopPropagation()}>
+          <div className={styles.menu} onClick={(e) => e.stopPropagation()} data-testid="hamburger-menu">
             <MenuLinkItem href="/play" label="🏠 ホーム" onClick={() => setShowMenu(false)} />
             <MenuLinkItem href="/play/team" label="👥 チーム" onClick={() => setShowMenu(false)} />
-            <MenuLinkItem href="/play/tournament" label="🏆 大会" badge={badgeCounts.match} onClick={() => setShowMenu(false)} />
+            <MenuLinkItem href="/play/tournament" label="🏆 大会" onClick={() => setShowMenu(false)} />
             <MenuLinkItem href="/play/results" label="📊 戦績" onClick={() => setShowMenu(false)} />
             <MenuLinkItem href="/play/news" label="📰 ニュース" onClick={() => setShowMenu(false)} />
             <MenuLinkItem href="/play/scout" label="🔍 スカウト" onClick={() => setShowMenu(false)} />
             <MenuLinkItem href="/play/ob" label="🎓 OB" onClick={() => setShowMenu(false)} />
-            <MenuLinkItem href="/play/practice" label="⚾ 練習" badge={badgeCounts.practice} onClick={() => setShowMenu(false)} />
-            <MenuLinkItem href="/play/staff" label="👩‍💼 スタッフ" badge={badgeCounts.staff} onClick={() => setShowMenu(false)} />
           </div>
         </div>
       )}

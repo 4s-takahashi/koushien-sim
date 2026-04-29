@@ -5,7 +5,7 @@
  * 自校だけでなく、全高校・全中学生・全人物を包含する。
  */
 
-import type { GameDate, PracticeMenuId } from '../types/calendar';
+import type { GameDate, PracticeMenuId, TeamPracticePlan } from '../types/calendar';
 import type { Manager, FacilityLevel, Lineup } from '../types/team';
 import type { Player, PlayerStats, Position } from '../types/player';
 import type { PersonRegistry } from './person-state';
@@ -60,8 +60,22 @@ export interface HighSchool {
   /**
    * チーム全体の練習メニュー (Phase 11.5-A)。
    * advanceDay() の引数省略時はこの値を使用する。
+   * @deprecated B3以降は teamPracticePlan を優先使用
    */
   practiceMenu?: PracticeMenuId;
+
+  /**
+   * チーム全体練習プラン 3スロット版 (Phase S1-B B3)。
+   * slots[0..2] に練習メニューを設定。効果は各 1/3 ずつ加算。
+   * 未設定の場合は practiceMenu の単一メニューにフォールバック。
+   */
+  teamPracticePlan?: TeamPracticePlan;
+
+  /**
+   * 選手ごとの練習成果フィードバック履歴 (Phase S1-B B6)。
+   * key=playerId / value=直近10件の PracticeFeedback[]
+   */
+  practiceFeedbackHistory?: Record<string, import('../types/calendar').PracticeFeedback[]>;
 
   // --- パフォーマンス用キャッシュ ---
   _summary: TeamSummary | null;

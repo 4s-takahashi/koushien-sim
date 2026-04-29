@@ -6,8 +6,10 @@ import { useWorldStore } from '../../../stores/world-store';
 import type { TeamViewState, PlayerRowView } from '../../../ui/projectors/view-state-types';
 import type { PracticeMenuId } from '../../../engine/types/calendar';
 import type { Player } from '../../../engine/types/player';
+import { INDIVIDUAL_PRACTICE_MENUS } from '../../../data/practice-menus';
 import styles from './page.module.css';
 
+// チーム全体練習用オプション（従来の9種）
 const TEAM_MENU_OPTIONS: Array<{ id: PracticeMenuId; label: string }> = [
   { id: 'batting_basic',    label: '基礎打撃練習' },
   { id: 'batting_live',     label: '実戦打撃練習' },
@@ -41,17 +43,10 @@ function getGradeClass(grade: number): string {
   return styles.grade1;
 }
 
+// 個別練習メニューオプション (B4: 15種全メニュー)
 const MENU_OPTIONS: Array<{ id: string; label: string }> = [
   { id: '', label: '（共通）' },
-  { id: 'batting_basic', label: '打撃・基礎' },
-  { id: 'batting_live', label: '打撃・実戦' },
-  { id: 'pitching_basic', label: '投球・基礎' },
-  { id: 'pitching_bullpen', label: '投球・ブルペン' },
-  { id: 'fielding_drill', label: '守備' },
-  { id: 'running', label: '走塁' },
-  { id: 'strength', label: '筋力' },
-  { id: 'mental', label: 'メンタル' },
-  { id: 'rest', label: '休養' },
+  ...INDIVIDUAL_PRACTICE_MENUS.map((m) => ({ id: m.id, label: m.name })),
 ];
 
 // ── 能力値タブの種別 ──────────────────────────────────────
@@ -403,6 +398,7 @@ function TeamPage({ view }: { view: TeamViewState }) {
   const setIndividualMenu = useWorldStore((s) => s.setIndividualMenu);
   const clearAllIndividualMenus = useWorldStore((s) => s.clearAllIndividualMenus);
   const setTeamPracticeMenu = useWorldStore((s) => s.setTeamPracticeMenu);
+  const setTeamPracticePlan = useWorldStore((s) => s.setTeamPracticePlan);
   const worldState = useWorldStore((s) => s.worldState);
   const [restToast, setRestToast] = useState<string | null>(null);
   const [menuToast, setMenuToast] = useState<string | null>(null);
@@ -413,9 +409,23 @@ function TeamPage({ view }: { view: TeamViewState }) {
     (s) => s.id === worldState.playerSchoolId
   )?.players ?? [];
 
-  // 現在のチーム練習メニュー
+  // 現在のチーム練習メニュー・プラン
   const playerSchool = worldState?.schools.find((s) => s.id === worldState.playerSchoolId);
   const currentTeamMenu: PracticeMenuId = playerSchool?.practiceMenu ?? 'batting_basic';
+  // B3: 3スロットプランの現在値（未設定の場合は全スロット currentTeamMenu）
+  const currentPlan = (playerSchool as { teamPracticePlan?: { slots: Array<{ menuId: PracticeMenuId }> } } | undefined)
+    ?.teamPracticePlan ?? {
+    slots: [
+      { menuId: currentTeamMenu },
+      { menuId: currentTeamMenu },
+      { menuId: currentTeamMenu },
+    ] as [{ menuId: PracticeMenuId }, { menuId: PracticeMenuId }, { menuId: PracticeMenuId }],
+  };
+  const [slot0, slot1, slot2] = [
+    currentPlan.slots[0].menuId,
+    currentPlan.slots[1].menuId,
+    currentPlan.slots[2].menuId,
+  ];
 
   const handleBulkRest = () => {
     const { count } = restAllInjuredAndWarned();
@@ -437,6 +447,18 @@ function TeamPage({ view }: { view: TeamViewState }) {
     const label = TEAM_MENU_OPTIONS.find((m) => m.id === menuId)?.label ?? menuId;
     setMenuToast(`チーム練習メニューを「${label}」に変更しました`);
     setTimeout(() => setMenuToast(null), 3000);
+  };
+
+  // B3: 3スロットプランのスロット変更ハンドラ
+  const handleSlotChange = (slotIdx: 0 | 1 | 2, menuId: string) => {
+    const newSlots: [{ menuId: PracticeMenuId }, { menuId: PracticeMenuId }, { menuId: PracticeMenuId }] = [
+      { menuId: slotIdx === 0 ? menuId as PracticeMenuId : slot0 },
+      { menuId: slotIdx === 1 ? menuId as PracticeMenuId : slot1 },
+      { menuId: slotIdx === 2 ? menuId as PracticeMenuId : slot2 },
+    ];
+    setTeamPracticePlan({ slots: newSlots });
+    setMenuToast(`スロット${slotIdx + 1}を変更しました`);
+    setTimeout(() => setMenuToast(null), 2000);
   };
 
   const individualMenuCount = view.players.filter((p) => p.individualMenu).length;
@@ -462,9 +484,12 @@ function TeamPage({ view }: { view: TeamViewState }) {
         <div className={styles.navInner}>
           <Link href="/play" className={styles.navLink}>ホーム</Link>
           <Link href="/play/team" className={`${styles.navLink} ${styles.navLinkActive}`}>チーム</Link>
+          <Link href="/play/practice" className={styles.navLink}>練習</Link>
+          <Link href="/play/staff" className={styles.navLink}>スタッフ</Link>
           <Link href="/play/news" className={styles.navLink}>ニュース</Link>
           <Link href="/play/scout" className={styles.navLink}>スカウト</Link>
           <Link href="/play/tournament" className={styles.navLink}>大会</Link>
+          <Link href="/play/match/current" className={styles.navLink}>試合</Link>
           <Link href="/play/results" className={styles.navLink}>試合結果</Link>
           <Link href="/play/ob" className={styles.navLink}>OB</Link>
         </div>
@@ -514,41 +539,53 @@ function TeamPage({ view }: { view: TeamViewState }) {
         <div className={styles.section}>
           <div className={styles.sectionTitle}>📋 今日の練習設定</div>
 
-          {/* チーム練習メニュー */}
-          <div style={{ marginBottom: 14 }}>
+          {/* チーム練習メニュー (B3: 3スロット) */}
+          <div style={{ marginBottom: 14 }} data-testid="team-practice-plan">
             <div style={{ fontSize: 12, color: 'var(--color-text-sub)', marginBottom: 6 }}>
-              チーム全体の練習メニュー
+              チーム全体の練習プラン（3メニュー同時設定、各1/3ずつ効果加算）
             </div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <select
-                value={currentTeamMenu}
-                onChange={(e) => handleTeamMenuChange(e.target.value)}
-                style={{
-                  padding: '6px 10px',
-                  borderRadius: 6,
-                  border: '1px solid #90caf9',
-                  background: '#e3f2fd',
-                  fontSize: 13,
-                  fontWeight: 600,
-                  color: '#0d47a1',
-                  cursor: 'pointer',
-                }}
-              >
-                {TEAM_MENU_OPTIONS.map((m) => (
-                  <option key={m.id} value={m.id}>{m.label}</option>
-                ))}
-              </select>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+              {([0, 1, 2] as const).map((idx) => {
+                const currentSlot = [slot0, slot1, slot2][idx];
+                return (
+                  <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    <div style={{ fontSize: 11, color: 'var(--color-text-sub)' }}>
+                      スロット{idx + 1}
+                    </div>
+                    <select
+                      data-testid={`team-practice-slot-${idx}`}
+                      value={currentSlot}
+                      onChange={(e) => handleSlotChange(idx, e.target.value)}
+                      style={{
+                        padding: '6px 10px',
+                        borderRadius: 6,
+                        border: '1px solid #90caf9',
+                        background: '#e3f2fd',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: '#0d47a1',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {TEAM_MENU_OPTIONS.map((m) => (
+                        <option key={m.id} value={m.id}>{m.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                );
+              })}
               {menuToast && (
                 <span style={{
                   fontSize: 12, color: '#2e7d32',
                   background: '#e8f5e9', padding: '4px 10px', borderRadius: 4,
+                  alignSelf: 'flex-end',
                 }}>
                   ✓ {menuToast}
                 </span>
               )}
             </div>
             <div style={{ fontSize: 11, color: 'var(--color-text-sub)', marginTop: 4 }}>
-              ※ 個別設定のない選手はこのメニューに従います。ホーム画面の「1日進む」で使用されます。
+              ※ 各スロットの練習効果を1/3ずつ加算。個別設定のない選手はこのプランに従います。
             </div>
           </div>
 

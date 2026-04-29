@@ -13,7 +13,7 @@ import type {
   HomeViewState, HomeTeamSummary, HomeNewsItem, HomeScheduleItem,
   HomeTodayTask, HomeFeaturedPlayer, DateView, AbilityRank,
   HomeTournamentInfo, HomeTournamentStartInfo,
-  TeamConditionSummary, InjuredPlayerBrief,
+  TeamConditionSummary, InjuredPlayerBrief, NavBadgeCounts,
 } from './view-state-types';
 import { getMotivation } from '../../engine/growth/motivation';
 import { computePlayerOverall } from '../../engine/world/career/draft-system';
@@ -603,6 +603,9 @@ export function projectHome(
     ? buildTournamentStartInfo(currentDate.month, currentDate.day)
     : undefined;
 
+  // ナビゲーションバッジ計算 (Phase S1-B B2)
+  const navBadges = buildNavBadges(worldState, players, recentNews, scoutState, tournament);
+
   return {
     date: makeDateView(currentDate.year, currentDate.month, currentDate.day),
     team,
@@ -623,6 +626,7 @@ export function projectHome(
     tournamentStart,
     teamPracticeMenuId,
     teamPracticeMenuLabel,
+    navBadges,
   };
 }
 
@@ -699,4 +703,88 @@ function buildRecentGraduates(
   return result
     .sort((a, b) => b.finalOverall - a.finalOverall)
     .slice(0, 3);
+}
+
+/**
+ * Phase S1-B B2: ナビゲーションバッジカウントを計算する。
+ *
+ * - ニュース: 直近ニュース件数（未読代わり）
+ * - スカウト: ウォッチリスト中の未視察選手数
+ * - 大会: 次の試合まで残り日数（14日以内の大会中のみ）
+ * - 試合: 次の試合まで残り日数
+ * - 試合結果: 直近3日以内の試合数
+ * - OB: 今期の卒業生に繋がる登録数
+ * - 練習: 個別練習未設定の選手数
+ * - スタッフ: 空きスタッフ枠数
+ */
+function buildNavBadges(
+  worldState: WorldState,
+  players: import('../../engine/types/player').Player[],
+  recentNews: WorldNewsItem[],
+  scoutState: WorldState['scoutState'],
+  tournament: HomeTournamentInfo | undefined,
+): NavBadgeCounts {
+  // ニュース: 直近ニュース件数（簡易未読）
+  const newsBadge = Math.min(recentNews.length, 99);
+
+  // スカウト: ウォッチリスト中の未視察選手数
+  const watchList = Array.isArray(scoutState.watchList) ? scoutState.watchList : [];
+  const scoutReports = scoutState.scoutReports instanceof Map ? scoutState.scoutReports : new Map();
+  const scoutBadge = watchList.filter((id: string) => !scoutReports.has(id)).length;
+
+  // 大会/試合: 次の試合まで残り日数
+  let tournamentBadge = 0;
+  let matchBadge = 0;
+  if (tournament && !tournament.playerEliminated) {
+    const daysAway = tournament.nextMatchDaysAway;
+    if (daysAway !== undefined && daysAway <= 14) {
+      tournamentBadge = daysAway;
+      matchBadge = daysAway;
+    }
+  }
+
+  // 試合結果: 直近の試合結果数（最大9件）
+  const playerSchool = worldState.schools.find((s) => s.id === worldState.playerSchoolId);
+  const matchHistoryLen = playerSchool
+    ? Math.min(
+        (worldState.matchHistory?.filter(
+          (m) => m.homeTeamId === worldState.playerSchoolId || m.awayTeamId === worldState.playerSchoolId
+        ).length ?? 0),
+        9
+      )
+    : 0;
+  const resultsBadge = matchHistoryLen;
+
+  // OB: 最近の卒業生数（直近1シーズン）
+  const obBadge = Math.min(
+    worldState.personRegistry?.entries
+      ? Array.from(worldState.personRegistry.entries.values()).filter((e) => {
+          const summary = e.graduateSummary;
+          return summary?.schoolId === worldState.playerSchoolId &&
+            worldState.currentDate.year - summary.graduationYear <= 1;
+        }).length
+      : 0,
+    9
+  );
+
+  // 練習: 個別練習未設定の選手数
+  const practiceMenus = playerSchool?.individualPracticeMenus ?? {};
+  const practiceBadge = players.filter((p) => !p.restOverride && !practiceMenus[p.id]).length;
+
+  // スタッフ: 空きスタッフ枠数
+  const managerStaff = worldState.managerStaff;
+  const staffBadge = managerStaff
+    ? Math.max(0, managerStaff.maxMembers - managerStaff.members.length)
+    : 0;
+
+  return {
+    news: newsBadge,
+    scout: scoutBadge,
+    tournament: tournamentBadge,
+    match: matchBadge,
+    results: resultsBadge,
+    ob: obBadge,
+    practice: practiceBadge,
+    staff: staffBadge,
+  };
 }

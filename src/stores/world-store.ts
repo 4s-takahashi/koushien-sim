@@ -128,6 +128,8 @@ interface WorldStore {
   clearAllIndividualMenus: () => void;
   /** チーム全体の練習メニューを設定する (Phase 11.5-A) */
   setTeamPracticeMenu: (menuId: PracticeMenuId) => void;
+  /** チーム全体練習プランを3スロットで設定する (Phase S1-B B3) */
+  setTeamPracticePlan: (plan: import('../engine/types/calendar').TeamPracticePlan) => void;
 
   // --- 一時休養アクション (2026-04-19 Issue #5) ---
   /**
@@ -619,6 +621,25 @@ export const useWorldStore = create<WorldStore>()(
     const newSchools = worldState.schools.map((school) => {
       if (school.id !== worldState.playerSchoolId) return school;
       return { ...school, practiceMenu: menuId, _summary: null };
+    });
+    set({ worldState: { ...worldState, schools: newSchools } });
+  },
+
+  // ----------------------------------------------------------------
+  // チーム全体練習プラン 3スロット版 (Phase S1-B B3)
+  // ----------------------------------------------------------------
+  setTeamPracticePlan: (plan) => {
+    const { worldState } = get();
+    if (!worldState) return;
+    const newSchools = worldState.schools.map((school) => {
+      if (school.id !== worldState.playerSchoolId) return school;
+      // practiceMenu も同期（先頭スロットを従来との互換用に保存）
+      return {
+        ...school,
+        teamPracticePlan: plan,
+        practiceMenu: plan.slots[0].menuId,
+        _summary: null,
+      };
     });
     set({ worldState: { ...worldState, schools: newSchools } });
   },

@@ -55,7 +55,14 @@ export type PracticeMenuId =
   | 'running'
   | 'strength'
   | 'mental'
-  | 'rest';
+  | 'rest'
+  // B4: 追加個別練習メニュー (Phase S1-B)
+  | 'base_running'       // 走力強化（ベースランニング）
+  | 'position_drill'     // 守備位置別反復（ポジション別）
+  | 'pitch_study'        // 配球研究（投手向け）
+  | 'pressure_mental'    // メンタルトレーニング（プレッシャー耐性）
+  | 'flexibility'        // 柔軟性向上（ケガ予防）
+  | 'video_analysis';    // 動画分析（バッティング/ピッチング動画レビュー）
 
 /** 能力値のターゲット指定 */
 export type StatTarget =
@@ -87,6 +94,30 @@ export interface PracticeMenu {
   fatigueLoad: number;
   statEffects: StatEffect[];
   duration: 'half' | 'full';
+}
+
+/** チーム全体練習スロット (Phase S1-B B3) */
+export interface TeamPracticeSlot {
+  menuId: PracticeMenuId;
+}
+
+/**
+ * チーム全体練習プラン (Phase S1-B B3)
+ * 3つのスロットで構成。各スロットの効果は 1/3 ずつ加算。
+ */
+export interface TeamPracticePlan {
+  slots: [TeamPracticeSlot, TeamPracticeSlot, TeamPracticeSlot];
+}
+
+/**
+ * 練習成果フィードバック (Phase S1-B B6)
+ * 選手詳細の「最近の成長」に表示する言葉表現ログ。
+ */
+export interface PracticeFeedback {
+  date: GameDate;
+  practiceType: string; // 例: 'バッティング'
+  message: string;      // 例: 'ミート率があがったような気がする'
+  delta: { stat: StatTarget; value: number }; // 内部用（表示しない）
 }
 
 /** 1日の処理結果（UI表示用のサマリ） */

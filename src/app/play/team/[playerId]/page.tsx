@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useWorldStore } from '../../../../stores/world-store';
@@ -7,6 +8,7 @@ import type { PlayerDetailViewState, StatRowView } from '../../../../ui/projecto
 import { POSITION_LABELS } from '../../../../ui/labels/position-labels';
 import type { Position } from '../../../../engine/types/player';
 import { analyzePitcherStyle, analyzeBatterStyle } from '../../../../engine/player/playStyle';
+import { INDIVIDUAL_PRACTICE_MENUS } from '../../../../data/practice-menus';
 import styles from './page.module.css';
 
 function StatBar({ stat }: { stat: StatRowView }) {
@@ -38,6 +40,19 @@ interface PlayerDetailProps {
 
 function PlayerDetail({ view, prevPlayerId, nextPlayerId, rawPlayer }: PlayerDetailProps) {
   const router = useRouter();
+  const setIndividualMenu = useWorldStore((s) => s.setIndividualMenu);
+
+  // B5: 個別練習プルダウン状態
+  const [menuToast, setMenuToast] = useState<string | null>(null);
+  const currentIndividualMenu = view.individualMenu ?? null;
+
+  const handleMenuChange = (menuId: string) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    setIndividualMenu(view.id, (menuId || null) as any);
+    const label = INDIVIDUAL_PRACTICE_MENUS.find((m) => m.id === menuId)?.name ?? menuId;
+    setMenuToast(menuId ? `個別練習を「${label}」に設定しました` : '個別練習をチーム共通に戻しました');
+    setTimeout(() => setMenuToast(null), 2500);
+  };
 
   // プレイスタイル分析
   const pitcherStyle = rawPlayer && view.position === 'pitcher'
@@ -105,12 +120,14 @@ function PlayerDetail({ view, prevPlayerId, nextPlayerId, rawPlayer }: PlayerDet
         <div className={styles.navInner}>
           <Link href="/play" className={styles.navLink}>ホーム</Link>
           <Link href="/play/team" className={`${styles.navLink} ${styles.navLinkActive}`}>チーム</Link>
+          <Link href="/play/practice" className={styles.navLink}>練習</Link>
+          <Link href="/play/staff" className={styles.navLink}>スタッフ</Link>
           <Link href="/play/news" className={styles.navLink}>ニュース</Link>
           <Link href="/play/scout" className={styles.navLink}>スカウト</Link>
           <Link href="/play/tournament" className={styles.navLink}>大会</Link>
+          <Link href="/play/match/current" className={styles.navLink}>試合</Link>
           <Link href="/play/results" className={styles.navLink}>試合結果</Link>
           <Link href="/play/ob" className={styles.navLink}>OB</Link>
-          <Link href="/play/staff" className={styles.navLink}>スタッフ</Link>
         </div>
       </nav>
 
@@ -354,6 +371,82 @@ function PlayerDetail({ view, prevPlayerId, nextPlayerId, rawPlayer }: PlayerDet
                 })}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* 個別練習設定 (Phase S1-B B5) */}
+        <div className={styles.section} data-testid="individual-practice-section">
+          <div className={styles.sectionTitle}>⚾ 個別練習設定</div>
+          <div style={{ fontSize: 12, color: 'var(--color-text-sub)', marginBottom: 8 }}>
+            チーム共通の練習メニューではなく、この選手専用の練習メニューを設定できます。
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <select
+              data-testid="individual-practice-dropdown"
+              value={currentIndividualMenu ?? ''}
+              onChange={(e) => handleMenuChange(e.target.value)}
+              style={{
+                padding: '6px 10px',
+                borderRadius: 6,
+                border: '1px solid var(--color-border)',
+                background: currentIndividualMenu ? 'rgba(25, 118, 210, 0.1)' : 'var(--color-bg)',
+                fontSize: 13,
+                color: 'var(--color-text)',
+                cursor: 'pointer',
+                minWidth: 200,
+              }}
+            >
+              <option value="">（チーム共通メニュー）</option>
+              {INDIVIDUAL_PRACTICE_MENUS.map((m) => (
+                <option key={m.id} value={m.id}>{m.name}</option>
+              ))}
+            </select>
+            {currentIndividualMenu && (
+              <span style={{
+                fontSize: 11,
+                padding: '2px 8px',
+                background: 'rgba(25, 118, 210, 0.15)',
+                borderRadius: 4,
+                color: '#90caf9',
+              }}>
+                個別設定中
+              </span>
+            )}
+          </div>
+          {menuToast && (
+            <div style={{
+              marginTop: 8,
+              fontSize: 12,
+              color: '#a5d6a7',
+              background: 'rgba(76, 175, 80, 0.1)',
+              padding: '4px 10px',
+              borderRadius: 4,
+            }}>
+              ✓ {menuToast}
+            </div>
+          )}
+        </div>
+
+        {/* 最近の成長 (Phase S1-B B6) */}
+        {view.practiceFeedbacks && view.practiceFeedbacks.length > 0 && (
+          <div className={styles.section} data-testid="practice-feedback-section">
+            <div className={styles.sectionTitle}>🌱 最近の成長</div>
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+              {view.practiceFeedbacks.map((fb, i) => (
+                <li key={i} style={{
+                  display: 'flex',
+                  gap: 8,
+                  padding: '6px 0',
+                  borderBottom: '1px solid rgba(255,255,255,0.06)',
+                  fontSize: 12,
+                  color: 'var(--color-text)',
+                }}>
+                  <span style={{ color: 'var(--color-text-sub)', minWidth: 48 }}>{fb.dateLabel}</span>
+                  <span style={{ color: 'var(--color-accent)', fontSize: 11, minWidth: 56 }}>{fb.practiceType}</span>
+                  <span style={{ fontStyle: 'italic' }}>「{fb.message}」</span>
+                </li>
+              ))}
+            </ul>
           </div>
         )}
 

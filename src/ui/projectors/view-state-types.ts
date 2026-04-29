@@ -153,6 +153,31 @@ export interface HomeViewState {
   teamPracticeMenuId?: string | null;
   /** チーム全体の練習メニュー名（Feature #3 Phase 12-M） */
   teamPracticeMenuLabel?: string | null;
+  /**
+   * ナビゲーションバッジカウント (Phase S1-B B2)
+   * 各ナビ項目の通知数（0 の場合はバッジ非表示）
+   */
+  navBadges?: NavBadgeCounts;
+}
+
+/** ナビゲーションバッジカウント (Phase S1-B B2) */
+export interface NavBadgeCounts {
+  /** ニュース: 未読件数 */
+  news: number;
+  /** スカウト: 新規候補数（未視察のウォッチリスト選手数） */
+  scout: number;
+  /** 大会: 次の試合までの残り日数（大会中のみ, 0 = 非表示） */
+  tournament: number;
+  /** 試合: 次の試合の残り日数（大会中のみ, 0 = 非表示） */
+  match: number;
+  /** 試合結果: 直近試合の勝敗アイコン（0 = 非表示） */
+  results: number;
+  /** OB: 新規OB連絡数（今月の卒業生数） */
+  ob: number;
+  /** 練習: 個別練習未設定の選手数 */
+  practice: number;
+  /** スタッフ: 空きスタッフ枠数 */
+  staff: number;
 }
 
 /** チーム状態サマリー (Phase 11.5-A) */
@@ -353,6 +378,17 @@ export interface PlayerDetailViewState {
   recentPracticeHistory?: PracticeHistoryView[];
   /** イベント履歴（最大10件）(Phase 11.5-E) */
   eventHistory?: PlayerEventView[];
+  /** 最近の成長フィードバック (Phase S1-B B6) 直近10件 */
+  practiceFeedbacks?: PracticeFeedbackView[];
+  /** 現在の個別練習メニューID (Phase S1-B B5) */
+  individualMenu?: string | null;
+}
+
+/** 練習成果フィードバック表示用 (Phase S1-B B6) */
+export interface PracticeFeedbackView {
+  dateLabel: string;       // "4月1日"
+  practiceType: string;    // "バッティング"
+  message: string;         // "ミート率があがったような気がする"
 }
 
 /** 練習履歴表示用 (Phase 11.5-E) */

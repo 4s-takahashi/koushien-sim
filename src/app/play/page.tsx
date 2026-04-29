@@ -9,6 +9,36 @@ import type { WorldDayResult } from '../../engine/world/world-ticker';
 import { SaveLoadPanel } from './save/SaveLoadPanel';
 import styles from './page.module.css';
 
+// ── ナビバッジコンポーネント (B2) ──────────────────────────────────
+
+function NavBadge({ count }: { count: number }) {
+  if (count <= 0) return null;
+  return (
+    <span
+      data-testid="nav-badge"
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minWidth: 16,
+        height: 16,
+        borderRadius: 8,
+        background: '#e53935',
+        color: '#fff',
+        fontSize: 10,
+        fontWeight: 'bold',
+        padding: '0 3px',
+        marginLeft: 3,
+        lineHeight: 1,
+        verticalAlign: 'middle',
+        flexShrink: 0,
+      }}
+    >
+      {count > 99 ? '99+' : count}
+    </span>
+  );
+}
+
 // ============================================================
 // セットアップフォーム
 // ============================================================
@@ -739,18 +769,41 @@ function HomeContent({ view }: { view: HomeViewState }) {
         />
       )}
 
-      {/* ナビゲーション */}
-      <nav className={styles.nav}>
+      {/* ナビゲーション (B1: 10項目 / B2: バッジ付き) */}
+      <nav className={styles.nav} data-testid="main-nav">
         <div className={styles.navInner}>
-          <Link href="/play" className={`${styles.navLink} ${styles.navLinkActive}`}>ホーム</Link>
-          <Link href="/play/team" className={styles.navLink}>チーム</Link>
-          <Link href="/play/news" className={styles.navLink}>ニュース</Link>
-          <Link href="/play/scout" className={styles.navLink}>スカウト</Link>
-          <Link href="/play/tournament" className={styles.navLink}>
-            大会{displayView.isInTournamentSeason && <span className={styles.navIndicator}>🔴</span>}
+          <Link href="/play" className={`${styles.navLink} ${styles.navLinkActive}`}>
+            ホーム
           </Link>
-          <Link href="/play/results" className={styles.navLink}>試合結果</Link>
-          <Link href="/play/ob" className={styles.navLink}>OB</Link>
+          <Link href="/play/team" className={styles.navLink}>
+            チーム
+          </Link>
+          <Link href="/play/practice" className={styles.navLink}>
+            練習{displayView.navBadges?.practice ? <NavBadge count={displayView.navBadges.practice} /> : null}
+          </Link>
+          <Link href="/play/staff" className={styles.navLink}>
+            スタッフ{displayView.navBadges?.staff ? <NavBadge count={displayView.navBadges.staff} /> : null}
+          </Link>
+          <Link href="/play/news" className={styles.navLink}>
+            ニュース{displayView.navBadges?.news ? <NavBadge count={displayView.navBadges.news} /> : null}
+          </Link>
+          <Link href="/play/scout" className={styles.navLink}>
+            スカウト{displayView.navBadges?.scout ? <NavBadge count={displayView.navBadges.scout} /> : null}
+          </Link>
+          <Link href="/play/tournament" className={styles.navLink}>
+            大会
+            {displayView.isInTournamentSeason && <span className={styles.navIndicator}>🔴</span>}
+            {displayView.navBadges?.tournament ? <NavBadge count={displayView.navBadges.tournament} /> : null}
+          </Link>
+          <Link href="/play/match/current" className={styles.navLink}>
+            試合{displayView.navBadges?.match ? <NavBadge count={displayView.navBadges.match} /> : null}
+          </Link>
+          <Link href="/play/results" className={styles.navLink}>
+            試合結果{displayView.navBadges?.results ? <NavBadge count={displayView.navBadges.results} /> : null}
+          </Link>
+          <Link href="/play/ob" className={styles.navLink}>
+            OB{displayView.navBadges?.ob ? <NavBadge count={displayView.navBadges.ob} /> : null}
+          </Link>
         </div>
       </nav>
 
