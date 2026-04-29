@@ -288,18 +288,26 @@ export class MatchRunner {
    * 優先順位:
    *   1. 試合終了
    *   2. 勝負所（detectKeyMoment）
-   *   3. PitchMode ON → pitch_start
-   *   4. TimeMode standard + pitch off → at_bat_start
-   *   5. slow/fast + pitch off → 停止なし（自動進行に委ねる）
+   *   3. PitchMode ON → pitch_start（autoplay=false のときのみ）
+   *   4. TimeMode standard + pitch off → at_bat_start（autoplay=false のときのみ）
+   *   5. autoplay=true のとき、または slow/fast + pitch off → 停止なし（自動進行に委ねる）
+   *
+   * @param mode 現在の RunnerMode
+   * @param autoplay true のとき pitch_start / at_bat_start を返さない（自動進行優先）
    */
-  shouldPause(mode: RunnerMode): PauseReason | null {
+  shouldPause(mode: RunnerMode, autoplay: boolean = false): PauseReason | null {
     if (this.state.isOver) {
       return { kind: 'match_end' };
     }
 
-    // 勝負所は time mode に関わらず常に優先
+    // 勝負所は autoplay フラグに関わらず常に優先
     const keyMoment = detectKeyMoment(this.state, this.playerSchoolId);
     if (keyMoment) return keyMoment;
+
+    // autoplay=true のときは通常停止（pitch_start / at_bat_start）をスキップ
+    if (autoplay) {
+      return null;
+    }
 
     // PitchMode ON → 全投球前に停止
     if (mode.pitch === 'on') {

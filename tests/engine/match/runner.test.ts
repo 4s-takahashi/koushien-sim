@@ -292,6 +292,82 @@ describe('MatchRunner', () => {
       expect(pause).not.toBeNull();
       expect(pause?.kind).toBe('match_end');
     });
+
+    // ----------------------------------------------------------
+    // Phase S1-A2: autoplay=true のテスト
+    // ----------------------------------------------------------
+
+    it('returns null for pitch_start when autoplay=true (pitch-on mode)', () => {
+      const homeTeam = createTestTeam('Home', 'autoplay-pitch-home', 'home-school');
+      const awayTeam = createTestTeam('Away', 'autoplay-pitch-away', 'away-school');
+      const state = createInitialState(homeTeam, awayTeam, DEFAULT_CONFIG);
+      const modState: MatchState = {
+        ...state,
+        count: { balls: 1, strikes: 1 },
+        score: { home: 5, away: 0 },
+        currentInning: 3,
+      };
+      const runner = makeRunnerWithState(modState);
+      // autoplay=false のときは pitch_start を返す
+      expect(runner.shouldPause(pitchOnMode, false)?.kind).toBe('pitch_start');
+      // autoplay=true のときは null を返す
+      expect(runner.shouldPause(pitchOnMode, true)).toBeNull();
+    });
+
+    it('returns null for at_bat_start when autoplay=true (standard mode)', () => {
+      const homeTeam = createTestTeam('Home', 'autoplay-atbat-home', 'home-school');
+      const awayTeam = createTestTeam('Away', 'autoplay-atbat-away', 'away-school');
+      const state = createInitialState(homeTeam, awayTeam, DEFAULT_CONFIG);
+      const modState: MatchState = {
+        ...state,
+        count: { balls: 0, strikes: 0 }, // at_bat_start 条件
+        score: { home: 5, away: 0 },
+        currentInning: 3,
+      };
+      const runner = makeRunnerWithState(modState);
+      // autoplay=false のときは at_bat_start を返す
+      expect(runner.shouldPause(standardMode, false)?.kind).toBe('at_bat_start');
+      // autoplay=true のときは null を返す
+      expect(runner.shouldPause(standardMode, true)).toBeNull();
+    });
+
+    it('still returns scoring_chance even when autoplay=true', () => {
+      const homeTeam = createTestTeam('Home', 'autoplay-chance-home', 'home-school');
+      const awayTeam = createTestTeam('Away', 'autoplay-chance-away', 'away-school');
+      const state = createInitialState(homeTeam, awayTeam, DEFAULT_CONFIG);
+
+      // bottom (home攻撃) = player(home) is batting, 得点圏走者あり
+      const runnerId = state.homeTeam.players[1].player.id;
+      const modState: MatchState = {
+        ...state,
+        currentHalf: 'bottom',
+        bases: {
+          first: null,
+          second: { playerId: runnerId, speed: 50 },
+          third: null,
+        },
+        score: { home: 0, away: 5 }, // 点差大（close_and_late なし）
+        currentInning: 5,
+        count: { balls: 1, strikes: 0 },
+      };
+      const runner = makeRunnerWithState(modState, 'home-school');
+      // autoplay=true でも scoring_chance は返す
+      const pause = runner.shouldPause(pitchOnMode, true);
+      expect(pause).not.toBeNull();
+      expect(pause?.kind).toBe('scoring_chance');
+    });
+
+    it('still returns match_end even when autoplay=true', () => {
+      const homeTeam = createTestTeam('Home', 'autoplay-end-home', 'home-school');
+      const awayTeam = createTestTeam('Away', 'autoplay-end-away', 'away-school');
+      const state = createInitialState(homeTeam, awayTeam, DEFAULT_CONFIG);
+      const endState: MatchState = { ...state, isOver: true };
+      const runner = makeRunnerWithState(endState);
+      // autoplay=true でも match_end は返す
+      const pause = runner.shouldPause(pitchOnMode, true);
+      expect(pause).not.toBeNull();
+      expect(pause?.kind).toBe('match_end');
+    });
   });
 
   // ----------------------------------------------------------

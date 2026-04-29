@@ -295,8 +295,9 @@ const NARRATION_MAX = 30;
 function evaluatePause(
   runner: MatchRunner,
   mode: RunnerMode,
+  autoplay: boolean = false,
 ): PauseReason | null {
-  return runner.shouldPause(mode);
+  return runner.shouldPause(mode, autoplay);
 }
 
 // ============================================================
@@ -543,8 +544,8 @@ export const useMatchStore = create<MatchStore>()(
       playerSchoolId,
     );
 
-    const { runnerMode } = get();
-    const pauseReason = evaluatePause(runner, runnerMode);
+    const { runnerMode, autoAdvance } = get();
+    const pauseReason = evaluatePause(runner, runnerMode, autoAdvance);
 
     set({
       runner,
@@ -598,8 +599,8 @@ export const useMatchStore = create<MatchStore>()(
       pitchLog = [];
     }
 
-    const { runnerMode } = get();
-    const pauseReason = evaluatePause(runner, runnerMode);
+    const { runnerMode, autoAdvance } = get();
+    const pauseReason = evaluatePause(runner, runnerMode, autoAdvance);
 
     set({
       runner,
@@ -633,16 +634,16 @@ export const useMatchStore = create<MatchStore>()(
   // モード切り替え
   // ----------------------------------------------------------------
   setTimeMode: (time: RunnerMode['time']) => {
-    const { runner, runnerMode } = get();
+    const { runner, runnerMode, autoAdvance } = get();
     const newMode: RunnerMode = { ...runnerMode, time };
-    const pauseReason = runner ? evaluatePause(runner, newMode) : null;
+    const pauseReason = runner ? evaluatePause(runner, newMode, autoAdvance) : null;
     set({ runnerMode: newMode, pauseReason });
   },
 
   setPitchMode: (pitch: RunnerMode['pitch']) => {
-    const { runner, runnerMode } = get();
+    const { runner, runnerMode, autoAdvance } = get();
     const newMode: RunnerMode = { ...runnerMode, pitch };
-    const pauseReason = runner ? evaluatePause(runner, newMode) : null;
+    const pauseReason = runner ? evaluatePause(runner, newMode, autoAdvance) : null;
     set({ runnerMode: newMode, pauseReason });
   },
 
@@ -658,8 +659,8 @@ export const useMatchStore = create<MatchStore>()(
     const isDetailedOrder = order.type === 'batter_detailed' || order.type === 'pitcher_detailed';
     if (result.applied) {
       // 即時適用采配後（代打・継投等）はビューを更新
-      const { runnerMode } = get();
-      const pauseReason = evaluatePause(runner, runnerMode);
+      const { runnerMode, autoAdvance } = get();
+      const pauseReason = evaluatePause(runner, runnerMode, autoAdvance);
       set({
         pauseReason,
         currentOrder: order,
@@ -679,7 +680,7 @@ export const useMatchStore = create<MatchStore>()(
   // 1球進行
   // ----------------------------------------------------------------
   stepOnePitch: () => {
-    const { runner, runnerMode, pitchLog, narration, gameSeed, currentOrder, recentMonologueIds } = get();
+    const { runner, runnerMode, pitchLog, narration, gameSeed, currentOrder, recentMonologueIds, autoAdvance } = get();
     if (!runner || runner.isOver()) return;
 
     set({ isProcessing: true });
@@ -809,7 +810,7 @@ export const useMatchStore = create<MatchStore>()(
       const newNarration = [...narration, ...ignoreOrderNarration, ...narrationEntries].slice(-NARRATION_MAX);
 
       const matchResult = newState.isOver ? newState.result : null;
-      const pauseReason = evaluatePause(runner, runnerMode);
+      const pauseReason = evaluatePause(runner, runnerMode, autoAdvance);
 
       set({
         pitchLog: newLog,
@@ -830,7 +831,7 @@ export const useMatchStore = create<MatchStore>()(
   // 1打席進行
   // ----------------------------------------------------------------
   stepOneAtBat: () => {
-    const { runner, runnerMode, pitchLog, narration, gameSeed, currentOrder, recentMonologueIds } = get();
+    const { runner, runnerMode, pitchLog, narration, gameSeed, currentOrder, recentMonologueIds, autoAdvance } = get();
     if (!runner || runner.isOver()) return;
 
     set({ isProcessing: true });
@@ -938,7 +939,7 @@ export const useMatchStore = create<MatchStore>()(
       const newNarration = [...narration, ...ignoreOrderNarration, ...narrationEntries].slice(-NARRATION_MAX);
 
       const matchResult = newState.isOver ? newState.result : null;
-      const pauseReason = evaluatePause(runner, runnerMode);
+      const pauseReason = evaluatePause(runner, runnerMode, autoAdvance);
 
       set({
         pitchLog: newLog,
@@ -957,7 +958,7 @@ export const useMatchStore = create<MatchStore>()(
   },
   // ----------------------------------------------------------------
   stepOneInning: () => {
-    const { runner, runnerMode, pitchLog, gameSeed } = get();
+    const { runner, runnerMode, pitchLog, gameSeed, autoAdvance } = get();
     if (!runner || runner.isOver()) return;
 
     set({ isProcessing: true });
@@ -970,7 +971,7 @@ export const useMatchStore = create<MatchStore>()(
 
       const newState = runner.getState();
       const matchResult = newState.isOver ? newState.result : null;
-      const pauseReason = evaluatePause(runner, runnerMode);
+      const pauseReason = evaluatePause(runner, runnerMode, autoAdvance);
 
       set({
         pitchLog: pitchLog.slice(-50),
@@ -1060,7 +1061,9 @@ export const useMatchStore = create<MatchStore>()(
   // Phase 12-H: 新自動進行アクション
   // ----------------------------------------------------------------
   setAutoAdvance: (enabled: boolean) => {
-    set({ autoAdvance: enabled });
+    const { runner, runnerMode } = get();
+    const pauseReason = runner ? evaluatePause(runner, runnerMode, enabled) : null;
+    set({ autoAdvance: enabled, pauseReason });
   },
 
   setPendingNextOrder: (order: TacticalOrder | null) => {
