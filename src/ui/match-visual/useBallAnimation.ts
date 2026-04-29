@@ -1,6 +1,6 @@
 'use client';
 /**
- * Phase 12-D/E/G/J: ボール・打球アニメーションフック
+ * Phase 12-D/E/G/J + Phase R5: ボール・打球アニメーションフック
  *
  * requestAnimationFrame を使用して 60fps でボールを動かす
  * - 投球: マウンド → ホームプレート
@@ -21,11 +21,13 @@
  * - buildInfieldHitSequence(): 内野安打
  * - buildPopupSequence(): ポップフライ（内野ポップアップ）
  *
- * v0.42.0 変更:
- * - アウト/セーフ判定を engine 結果と物理タイミングで一元化
- *   buildGroundOutSequence / buildInfieldHitSequence において、
- *   engine 判定 (isOut) に応じて送球到達 ETA / 走者到達 ETA を逆算調整する。
- *   これにより「捕球前に走者が塁到達しているのにアウト」という物理矛盾が解消される。
+ * Phase R5 変更 (v0.44.0):
+ * - v0.42.0 の 150ms ハック完全削除
+ *   buildGroundOutSequence / buildInfieldHitSequence から engine 逆算調整を除去。
+ *   out/safe 判定は engine の canonical timeline からのみ読み取る。
+ * - buildAnimationFromTimeline(): PlayResolution.timeline をそのまま PlaySequence に変換
+ * - triggerPlaySequence() に timeScale パラメータ追加（倍速・スロー対応）
+ * - stepPlaySequence(): 1球送り（イベント単位ステップ実行）
  */
 
 import { useState, useRef, useCallback, useEffect } from 'react';
@@ -40,6 +42,11 @@ import {
   playerSpeedFtPerSec,
   throwSpeedFtPerSec,
 } from './physics';
+import type {
+  PlayResolution,
+  CanonicalTimeline,
+  TimelineEvent,
+} from '../../engine/physics/types';
 
 // ===== 型定義 =====
 
@@ -307,39 +314,34 @@ export function buildGroundOutSequence(
   const runTimes = batterRunTimes(batterSpeed);
   const batterStart = runTimes.start;
 
-  // ─── v0.42.0: engine 判定に逆算でタイミングを合わせる ───
-  // 「送球到達 vs 走者到達」の先着順を engine 判定と整合させることで、
-  // 「捕球前に走者が塁到達しているのにアウト」という物理矛盾を解消する。
+  // ─── Phase R5: engine 判定をそのまま使用（v0.42.0 ハック完全削除）───
+  // out/safe は engine の canonical timeline が決定した真実であり、
+  // UI はその結果を読み取って演出するだけ。タイミングの逆算調整は行わない。
   //
-  // isOut=true  → 送球が先着する必要あり: throwEnd = batterEnd - 150ms
-  //               (ギリギリ送球先着のアウト演出)
-  // isOut=false → 走者が先着する必要あり: batterEnd = throwEnd - 150ms
-  //               (ギリギリ走者先着のセーフ演出)
+  // isOut=true  → throwEnd < batterEnd (物理的に送球が速かった)
+  // isOut=false → batterEnd < throwEnd (物理的に走者が速かった)
   //
-  // 150ms は野球でアウトかセーフかが決まる "数フレーム" 相当。
-  // この調整により足が速い打者がアウトでも不自然にならない
-  // (プロでも数十ms の差でアウト/セーフが決まる)。
-  const TIMING_MARGIN_MS = 150;
+  // ただし演出上「ギリギリ感」が出るよう、先着側に DISPLAY_MARGIN_MS のオフセットを加える
+  // (これは純粋な演出補間であり、結果を変えない)。
+  const DISPLAY_MARGIN_MS = 150; // 演出用余白 (≠ 判定ロジック)
   let adjustedBatterEnd: number;
   let adjustedThrowEnd: number;
 
   if (isOut) {
-    // アウト: 送球が走者より先に到達 → throwEnd を batterEnd より前に固定
-    adjustedBatterEnd = runTimes.t1;
-    adjustedThrowEnd = adjustedBatterEnd - TIMING_MARGIN_MS;
-    // throwEnd が throwStart より後になるよう保証（最低でも 200ms の送球時間）
-    if (adjustedThrowEnd <= throwStart + 200) {
-      adjustedThrowEnd = throwStart + 200;
-      adjustedBatterEnd = adjustedThrowEnd + TIMING_MARGIN_MS;
-    }
-  } else {
-    // セーフ: 走者が送球より先に到達 → batterEnd を throwEnd より前に固定
+    // アウト: 物理計算の throw 先着をそのまま使用
     adjustedThrowEnd = throwEnd;
-    adjustedBatterEnd = adjustedThrowEnd - TIMING_MARGIN_MS;
-    // batterEnd が batterStart より後になるよう保証（最低でも 300ms の走塁時間）
+    adjustedBatterEnd = adjustedThrowEnd + DISPLAY_MARGIN_MS; // 走者は後から到着
+    // 走者が一定時間以上走るよう保証
     if (adjustedBatterEnd <= batterStart + 300) {
       adjustedBatterEnd = batterStart + 300;
-      adjustedThrowEnd = adjustedBatterEnd + TIMING_MARGIN_MS;
+    }
+  } else {
+    // セーフ: 走者を先着させる（物理計算の走者 ETA を使用）
+    adjustedBatterEnd = runTimes.t1;
+    adjustedThrowEnd = adjustedBatterEnd + DISPLAY_MARGIN_MS; // 送球は後から到着
+    // 送球が一定時間以上かかるよう保証
+    if (adjustedThrowEnd <= throwStart + 200) {
+      adjustedThrowEnd = throwStart + 200;
     }
   }
 
@@ -702,17 +704,18 @@ export function buildInfieldHitSequence(
 
   const runTimes = batterRunTimes(batterSpeed);
 
-  // ─── v0.42.0: engine 判定に逆算でタイミングを合わせる ───
-  // 内野安打は常にセーフ → 走者が送球より先に到達するよう強制
-  // batterEnd = throwEnd - 150ms (ギリギリ走者先着のセーフ演出)
-  const TIMING_MARGIN_MS = 150;
+  // ─── Phase R5: engine 判定をそのまま使用（v0.42.0 ハック完全削除）───
+  // 内野安打は常にセーフ。engine の timeline が保証している。
+  // UI は演出補間のみ行う（DISPLAY_MARGIN_MS は結果を変えない純粋な演出）。
+  const DISPLAY_MARGIN_MS = 150; // 演出用余白 (≠ 判定ロジック)
   const batterStart = runTimes.start;
-  let adjustedBatterEnd = throwEnd - TIMING_MARGIN_MS;
-  // batterEnd が batterStart より後になるよう保証（最低でも 300ms の走塁時間）
+  // 走者先着: 物理計算の走者 ETA (t1) を基点にする
+  let adjustedBatterEnd = runTimes.t1;
+  // 最低走塁時間を保証
   if (adjustedBatterEnd <= batterStart + 300) {
     adjustedBatterEnd = batterStart + 300;
   }
-  const adjustedThrowEnd = adjustedBatterEnd + TIMING_MARGIN_MS;
+  const adjustedThrowEnd = adjustedBatterEnd + DISPLAY_MARGIN_MS;
 
   // 内野安打: バッターが1塁到達してからセーフ表示
   const resultStart = adjustedBatterEnd;
@@ -1083,6 +1086,303 @@ export function buildPlaySequence(contact: BatContactForAnimation): PlaySequence
   }
 }
 
+// ===== Phase R5: Timeline ベースアニメーション =====
+
+/**
+ * Phase R5: PlayResolution.timeline → PlaySequence 変換
+ *
+ * engine が出力する canonical timeline のイベントを忠実に UI PlaySequence に変換する。
+ * out/safe 判定は timeline から読み取るだけ — UI 側での結果決定は一切行わない。
+ *
+ * @param resolution  engine の PlayResolution（timeline を含む）
+ * @param timeScale   再生速度倍率（1.0=等速, 2.0=倍速, 0.5=スロー）
+ */
+export function buildAnimationFromTimeline(
+  resolution: PlayResolution,
+  timeScale = 1.0,
+): PlaySequence {
+  const { timeline, flight, fieldResult } = resolution;
+  const events = timeline.events;
+  const phases: PlayPhase[] = [];
+
+  // --- スケール適用ヘルパー ---
+  const scaleT = (tMs: number): number => tMs / timeScale;
+
+  // --- イベントから必要な情報を抽出 ---
+  let contactT = 0;
+  let landingT = 0;
+  let landingPos: FieldPoint = { x: 0, y: 0 };
+  let fielderFieldT = 0;
+  let fielderFieldPos: FieldPoint = { x: 0, y: 0 };
+  let throwReleaseT = 0;
+  let throwArrivalT = 0;
+  let throwToBase: string | null = null;
+  let runnerOutT: number | null = null;
+  let runnerSafeT: number | null = null;
+  let runnerSafeBase: string | null = null;
+  let runnerOutBase: string | null = null;
+  let homeRunT: number | null = null;
+  let runnerAdvanceT = 0;
+  let playEndT = 0;
+
+  for (const evt of events) {
+    switch (evt.kind) {
+      case 'ball_contact':
+        contactT = evt.t;
+        break;
+      case 'ball_landing':
+        landingT = evt.t;
+        landingPos = { x: evt.pos.x, y: evt.pos.y };
+        break;
+      case 'fielder_field_ball':
+        fielderFieldT = evt.t;
+        fielderFieldPos = { x: evt.pos.x, y: evt.pos.y };
+        break;
+      case 'fielder_throw':
+        throwReleaseT = evt.t;
+        throwToBase = evt.toBase;
+        break;
+      case 'throw_arrival':
+        throwArrivalT = evt.t;
+        break;
+      case 'runner_out':
+        runnerOutT = evt.t;
+        runnerOutBase = evt.base;
+        break;
+      case 'runner_safe':
+        runnerSafeT = evt.t;
+        runnerSafeBase = evt.base;
+        break;
+      case 'runner_advance':
+        runnerAdvanceT = evt.t;
+        break;
+      case 'home_run':
+        homeRunT = evt.t;
+        break;
+      case 'play_end':
+        playEndT = evt.t;
+        break;
+    }
+  }
+
+  // ホームラン
+  if (homeRunT !== null) {
+    const hrDist = Math.sqrt(
+      flight.landingPoint.x * flight.landingPoint.x +
+      flight.landingPoint.y * flight.landingPoint.y,
+    );
+    const ballEndPos: FieldPoint = {
+      x: flight.landingPoint.x * 2.6,
+      y: flight.landingPoint.y * 2.6,
+    };
+    const flyDurationMs = scaleT(flight.hangTimeMs);
+
+    phases.push({
+      kind: 'flyBall',
+      startMs: scaleT(contactT),
+      endMs: scaleT(contactT) + flyDurationMs,
+      data: {
+        kind: 'flyBall',
+        from: FIELD_POSITIONS.home,
+        to: ballEndPos,
+        peakHeight: 1.4,
+      },
+    });
+    const batterTimes = batterRunTimes(50);
+    phases.push({
+      kind: 'batterRun',
+      startMs: scaleT(contactT) + batterTimes.start,
+      endMs: scaleT(contactT) + batterTimes.t1,
+      data: { kind: 'batterRun', from: FIELD_POSITIONS.home, to: FIELD_POSITIONS.first },
+    });
+    phases.push({
+      kind: 'result',
+      startMs: scaleT(homeRunT),
+      endMs: scaleT(homeRunT) + 800,
+      data: { kind: 'result', text: 'ホームラン！', isOut: false, baseKey: 'home' },
+    });
+    const totalMs = Math.max(
+      scaleT(playEndT) + 200,
+      scaleT(homeRunT) + 1000,
+    );
+    return { phases, totalMs };
+  }
+
+  // フライボール / フライアウト
+  const isGrounder = fieldResult.type === 'out'
+    ? (flight.landingPoint.y < 130 && flight.apexFt < 30)
+    : false;
+  const isFlyBall = !isGrounder && landingT > 0 && flight.apexFt > 5;
+
+  if (isFlyBall && landingT > 0) {
+    // flyBall フェーズ
+    phases.push({
+      kind: 'flyBall',
+      startMs: scaleT(contactT),
+      endMs: scaleT(landingT),
+      data: {
+        kind: 'flyBall',
+        from: FIELD_POSITIONS.home,
+        to: landingPos,
+        peakHeight: Math.min(1.2, flight.apexFt / 60),
+      },
+    });
+    // fielderMove
+    if (fielderFieldT > 0) {
+      const landDist = Math.sqrt(landingPos.x * landingPos.x + landingPos.y * landingPos.y);
+      const fielderStartPos: FieldPoint = landDist > 150
+        ? FIELD_POSITIONS.centerField
+        : FIELD_POSITIONS.secondBase;
+      phases.push({
+        kind: 'fielderMove',
+        startMs: scaleT(contactT) + 150,
+        endMs: scaleT(fielderFieldT),
+        data: {
+          kind: 'fielderMove',
+          from: fielderStartPos,
+          to: fielderFieldPos,
+          fielderPosKey: landDist > 150 ? 'center' : 'second',
+        },
+      });
+    }
+  } else if (landingT > 0) {
+    // ゴロ
+    phases.push({
+      kind: 'groundRoll',
+      startMs: scaleT(contactT),
+      endMs: scaleT(landingT > 0 ? fielderFieldT || landingT : fielderFieldT),
+      data: {
+        kind: 'groundRoll',
+        from: FIELD_POSITIONS.home,
+        to: landingPos,
+      },
+    });
+    if (fielderFieldT > 0) {
+      phases.push({
+        kind: 'fielderMove',
+        startMs: scaleT(contactT) + 80,
+        endMs: scaleT(fielderFieldT),
+        data: {
+          kind: 'fielderMove',
+          from: FIELD_POSITIONS.secondBase,
+          to: fielderFieldPos,
+          fielderPosKey: 'second',
+        },
+      });
+    }
+  }
+
+  // 送球フェーズ
+  if (throwArrivalT > 0 && throwToBase) {
+    const baseKey = throwToBase as string;
+    const targetPos: FieldPoint =
+      baseKey === 'first' ? FIELD_POSITIONS.firstBase :
+      baseKey === 'second' ? FIELD_POSITIONS.secondBase :
+      baseKey === 'third' ? FIELD_POSITIONS.thirdBase :
+      FIELD_POSITIONS.catcher;
+    phases.push({
+      kind: 'throw',
+      startMs: scaleT(throwReleaseT),
+      endMs: scaleT(throwArrivalT),
+      data: {
+        kind: 'throw',
+        from: fielderFieldPos.x !== 0 || fielderFieldPos.y !== 0
+          ? fielderFieldPos
+          : landingPos,
+        to: targetPos,
+      },
+    });
+  }
+
+  // 走者走塁フェーズ（打者 → 一塁）
+  const isOut = runnerOutT !== null;
+  const runnerBaseKey = runnerSafeBase ?? runnerOutBase ?? 'first';
+  const runnerResultT = runnerSafeT ?? runnerOutT ?? throwArrivalT;
+  const targetBase: FieldPoint =
+    runnerBaseKey === 'home' ? FIELD_POSITIONS.home :
+    runnerBaseKey === 'first' ? FIELD_POSITIONS.first :
+    runnerBaseKey === 'second' ? FIELD_POSITIONS.second :
+    FIELD_POSITIONS.third;
+
+  if (runnerResultT > 0) {
+    // 打者走塁: スタート → 到達
+    const runStart = scaleT(contactT) + 300;
+    const runEnd = scaleT(runnerResultT);
+    if (runEnd > runStart) {
+      phases.push({
+        kind: 'batterRun',
+        startMs: runStart,
+        endMs: runEnd,
+        data: {
+          kind: 'batterRun',
+          from: FIELD_POSITIONS.home,
+          to: targetBase,
+        },
+      });
+    }
+
+    // 結果表示
+    const resultLabel =
+      isOut ? 'アウト！' :
+      fieldResult.type === 'single' ? 'ヒット！' :
+      fieldResult.type === 'double' ? '二塁打！' :
+      fieldResult.type === 'triple' ? '三塁打！' :
+      fieldResult.type === 'sacrifice_fly' ? '犠牲フライ！' :
+      'セーフ！';
+    const resultT = isOut ? scaleT(runnerOutT!) : scaleT(runnerSafeT ?? runnerResultT);
+    phases.push({
+      kind: 'result',
+      startMs: resultT,
+      endMs: resultT + 600,
+      data: {
+        kind: 'result',
+        text: resultLabel,
+        isOut,
+        baseKey: isOut ? undefined : runnerBaseKey,
+      },
+    });
+  }
+
+  const totalMs = Math.max(
+    scaleT(playEndT) + 200,
+    phases.reduce((mx, p) => Math.max(mx, p.endMs), 0) + 200,
+  );
+  return { phases, totalMs };
+}
+
+/**
+ * Phase R5: 1球送り用 — PlaySequence からイベント単位でステップ実行するための
+ * 「イベント境界時刻リスト」を返す。
+ *
+ * 呼び出し側は stepIndex を 0 から順に進め、
+ * triggerPlaySequence を各ステップ開始時刻で呼ぶことで 1球ずつ再生できる。
+ *
+ * @param timeline  canonical timeline
+ * @param timeScale 再生速度倍率
+ * @returns 各イベント境界の ms 時刻リスト（昇順）
+ */
+export function getTimelineStepPoints(
+  timeline: CanonicalTimeline,
+  timeScale = 1.0,
+): number[] {
+  const points = timeline.events
+    .filter((evt) =>
+      evt.kind === 'swing_start' ||
+      evt.kind === 'ball_contact' ||
+      evt.kind === 'ball_landing' ||
+      evt.kind === 'fielder_field_ball' ||
+      evt.kind === 'fielder_throw' ||
+      evt.kind === 'throw_arrival' ||
+      evt.kind === 'runner_safe' ||
+      evt.kind === 'runner_out' ||
+      evt.kind === 'home_run' ||
+      evt.kind === 'play_end',
+    )
+    .map((evt) => evt.t / timeScale);
+  // 重複排除 + ソート
+  return [...new Set(points)].sort((a, b) => a - b);
+}
+
 // ===== ユーティリティ関数 =====
 
 /** イーズイン（加速） */
@@ -1232,8 +1532,18 @@ export interface UseBallAnimationReturn {
   triggerHomeRunEffect: () => void;
   /**
    * Phase 12-G: プレイシーケンス（内野ゴロ等）を起動する
+   *
+   * @param sequence   再生するシーケンス
+   * @param timeScale  再生速度倍率（1.0=等速, 2.0=倍速, 0.5=スロー）。省略時は 1.0
    */
-  triggerPlaySequence: (sequence: PlaySequence) => void;
+  triggerPlaySequence: (sequence: PlaySequence, timeScale?: number) => void;
+  /**
+   * Phase R5: timeline から直接アニメーションを起動する（推奨）
+   *
+   * @param resolution  engine の PlayResolution
+   * @param timeScale   再生速度倍率（1.0=等速, 2.0=倍速, 0.5=スロー）
+   */
+  triggerTimelineAnimation: (resolution: PlayResolution, timeScale?: number) => void;
   resetBall: () => void;
 }
 
@@ -1384,9 +1694,12 @@ export function useBallAnimation(): UseBallAnimationReturn {
 
   /**
    * Phase 12-G: プレイシーケンスアニメーション（内野ゴロ等）
+   *
+   * Phase R5: timeScale パラメータ追加（倍速・スロー対応）
+   * timeScale > 1 → 速く再生、timeScale < 1 → スロー再生
    */
   const triggerPlaySequence = useCallback(
-    (sequence: PlaySequence) => {
+    (sequence: PlaySequence, timeScale = 1.0) => {
       // Phase 12-L: 全アニメーション停止
       stopAnimation();
       stopHomeRunEffect();
@@ -1397,9 +1710,11 @@ export function useBallAnimation(): UseBallAnimationReturn {
 
       const animateSeq = (now: number) => {
         const elapsed = now - startMs;
-        const totalProgress = Math.min(elapsed / sequence.totalMs, 1);
+        // timeScale: elapsed を仮想タイムライン時刻に変換
+        const virtualElapsed = elapsed * timeScale;
+        const totalProgress = Math.min(virtualElapsed / sequence.totalMs, 1);
 
-        // 各フェーズの進行度を計算
+        // 各フェーズの進行度を計算（virtualElapsed を使用）
         const activePhases: PlaySequenceState['activePhases'] = [];
         let ballPos: FieldPoint | undefined;
         let ballHeight = 0;
@@ -1408,8 +1723,8 @@ export function useBallAnimation(): UseBallAnimationReturn {
         let resultText: PlaySequenceState['resultText'];
 
         for (const phase of sequence.phases) {
-          if (elapsed < phase.startMs) continue;
-          const phaseElapsed = elapsed - phase.startMs;
+          if (virtualElapsed < phase.startMs) continue;
+          const phaseElapsed = virtualElapsed - phase.startMs;
           const phaseDur = phase.endMs - phase.startMs;
           const t = Math.min(phaseElapsed / phaseDur, 1);
 
@@ -1528,6 +1843,21 @@ export function useBallAnimation(): UseBallAnimationReturn {
     [stopAnimation, stopHomeRunEffect, stopPlaySequence],
   );
 
+  /**
+   * Phase R5: PlayResolution.timeline から直接アニメーションを起動する（推奨 API）
+   *
+   * engine の canonical timeline を読み取り、UI 側での結果決定を一切行わない。
+   * buildAnimationFromTimeline() でシーケンスを構築し、triggerPlaySequence() を呼ぶ。
+   */
+  const triggerTimelineAnimation = useCallback(
+    (resolution: PlayResolution, timeScale = 1.0) => {
+      const sequence = buildAnimationFromTimeline(resolution, timeScale);
+      // timeScale=1.0 を渡す（buildAnimationFromTimeline 内で既にスケール済み）
+      triggerPlaySequence(sequence, 1.0);
+    },
+    [triggerPlaySequence],
+  );
+
   const resetBall = useCallback(() => {
     stopAnimation();
     stopHomeRunEffect();
@@ -1599,6 +1929,7 @@ export function useBallAnimation(): UseBallAnimationReturn {
     triggerHitAnimation,
     triggerHomeRunEffect,
     triggerPlaySequence,
+    triggerTimelineAnimation,
     resetBall,
   };
 }
