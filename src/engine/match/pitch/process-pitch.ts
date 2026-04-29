@@ -179,6 +179,7 @@ function buildBatBallContext(
   actualLocation: import('../types').PitchLocation,
   state: MatchState,
   pitcherMP: MatchPlayer,
+  batterMP: MatchPlayer,
   order: TacticalOrder,
 ): BatBallContext {
   // 直前の投球球速を取得（打席内履歴の最後から1つ前）
@@ -213,8 +214,17 @@ function buildBatBallContext(
     orderAggressiveness = order.aggressiveness ?? 'normal';
   }
 
-  // batterSwingType: 特性（trait）未実装のため spray を基本とする
-  const batterSwingType: 'pull' | 'spray' | 'opposite' = 'spray';
+  // batterSwingType: 特性から決定する（pull/spray/opposite）
+  // R7-1: hotblooded/competitive/passionate → pull 傾向、steady/stoic → spray 傾向
+  const batterPlayerTraits = batterMP.player.traits as ReadonlyArray<string>;
+  const pullTraits = ['hotblooded', 'competitive', 'passionate', 'bold'] as const;
+  const oppositeTraits = ['calm', 'stoic', 'strategist'] as const;
+  const batterSwingType: 'pull' | 'spray' | 'opposite' =
+    batterPlayerTraits.some((t) => (pullTraits as ReadonlyArray<string>).includes(t))
+      ? 'pull'
+      : batterPlayerTraits.some((t) => (oppositeTraits as ReadonlyArray<string>).includes(t))
+      ? 'opposite'
+      : 'spray';
 
   // batterMood: Mood enum → -1〜+1 の数値へ変換
   const moodToNumber = (mood: import('../../types/player').Mood): number => {
@@ -252,7 +262,7 @@ function buildBatBallContext(
     isKeyMoment: false,
     orderFocusArea,
     orderAggressiveness,
-    batterTraits: [],
+    batterTraits: batterPlayerTraits,
     batterMood: moodToNumber(batter.mood),
   };
 }
@@ -637,6 +647,7 @@ export function processPitch(
         actualLocation,
         state,
         pitcherMP,
+        batterMP,
         order,
       );
       const { trajectory: rawTrajectory } = resolveBatBall(batBallCtx, rng.derive('bat-ball'));

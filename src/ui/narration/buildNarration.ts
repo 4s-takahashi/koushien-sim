@@ -3,6 +3,9 @@
  *
  * MatchRunner の進行結果 (pitchResult / atBatResult) から、
  * UI に表示する日本語実況テキストを組み立てる。
+ *
+ * Phase R7-4: 21種×投球種×カウントの組み合わせで実況テンプレ拡張
+ * 同じパターンの連続を避けるロジックを追加。
  */
 
 import type { MatchState, PitchResult, AtBatResult } from '../../engine/match/types';
@@ -202,6 +205,124 @@ function ordinalJP(n: number): string {
 
 function halfLabel(half: 'top' | 'bottom'): string {
   return half === 'top' ? '表' : '裏';
+}
+
+// ============================================================
+// Phase R7-4: 実況パターン拡張（投球種 × カウント × 結果）
+// ============================================================
+
+/**
+ * 投球種 × カウント × アウトカムから多様な実況テキストを選択する。
+ * 同じ試合内でのパターン重複を避けるために、recentPhraseKeys を使用する。
+ *
+ * 各キーは "pitchType:outcome:countBand" の形式。
+ * countBand: 'early' (0-1ストライク), 'twoStrikes' (2ストライク), 'full' (3-2)
+ */
+
+const PITCH_OUTCOME_PHRASES: Record<string, Record<string, string[]>> = {
+  // ストライク系
+  called_strike: {
+    fastball:  ['ストレートが外角低めに決まった！', '見事な制球でストライク！', '鋭い球がコーナーを切った！'],
+    slider:    ['スライダーがぴたりとコーナーへ！', '曲がりながら見逃しストライク！', 'スライダーで追い込む！'],
+    curve:     ['カーブが大きく曲がってストライク！', '落ちるカーブに腰が引けた！', '手元で変化するカーブ！'],
+    changeup:  ['タイミングが外れて見逃し！', 'チェンジアップが綺麗に決まった！', '打者が泳いだ！'],
+    fork:      ['フォークがストンと落ちた！', '落差に翻弄されて見逃し！', '鋭い落ちでストライク！'],
+    default:   ['ストライク！', 'きれいに決まった！', '判定はストライク！'],
+  },
+  swinging_strike: {
+    fastball:  ['速球に空振り！', 'ストレートを振り遅れた！', '150km台に歯が立たない！'],
+    slider:    ['スライダーに完全に振らされた！', '逃げていく変化球に空振り！', 'スライダーに手が出た！'],
+    fork:      ['フォークに完全に落とされた！', '縦の変化に対応できず空振り！', 'フォーク！見事な三球三振コース！'],
+    curve:     ['カーブの変化に振り遅れ！', '大きく曲がるカーブに空振り！'],
+    changeup:  ['タイミングがずれた！チェンジアップに空振り！', '完全に騙された！'],
+    default:   ['空振り！', '振ったが当たらない！', '力んで空振り！'],
+  },
+  ball: {
+    fastball:  ['外れた！ボール！', '際どいコースだが判定はボール', 'コントロールが乱れた'],
+    slider:    ['スライダーが変化しすぎてボール！', '変化球が大きく外れた！', 'ボール！'],
+    fork:      ['フォークが抜けてボール！', '変化が読まれた！ボール！'],
+    default:   ['ボール！', '外角に外れた！', '高めに浮いた！'],
+  },
+  foul: {
+    fastball:  ['速球をファウルで弾く！', '鋭い当たりがファウルゾーンへ！', '詰まりながらもファウル！'],
+    slider:    ['スライダーを何とかファウルに！', 'ファウルで粘る！', 'ぎりぎりのコンタクト！'],
+    fork:      ['フォークに食らいつきファウル！', '完全に合っていないがファウルで凌ぐ！'],
+    curve:     ['カーブをチップしてファウル！', '曲がる球を何とかカット！'],
+    default:   ['ファウル！粘りを見せる！', 'バットに当てた！', '粘り強いバッティング！'],
+  },
+};
+
+/**
+ * 投球種と結果から多様な実況テキストを選択する（R7-4）
+ *
+ * @param pitchType 球種
+ * @param outcome 投球結果
+ * @param countBand カウント帯（'early'|'twoStrikes'|'full'）
+ * @param recentPhrases 直近に使ったフレーズキーのセット（重複回避用）
+ * @returns { text, phraseKey } — phraseKey は呼び出し元がリングバッファに追加する
+ */
+export function selectPitchNarrationPhrase(
+  pitchType: string,
+  outcome: string,
+  countBand: 'early' | 'twoStrikes' | 'full',
+  recentPhrases?: ReadonlySet<string>,
+): { text: string; phraseKey: string } {
+  const outcomeMap = PITCH_OUTCOME_PHRASES[outcome];
+  const phrases = outcomeMap
+    ? (outcomeMap[pitchType] ?? outcomeMap['default'] ?? [])
+    : [];
+
+  if (phrases.length === 0) {
+    return { text: '', phraseKey: '' };
+  }
+
+  // 重複回避: recentPhrases に含まれていないインデックスを優先
+  const phraseKeyFor = (idx: number) => `${outcome}:${pitchType}:${idx}`;
+
+  let selectedIdx = 0;
+  if (recentPhrases && recentPhrases.size > 0) {
+    // 最近使っていないフレーズを優先
+    for (let i = 0; i < phrases.length; i++) {
+      if (!recentPhrases.has(phraseKeyFor(i))) {
+        selectedIdx = i;
+        break;
+      }
+    }
+  }
+
+  // カウント帯に応じて選択インデックスをずらす（多様化）
+  const countOffset = countBand === 'twoStrikes' ? 1 : countBand === 'full' ? 2 : 0;
+  selectedIdx = (selectedIdx + countOffset) % phrases.length;
+
+  return {
+    text: phrases[selectedIdx],
+    phraseKey: phraseKeyFor(selectedIdx),
+  };
+}
+
+/**
+ * カウントからカウント帯を判定する
+ */
+export function getCountBand(
+  balls: number,
+  strikes: number,
+): 'early' | 'twoStrikes' | 'full' {
+  if (balls === 3 && strikes === 2) return 'full';
+  if (strikes === 2) return 'twoStrikes';
+  return 'early';
+}
+
+/**
+ * R7-4: フレーズリングバッファを更新する
+ * 直近 maxSize 件のフレーズキーを保持する
+ */
+export function updatePhraseRing(
+  current: Set<string>,
+  newKey: string,
+  maxSize = 8,
+): Set<string> {
+  const arr = [...current, newKey].slice(-maxSize);
+  return new Set(arr);
 }
 
 // ============================================================
