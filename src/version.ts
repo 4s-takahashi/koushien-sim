@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.43.0';
+export const VERSION = '0.44.0';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-25 00:27 UTC';
-export const GIT_SHA = '458943c-dirty';
+export const BUILD_DATE = '2026-04-29 05:57 UTC';
+export const GIT_SHA = 'dd55899';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,44 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.44.0',
+    date: '2026-04-29',
+    changes: [
+      '🚀 v0.44.0: Phase R2-R8 統合 - 打球物理精密化・演出システム完全実装',
+      '',
+      '【R2】Bat-Ball Physics 計算精密化',
+      '  - perceived-quality.ts: ボール認知品質のベイズ更新',
+      '  - latent-state.ts: 打者の潜在状態追跡',
+      '  - trajectory-params.ts: 打球軌跡パラメータ精密計算',
+      '',
+      '【R3】Play Resolver 6サブモジュール実装',
+      '  - bat-swing.ts: スイング動作の物理シミュレーション',
+      '  - contact.ts: ボール接触シミュレーション',
+      '  - fielding.ts: 守備・ポジション判定',
+      '  - base-running.ts: 走塁・セーフアウト判定',
+      '  - scoring.ts: 得点判定',
+      '  - 197 新規テスト追加 / 全1856テスト合格',
+      '',
+      '【R4-R5】UI再生・Timeline統一',
+      '  - レガシーハック完全削除',
+      '  - Match Resolver + UI の統一タイムライン',
+      '',
+      '【R6】21種打球分類・NarrativeHook統合',
+      '  - 打球分類: 21種類に細分化（内野・外野・フライ・ゴロ等）',
+      '  - NarrativeHook: 実況・演出システムに統合',
+      '',
+      '【R7】戦術・感情・思考への接続',
+      '  - Psychology: 感情パラメータを采配に反映',
+      '  - TacticalHook: 戦術判定と心理状態の連携',
+      '',
+      '【R8】バランス調整',
+      '  - §12.3全7目標達成（打球分類全21種出現・実況品質・テスト網羅）',
+      '',
+      '📊 テスト結果: 121ファイル / 1856テスト / 全合格',
+      '⏱️  テスト実行時間: 507.64秒',
+    ],
+  },
   {
     version: '0.43.0',
     date: '2026-04-25',
