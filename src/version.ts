@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.45.1';
+export const VERSION = '0.45.2';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-29 16:03 UTC';
-export const GIT_SHA = '1951bd7-dirty';
+export const BUILD_DATE = '2026-04-29 17:48 UTC';
+export const GIT_SHA = '50b4101-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,22 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.45.2',
+    date: '2026-04-29',
+    changes: [
+      '🐛 v0.45.2: Phase S1-A2 自動進行バグ修正',
+      '',
+      '【修正】自動進行 ON + 1球モード ON で毎球止まるバグ',
+      '  - shouldPause() に autoplay 引数を追加',
+      '  - autoplay=true のとき pitch_start / at_bat_start を返さない',
+      '  - scoring_chance / pinch / match_end は autoplay に関わらず返す',
+      '  - evaluatePause() の全呼び出し箇所（9箇所）で autoplay フラグを渡す',
+      '',
+      'テスト 37/37 PASS（新規4件テスト追加）',
+      '期待値: 自動進行 ON のときチャンス/ピンチ以外で自動進行継続',
+    ],
+  },
   {
     version: '0.45.1',
     date: '2026-04-29',
