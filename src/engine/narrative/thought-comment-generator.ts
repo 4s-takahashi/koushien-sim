@@ -508,6 +508,321 @@ const THOUGHT_COMMENT_DB: ThoughtCommentPattern[] = [
     weight: 85,
   },
 
+  // ============================================================
+  // R7-3 拡張: バッター — hook 連動系
+  // ============================================================
+
+  {
+    id: 'bat_after_hr',
+    role: 'batter',
+    condition: (ctx) => ctx.hookKind === 'liner_home_run' || ctx.hookKind === 'high_arc_home_run' || ctx.hookKind === 'line_home_run',
+    texts: [
+      '（入った！最高の当たりだ！）',
+      '（スタンドまで届いた…最高の気分！）',
+      '（これがホームランか…信じられない）',
+      '（全部の力が出た瞬間だ！）',
+    ],
+    category: 'emotional',
+    weight: 100,
+  },
+
+  {
+    id: 'bat_after_clean_hit',
+    role: 'batter',
+    condition: (ctx) => ctx.hookKind === 'center_clean_hit' || ctx.hookKind === 'through_infield',
+    texts: [
+      '（いい当たりだ！思い描いた通りの打球）',
+      '（しっかり芯で捉えた！）',
+      '（狙い通りのヒット！次につながる）',
+    ],
+    category: 'tactical',
+    weight: 85,
+  },
+
+  {
+    id: 'bat_after_popup',
+    role: 'batter',
+    condition: (ctx) => ctx.hookKind === 'infield_popup' || ctx.hookKind === 'weak_contact',
+    texts: [
+      '（くそ…完全に泳がされた）',
+      '（次は絶対に当てる…反省）',
+      '（腕が縮んだな…しっかり伸ばして振らないと）',
+    ],
+    category: 'emotional',
+    weight: 80,
+  },
+
+  {
+    id: 'bat_high_drama',
+    role: 'batter',
+    condition: (ctx) => ctx.dramaLevel === 'dramatic',
+    texts: [
+      '（これが甲子園の醍醐味だ！）',
+      '（こんな打球が打てるとは思わなかった！）',
+      '（全部の練習がこの一打に繋がった！）',
+    ],
+    category: 'emotional',
+    weight: 95,
+  },
+
+  {
+    id: 'bat_fastball_mindset',
+    role: 'batter',
+    condition: (ctx) => ctx.pitchType === 'fastball' && ctx.strikes < 2,
+    texts: [
+      '（ストレートが来たら引っ張る…準備はいい）',
+      '（速球が来い…思い切り振る）',
+      '（直球一本に絞ってみよう）',
+    ],
+    category: 'tactical',
+    weight: 65,
+  },
+
+  {
+    id: 'bat_breaking_mindset',
+    role: 'batter',
+    condition: (ctx) => (ctx.pitchType === 'slider' || ctx.pitchType === 'curve' || ctx.pitchType === 'fork') && ctx.strikes < 2,
+    texts: [
+      '（変化球が多いな…引っかかるな、しっかり見極めよう）',
+      '（フォークか？腕が振られてから見極める）',
+      '（スライダーに気をつけろ…低めは特に慎重に）',
+    ],
+    category: 'analytical',
+    weight: 70,
+  },
+
+  {
+    id: 'bat_consecutive_retired',
+    role: 'batter',
+    condition: (ctx) => (ctx.consecutiveRetired ?? 0) >= 2,
+    texts: [
+      '（2打席連続打てていない…今日は何かがおかしい）',
+      '（打てない…でも諦めない。必ず修正できる）',
+      '（スランプか？でも今ここで変える）',
+    ],
+    category: 'emotional',
+    weight: 80,
+  },
+
+  {
+    id: 'bat_first_ball_aggressive',
+    role: 'batter',
+    condition: (ctx) => ctx.balls === 0 && ctx.strikes === 0 && ctx.orderType === 'aggressive',
+    texts: [
+      '（初球から行く！甘い球を見逃すな）',
+      '（積極的に…初球ストライクから振る）',
+      '（来た球を全力で！）',
+    ],
+    category: 'tactical',
+    weight: 85,
+  },
+
+  {
+    id: 'bat_velocity_reaction',
+    role: 'batter',
+    condition: (ctx) => (ctx.velocity ?? 0) >= 145,
+    texts: [
+      '（速い！この球速、反応が遅れる）',
+      '（140後半か…手元で確認しないと振り遅れる）',
+      '（速球…でも対応できる！）',
+    ],
+    category: 'analytical',
+    weight: 75,
+  },
+
+  // ============================================================
+  // R7-3 拡張: 投手 — hook/状況系
+  // ============================================================
+
+  {
+    id: 'pit_after_strikeout',
+    role: 'pitcher',
+    condition: (ctx) => ctx.pitchOutcome === 'swinging_strike' && ctx.strikes === 2,
+    texts: [
+      '（三振！完璧な決め球だった）',
+      '（三振取った…次のバッターも同じ気持ちで）',
+      '（空振りを奪えた！調子が戻ってきた）',
+    ],
+    category: 'emotional',
+    weight: 90,
+  },
+
+  {
+    id: 'pit_control_focus',
+    role: 'pitcher',
+    condition: (ctx) => ctx.balls >= 2 && ctx.pitcherStamina >= 50,
+    texts: [
+      '（制球を意識して…丁寧に投げろ）',
+      '（ボールカウントが悪い…でも焦るな）',
+      '（次の一球、外角低めに集める）',
+    ],
+    category: 'analytical',
+    weight: 75,
+  },
+
+  {
+    id: 'pit_full_count_tension',
+    role: 'pitcher',
+    condition: (ctx) => ctx.balls === 3 && ctx.strikes === 2,
+    texts: [
+      '（フルカウント…四球だけは避ける）',
+      '（3-2…ここが山場だ。会心の一球を）',
+      '（フルカウント。コースを確かめて、思い切り！）',
+    ],
+    category: 'situational',
+    weight: 95,
+  },
+
+  {
+    id: 'pit_after_strong_hit',
+    role: 'pitcher',
+    condition: (ctx) => ctx.hookKind === 'hard_hit_ball' || ctx.hookKind === 'wall_ball_hit' || ctx.hookKind === 'extra_base_drive',
+    texts: [
+      '（やられた…でも気持ちを切り替える）',
+      '（強い当たりを打たれた…修正が必要だ）',
+      '（次の打者を取り返す！）',
+    ],
+    category: 'emotional',
+    weight: 85,
+  },
+
+  {
+    id: 'pit_good_stuff_feeling',
+    role: 'pitcher',
+    condition: (ctx) => ctx.pitcherStamina >= 70 && ctx.strikes >= 1,
+    texts: [
+      '（調子いい…ボールが走っている）',
+      '（今日は球に力がある！このまま続けよう）',
+      '（指先の感覚がいい…制球も安定している）',
+    ],
+    category: 'analytical',
+    weight: 65,
+  },
+
+  {
+    id: 'pit_trait_intimidate',
+    role: 'pitcher',
+    condition: (ctx) =>
+      ctx.pitcherTraits.includes('intimidating') &&
+      (ctx.runnersOn === 'scoring' || ctx.runnersOn === 'bases_loaded'),
+    texts: [
+      '（プレッシャーをかけてやる…内角に思い切り投げ込む）',
+      '（このバッターを威圧する！）',
+      '（気迫で押し切る！）',
+    ],
+    category: 'emotional',
+    weight: 85,
+  },
+
+  {
+    id: 'pit_late_inning_preserve',
+    role: 'pitcher',
+    condition: (ctx) => ctx.inning >= 8 && ctx.pitcherStamina < 60,
+    texts: [
+      '（疲れてきたが…最後まで投げ切る）',
+      '（体に鞭を打って…ここは絶対に抑える）',
+      '（終盤、スタミナが心配だ…でも集中力で補う）',
+    ],
+    category: 'situational',
+    weight: 90,
+  },
+
+  {
+    id: 'pit_velocity_high',
+    role: 'pitcher',
+    condition: (ctx) => (ctx.velocity ?? 0) >= 143,
+    texts: [
+      '（球速が出ている…このまま腕を振り切ろう）',
+      '（今日の直球は走っている！）',
+      '（フルパワーで投げ込む！）',
+    ],
+    category: 'analytical',
+    weight: 70,
+  },
+
+  // ============================================================
+  // R7-3 拡張: 捕手 — hook/配球系
+  // ============================================================
+
+  {
+    id: 'cat_after_hr_allowed',
+    role: 'catcher',
+    condition: (ctx) =>
+      ctx.hookKind === 'liner_home_run' || ctx.hookKind === 'high_arc_home_run',
+    texts: [
+      '（本塁打を打たれた…配球を見直す必要がある）',
+      '（やられた…リードを変えよう）',
+      '（次の打者に切り替える。同じパターンは使わない）',
+    ],
+    category: 'analytical',
+    weight: 90,
+  },
+
+  {
+    id: 'cat_after_strikeout',
+    role: 'catcher',
+    condition: (ctx) => ctx.pitchOutcome === 'swinging_strike' && ctx.strikes === 2,
+    texts: [
+      '（三振！このリードがハマった）',
+      '（決め球がうまく決まった…次も工夫しよう）',
+      '（ナイスピッチ！投手に声をかけよう）',
+    ],
+    category: 'analytical',
+    weight: 85,
+  },
+
+  {
+    id: 'cat_late_inning_strategy',
+    role: 'catcher',
+    condition: (ctx) => ctx.inning >= 7 && ctx.runnersOn !== 'none',
+    texts: [
+      '（終盤の得点圏…ここはひっかけの変化球で）',
+      '（ランナーがいる…ここは真っすぐで押すか変化で崩すか）',
+      '（この場面の配球が試合を決める）',
+    ],
+    category: 'tactical',
+    weight: 85,
+  },
+
+  {
+    id: 'cat_first_pitch_strategy',
+    role: 'catcher',
+    condition: (ctx) => ctx.balls === 0 && ctx.strikes === 0,
+    texts: [
+      '（初球はどうする…打者の立ち方を見て決めよう）',
+      '（初球から積極的に攻めるか、様子を見るか）',
+      '（打者の雰囲気を掴んでからサインを出す）',
+    ],
+    category: 'tactical',
+    weight: 60,
+  },
+
+  {
+    id: 'cat_two_strikes_call',
+    role: 'catcher',
+    condition: (ctx) => ctx.strikes === 2 && ctx.outs === 2,
+    texts: [
+      '（2ストライク2アウト…打者を追い詰める絶好機だ）',
+      '（2-2アウト…決め球を慎重に選ぼう）',
+      '（ここで三振が取れればイニング終了！）',
+    ],
+    category: 'analytical',
+    weight: 90,
+  },
+
+  {
+    id: 'cat_high_drama_moment',
+    role: 'catcher',
+    condition: (ctx) => ctx.dramaLevel === 'dramatic' || ctx.dramaLevel === 'high',
+    texts: [
+      '（この場面、鳥肌が立つ…最高の野球だ）',
+      '（ドラマが生まれる瞬間…集中しよう）',
+      '（これが本当の野球だ！）',
+    ],
+    category: 'emotional',
+    weight: 80,
+  },
+
 ];
 
 // ============================================================

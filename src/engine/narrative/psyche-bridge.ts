@@ -2,15 +2,17 @@
  * src/engine/narrative/psyche-bridge.ts — NarrativeHook ↔ 心理システム接続
  *
  * Phase R6-5: NarrativeHook を既存心理システム（v0.21.0）に接続する。
+ * Phase R7-2: NarrativeHook 購読インターフェース整備。
  *
  * 設計方針:
  * - 既存 psyche/types.ts の MentalEffect 型を再利用する
  * - NarrativeHook の psycheHint を MentalEffect に変換する
  * - 既存 generatePitchMonologues は変更しない（後方互換）
  * - NarrativeHook 購読を opt-in で追加する
+ * - R7-2: 購読コールバック型を整備し、心理状態変化の発火タイミングを統一する
  */
 
-import type { NarrativeHook, NarrativeHookKind } from './types';
+import type { NarrativeHook, NarrativeHookKind, NarrativeHookSubscribeInput } from './types';
 import type { MentalEffect } from '../psyche/types';
 
 // ============================================================
@@ -202,4 +204,88 @@ export function applyNarrativeHookToPsyche(
     batterMental: { contactBonus, powerBonus, eyeBonus },
     pitcherMental: { controlBonus, velocityBonus },
   };
+}
+
+// ============================================================
+// R7-2: NarrativeHook 購読インターフェース
+// ============================================================
+
+/**
+ * NarrativeHook 購読コールバック型
+ *
+ * 心理システムはこのコールバックを通じて NarrativeHook の通知を受け取る。
+ * 打席終了後や特定イベント後に呼び出される。
+ */
+export type NarrativeHookSubscriber = (input: NarrativeHookSubscribeInput) => void;
+
+/**
+ * 簡易購読管理（シングルトン不要: 呼び出し側が配列を管理する設計）
+ *
+ * 使い方:
+ * ```ts
+ * const subscribers: NarrativeHookSubscriber[] = [];
+ * subscribers.push((input) => applyNarrativeHookToPsyche(input.hook, ...));
+ * notifyNarrativeHookSubscribers(subscribers, hook);
+ * ```
+ */
+export function notifyNarrativeHookSubscribers(
+  subscribers: ReadonlyArray<NarrativeHookSubscriber>,
+  hook: NarrativeHook,
+  options?: {
+    suggestedBatterConfidenceDelta?: number;
+    suggestedPitcherConfidenceDelta?: number;
+  },
+): void {
+  const input: NarrativeHookSubscribeInput = {
+    hook,
+    suggestedBatterConfidenceDelta: options?.suggestedBatterConfidenceDelta,
+    suggestedPitcherConfidenceDelta: options?.suggestedPitcherConfidenceDelta,
+  };
+  for (const subscriber of subscribers) {
+    subscriber(input);
+  }
+}
+
+/**
+ * NarrativeHook の drama level から confidence 変化量を算出する
+ *
+ * @param hook     - NarrativeHook
+ * @param role     - 'batter' | 'pitcher'
+ * @returns confidence 変化量 (-10〜+10)
+ */
+export function computeConfidenceDelta(
+  hook: NarrativeHook,
+  role: 'batter' | 'pitcher',
+): number {
+  const impact = role === 'batter'
+    ? hook.psycheHint.batterImpact
+    : hook.psycheHint.pitcherImpact;
+
+  // drama level による倍率: dramatic=2.0, high=1.5, medium=1.0, low=0.5
+  const dramaMultiplier: Record<string, number> = {
+    dramatic: 2.0,
+    high:     1.5,
+    medium:   1.0,
+    low:      0.5,
+  };
+  const mult = dramaMultiplier[hook.dramaLevel] ?? 1.0;
+
+  // impact(-1~+1) × drama × 5 → -10〜+10 の範囲
+  return Math.max(-10, Math.min(10, impact * mult * 5));
+}
+
+/**
+ * NarrativeHookSubscribeInput から打者・投手の confidence 変化を計算する
+ *
+ * @param input - NarrativeHookSubscribeInput
+ * @returns { batter: number; pitcher: number } — confidence delta
+ */
+export function extractConfidenceDeltas(
+  input: NarrativeHookSubscribeInput,
+): { batter: number; pitcher: number } {
+  const batter = input.suggestedBatterConfidenceDelta
+    ?? computeConfidenceDelta(input.hook, 'batter');
+  const pitcher = input.suggestedPitcherConfidenceDelta
+    ?? computeConfidenceDelta(input.hook, 'pitcher');
+  return { batter, pitcher };
 }

@@ -36,13 +36,19 @@ export {
   isWallBallDramatic,
   buildDetailedHitLogText,
 } from './hook-generator';
+export type { CommentaryContext } from './hook-generator';
 
 // 心理システム接続
 export {
   applyNarrativeHookToPsyche,
   computeHookMentalEffect,
   HOOK_MENTAL_EFFECT_MAP,
+  // R7-2: 購読インターフェース
+  notifyNarrativeHookSubscribers,
+  computeConfidenceDelta,
+  extractConfidenceDeltas,
 } from './psyche-bridge';
+export type { NarrativeHookSubscriber } from './psyche-bridge';
 
 // R7-3: 思考コメント生成
 export {

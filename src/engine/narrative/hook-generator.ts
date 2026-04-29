@@ -2,11 +2,14 @@
  * src/engine/narrative/hook-generator.ts — NarrativeHook 生成器
  *
  * Phase R6: 21種打球分類から NarrativeHook を生成する。
+ * Phase R7-4: 投球種 × カウント対応の実況テンプレート拡張 + 単調さ回避ロジック。
  *
  * 設計方針:
  * - 純粋関数（副作用なし・乱数なし）
  * - DetailedHitType + PlayResolution の一部プロパティから決定論的に生成
  * - src/engine/physics/* は参照のみ（編集禁止）
+ * - R7-4: pitchType × count × 打球種の組み合わせで実況テキストを多様化
+ *   同一試合内での単調さを避けるため recentCommentaryIds で使用済みパターンを除外
  */
 
 import type { DetailedHitType, BallTrajectoryParams, BallFlight } from '../physics/types';
@@ -23,6 +26,452 @@ import {
 } from './types';
 
 // ============================================================
+// R7-4: 実況コンテキスト（オプション拡張引数）
+// ============================================================
+
+/**
+ * R7-4 実況生成コンテキスト
+ * 投球種・カウント・直近使用済みテンプレートIDを受け取ることで
+ * 多様な実況テキストを生成する。
+ */
+export interface CommentaryContext {
+  /** 投球種（fastball/slider/curve/fork/changeup/cutter/sinker/breaking/any） */
+  pitchType?: string;
+  /** ボールカウント */
+  balls?: number;
+  /** ストライクカウント */
+  strikes?: number;
+  /** 直近に使用した実況テンプレートID（重複回避用） */
+  recentCommentaryIds?: ReadonlySet<string>;
+}
+
+// ============================================================
+// R7-4: 投球種ラベル
+// ============================================================
+
+const PITCH_TYPE_LABEL: Readonly<Record<string, string>> = {
+  fastball:  'ストレート',
+  slider:    'スライダー',
+  curve:     'カーブ',
+  fork:      'フォーク',
+  changeup:  'チェンジアップ',
+  cutter:    'カット',
+  sinker:    'シンカー',
+  breaking:  '変化球',
+  any:       '投球',
+};
+
+/** 投球種の日本語ラベルを返す（未知種はそのまま返す） */
+function pitchTypeLabel(pitchType?: string): string {
+  if (!pitchType) return '投球';
+  return PITCH_TYPE_LABEL[pitchType] ?? pitchType;
+}
+
+// ============================================================
+// R7-4: 実況テンプレートDB（hitType × pitchType × count）
+// ============================================================
+
+interface CommentaryTemplate {
+  id: string;
+  /** マッチ条件 */
+  matchHitType?: ReadonlyArray<DetailedHitType>;
+  matchPitchType?: ReadonlyArray<string>;
+  /** カウント条件 */
+  matchStrikes?: number;
+  matchBalls?: number;
+  /** テキスト（${pitchLabel} を動的に置換可能） */
+  text: string;
+  weight: number;
+}
+
+/**
+ * R7-4 実況テンプレートDB
+ *
+ * 21種 × 投球種 × カウントの組み合わせで実況の多様化を実現する。
+ * hitType なし = 汎用テンプレート（fallback）
+ */
+const COMMENTARY_TEMPLATE_DB: CommentaryTemplate[] = [
+
+  // ─── HR 系 ───────────────────────────────────────────────────
+
+  {
+    id: 'hr_fastball',
+    matchHitType: ['line_drive_hr', 'high_arc_hr'],
+    matchPitchType: ['fastball'],
+    text: 'ストレートを完璧に捉えた！弾丸ライナーがそのままスタンドへ！',
+    weight: 90,
+  },
+  {
+    id: 'hr_breaking_surprise',
+    matchHitType: ['line_drive_hr', 'high_arc_hr'],
+    matchPitchType: ['slider', 'curve', 'fork'],
+    text: '${pitchLabel}を読んでいた！フルスイングでスタンドへ叩き込む！',
+    weight: 85,
+  },
+  {
+    id: 'hr_two_strikes',
+    matchHitType: ['line_drive_hr', 'high_arc_hr'],
+    matchStrikes: 2,
+    text: '追い込まれてからのホームラン！逆転劇に会場が沸く！',
+    weight: 95,
+  },
+  {
+    id: 'hr_full_count',
+    matchHitType: ['line_drive_hr', 'high_arc_hr'],
+    matchBalls: 3,
+    matchStrikes: 2,
+    text: 'フルカウントからの長打！ドラマチックな一打がスタンドへ！',
+    weight: 100,
+  },
+  {
+    id: 'hr_liner_specific',
+    matchHitType: ['line_drive_hr'],
+    text: 'ライナー性の打球がそのままスタンドへ！矢のようなホームラン！',
+    weight: 80,
+  },
+  {
+    id: 'hr_arc_specific',
+    matchHitType: ['high_arc_hr'],
+    text: '大きなアーチを描いてスタンドへ！高弾道の豪快なホームラン！',
+    weight: 80,
+  },
+  {
+    id: 'hr_close_line',
+    matchHitType: ['fence_close_call'],
+    text: 'ライン際へ！フェア！スタンドへ消えていく際どいホームラン！',
+    weight: 90,
+  },
+
+  // ─── フェンス直撃 ──────────────────────────────────────────
+
+  {
+    id: 'wall_ball_fastball',
+    matchHitType: ['wall_ball'],
+    matchPitchType: ['fastball'],
+    text: 'ストレートを打ち返してフェンス直撃！跳ね返りを狙うランナーが回る！',
+    weight: 85,
+  },
+  {
+    id: 'wall_ball_breaking',
+    matchHitType: ['wall_ball'],
+    matchPitchType: ['slider', 'curve', 'fork', 'changeup'],
+    text: '${pitchLabel}を振り抜いてフェンス直撃！長打確実！',
+    weight: 85,
+  },
+  {
+    id: 'wall_ball_generic',
+    matchHitType: ['wall_ball'],
+    text: 'フェンス直撃！跳ね返りを狙うランナーが回る！',
+    weight: 70,
+  },
+
+  // ─── ポテンヒット系 ──────────────────────────────────────
+
+  {
+    id: 'blooper_two_strikes',
+    matchHitType: ['over_infield_hit'],
+    matchStrikes: 2,
+    text: '追い込まれてもポテンヒット！追い詰められた中でのラッキーヒット！',
+    weight: 85,
+  },
+  {
+    id: 'blooper_fastball',
+    matchHitType: ['over_infield_hit'],
+    matchPitchType: ['fastball'],
+    text: 'ストレートをどん詰まり！内野の頭を越えてポテンヒット！',
+    weight: 80,
+  },
+  {
+    id: 'blooper_generic',
+    matchHitType: ['over_infield_hit'],
+    text: 'ポテンヒット！内野手の頭を越えて外野前に落ちる！',
+    weight: 70,
+  },
+  {
+    id: 'shallow_fly_suspense',
+    matchHitType: ['shallow_fly'],
+    text: '浅いフライ！外野手が前進するが…落ちるのか？',
+    weight: 80,
+  },
+
+  // ─── 強打系 ──────────────────────────────────────────────
+
+  {
+    id: 'line_drive_fastball',
+    matchHitType: ['line_drive_hit'],
+    matchPitchType: ['fastball'],
+    text: 'ストレートを弾き返すライナー！鋭い打球が外野を抜けていく！',
+    weight: 85,
+  },
+  {
+    id: 'line_drive_slider',
+    matchHitType: ['line_drive_hit'],
+    matchPitchType: ['slider'],
+    text: 'スライダーをうまくさばいてライナーヒット！バットコントロールが冴える！',
+    weight: 80,
+  },
+  {
+    id: 'line_drive_generic',
+    matchHitType: ['line_drive_hit'],
+    text: 'ライナー！鋭い打球が外野を抜けていく！',
+    weight: 70,
+  },
+  {
+    id: 'comebacker_fastball',
+    matchHitType: ['comebacker'],
+    matchPitchType: ['fastball'],
+    text: 'ストレートをそのまま弾き返す！ピッチャー返し！',
+    weight: 80,
+  },
+  {
+    id: 'comebacker_generic',
+    matchHitType: ['comebacker'],
+    text: 'ピッチャー返し！投手の正面へ！',
+    weight: 70,
+  },
+
+  // ─── ゴロ系 ──────────────────────────────────────────────
+
+  {
+    id: 'grounder_line1_count',
+    matchHitType: ['first_line_grounder'],
+    matchBalls: 3,
+    text: '3ボールから一塁線を破るゴロ！粘りのヒット！',
+    weight: 80,
+  },
+  {
+    id: 'grounder_line1_generic',
+    matchHitType: ['first_line_grounder'],
+    text: '一塁線を破るゴロ！ライン際を転がる！',
+    weight: 70,
+  },
+  {
+    id: 'grounder_line3_two_strikes',
+    matchHitType: ['third_line_grounder'],
+    matchStrikes: 2,
+    text: '2ストライクから三塁線を破るゴロ！意地のヒット！',
+    weight: 85,
+  },
+  {
+    id: 'grounder_line3_generic',
+    matchHitType: ['third_line_grounder'],
+    text: '三塁線を破るゴロ！',
+    weight: 70,
+  },
+  {
+    id: 'grounder_right_generic',
+    matchHitType: ['right_side_grounder'],
+    text: '二遊間を抜けるゴロ！',
+    weight: 70,
+  },
+  {
+    id: 'grounder_left_generic',
+    matchHitType: ['left_side_grounder'],
+    text: '三遊間への鋭いゴロ！',
+    weight: 70,
+  },
+
+  // ─── ヒット系 ────────────────────────────────────────────
+
+  {
+    id: 'hit_center_fastball',
+    matchHitType: ['up_the_middle_hit'],
+    matchPitchType: ['fastball'],
+    text: 'ストレートをはじき返してセンター前！クリーンヒット！',
+    weight: 85,
+  },
+  {
+    id: 'hit_center_breaking',
+    matchHitType: ['up_the_middle_hit'],
+    matchPitchType: ['slider', 'curve', 'fork'],
+    text: '${pitchLabel}を見極めてセンター前！技ありのヒット！',
+    weight: 80,
+  },
+  {
+    id: 'hit_center_generic',
+    matchHitType: ['up_the_middle_hit'],
+    text: 'センター前へクリーンヒット！',
+    weight: 70,
+  },
+  {
+    id: 'hit_right_two_strikes',
+    matchHitType: ['right_gap_hit'],
+    matchStrikes: 2,
+    text: '追い込まれてから一二塁間を破る！執念のヒット！',
+    weight: 85,
+  },
+  {
+    id: 'hit_right_generic',
+    matchHitType: ['right_gap_hit'],
+    text: '一二塁間を抜けるクリーンヒット！',
+    weight: 70,
+  },
+  {
+    id: 'hit_left_fork',
+    matchHitType: ['left_gap_hit'],
+    matchPitchType: ['fork'],
+    text: 'フォークを上手くすくい上げて三遊間を破る！',
+    weight: 80,
+  },
+  {
+    id: 'hit_left_generic',
+    matchHitType: ['left_gap_hit'],
+    text: '三遊間を破るヒット！',
+    weight: 70,
+  },
+
+  // ─── フライ系 ────────────────────────────────────────────
+
+  {
+    id: 'fly_infield_popup_generic',
+    matchHitType: ['high_infield_fly'],
+    text: '高い内野フライ！インフィールドフライ！',
+    weight: 80,
+  },
+  {
+    id: 'fly_medium_two_outs',
+    matchHitType: ['medium_fly'],
+    text: 'センターへ中距離フライ！',
+    weight: 70,
+  },
+  {
+    id: 'fly_deep_fastball',
+    matchHitType: ['deep_fly'],
+    matchPitchType: ['fastball'],
+    text: 'ストレートを叩いた！深いフライ！外野手が後退する！',
+    weight: 80,
+  },
+  {
+    id: 'fly_deep_generic',
+    matchHitType: ['deep_fly'],
+    text: '深いフライ！外野手が後退する！',
+    weight: 70,
+  },
+
+  // ─── 特殊 ────────────────────────────────────────────────
+
+  {
+    id: 'foul_fly_full_count',
+    matchHitType: ['foul_fly'],
+    matchBalls: 3,
+    matchStrikes: 2,
+    text: 'フルカウントからファウルフライ！際どい打球！',
+    weight: 85,
+  },
+  {
+    id: 'foul_fly_generic',
+    matchHitType: ['foul_fly'],
+    text: 'ファウルフライ！際どいコースへの打球！',
+    weight: 70,
+  },
+  {
+    id: 'weak_contact_breaking',
+    matchHitType: ['check_swing_dribbler'],
+    matchPitchType: ['fork', 'curve', 'changeup'],
+    text: '${pitchLabel}に引っかかった！当たり損ねで投手前へ！',
+    weight: 80,
+  },
+  {
+    id: 'weak_contact_generic',
+    matchHitType: ['check_swing_dribbler'],
+    text: '当たり損ね！投手前へのゆっくりした打球！',
+    weight: 70,
+  },
+  {
+    id: 'infield_liner_hard',
+    matchHitType: ['infield_liner'],
+    text: '内野ライナー！鋭い打球！',
+    weight: 75,
+  },
+];
+
+// ============================================================
+// R7-4: 実況テンプレート選択（重複回避付き）
+// ============================================================
+
+/**
+ * hitType × pitchType × count に最も適したテンプレートを選択する
+ *
+ * 優先順位:
+ * 1. hitType + pitchType + count が全一致
+ * 2. hitType + count が一致
+ * 3. hitType + pitchType が一致
+ * 4. hitType のみ一致
+ * 5. fallback（引数の hitType に関係なく汎用 fallback を使用）
+ *
+ * @param hitType         - 21種打球分類
+ * @param pitchType       - 投球種（省略可）
+ * @param balls           - ボールカウント（省略可）
+ * @param strikes         - ストライクカウント（省略可）
+ * @param recentIds       - 直近使用済みテンプレートID（重複回避用）
+ * @returns 選択されたテンプレートテキスト（${pitchLabel} を置換済み）
+ */
+function selectCommentaryTemplate(
+  hitType: DetailedHitType,
+  pitchType?: string,
+  balls?: number,
+  strikes?: number,
+  recentIds?: ReadonlySet<string>,
+): string {
+  const pLabel = pitchTypeLabel(pitchType);
+
+  // 条件マッチ判定
+  const matchesHitType = (t: CommentaryTemplate) =>
+    t.matchHitType === undefined || t.matchHitType.includes(hitType);
+  const matchesPitch = (t: CommentaryTemplate) =>
+    t.matchPitchType === undefined ||
+    (pitchType !== undefined && t.matchPitchType.includes(pitchType));
+  const matchesStrikes = (t: CommentaryTemplate) =>
+    t.matchStrikes === undefined || t.matchStrikes === strikes;
+  const matchesBalls = (t: CommentaryTemplate) =>
+    t.matchBalls === undefined || t.matchBalls === balls;
+
+  // レベル順に候補を絞り込む
+  const candidateSets: CommentaryTemplate[][] = [
+    // 最高一致: hitType + pitchType + count 全一致
+    COMMENTARY_TEMPLATE_DB.filter(
+      (t) => matchesHitType(t) && matchesPitch(t) && matchesStrikes(t) && matchesBalls(t) &&
+             t.matchHitType !== undefined && t.matchPitchType !== undefined &&
+             (t.matchStrikes !== undefined || t.matchBalls !== undefined),
+    ),
+    // hitType + count 一致
+    COMMENTARY_TEMPLATE_DB.filter(
+      (t) => matchesHitType(t) && matchesStrikes(t) && matchesBalls(t) &&
+             t.matchHitType !== undefined &&
+             (t.matchStrikes !== undefined || t.matchBalls !== undefined),
+    ),
+    // hitType + pitchType 一致
+    COMMENTARY_TEMPLATE_DB.filter(
+      (t) => matchesHitType(t) && matchesPitch(t) &&
+             t.matchHitType !== undefined && t.matchPitchType !== undefined,
+    ),
+    // hitType のみ一致
+    COMMENTARY_TEMPLATE_DB.filter(
+      (t) => matchesHitType(t) && t.matchHitType !== undefined &&
+             t.matchPitchType === undefined && t.matchStrikes === undefined && t.matchBalls === undefined,
+    ),
+  ];
+
+  for (const candidates of candidateSets) {
+    if (candidates.length === 0) continue;
+
+    // 重複回避: recentIds に含まれるものを除外（全候補が除外される場合は除外無視）
+    const nonRecent = recentIds && recentIds.size > 0
+      ? candidates.filter((t) => !recentIds.has(t.id))
+      : candidates;
+    const pool = nonRecent.length > 0 ? nonRecent : candidates;
+
+    // 重み付きで選択（決定論的: 最高重みのものを返す）
+    const best = pool.reduce((a, b) => b.weight > a.weight ? b : a);
+    const text = best.text.replace(/\$\{pitchLabel\}/g, pLabel);
+    return text;
+  }
+
+  // フォールバック: hitType ラベルのみ
+  return `${DETAILED_HIT_TYPE_LABEL[hitType]}！`;
+}
+
+// ============================================================
 // メイン API
 // ============================================================
 
@@ -32,17 +481,30 @@ import {
  * @param detailedHitType - 21種打球分類
  * @param trajectory      - 4軸打球パラメータ（演出強度算出用）
  * @param flight          - 打球軌道（飛距離・滞空時間）
+ * @param commentaryCtx   - R7-4: 実況コンテキスト（投球種・カウント・重複回避）
  * @returns NarrativeHook
  */
 export function generateNarrativeHook(
   detailedHitType: DetailedHitType,
   trajectory: BallTrajectoryParams,
   flight: BallFlight,
+  commentaryCtx?: CommentaryContext,
 ): NarrativeHook {
   const kind = mapHitTypeToKind(detailedHitType, trajectory, flight);
   const dramaLevel = computeDramaLevel(detailedHitType, trajectory, flight);
   const homeRunFlag = computeHomeRunFlag(detailedHitType, trajectory);
-  const commentaryText = buildCommentaryText(detailedHitType, trajectory, flight);
+
+  // R7-4: 投球種 × カウント対応の実況テキスト
+  const commentaryText = commentaryCtx
+    ? selectCommentaryTemplate(
+        detailedHitType,
+        commentaryCtx.pitchType,
+        commentaryCtx.balls,
+        commentaryCtx.strikes,
+        commentaryCtx.recentCommentaryIds,
+      )
+    : buildCommentaryText(detailedHitType, trajectory, flight);
+
   const psycheHint = computePsycheHint(detailedHitType, trajectory);
 
   return {

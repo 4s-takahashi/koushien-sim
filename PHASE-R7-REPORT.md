@@ -1,175 +1,155 @@
-# Phase R7 完了レポート — 戦術・感情・思考への接続
+# Phase R7: 戦術・感情・思考への接続 — 完了レポート
 
 **実施日**: 2026-04-29
 **ブランチ**: main
-**R6 並行実施**: narrative-classifier 中心（R7 は tactics/psychology 接続中心）
+**ベース**: Phase R6（NarrativeHook システム完成）
 
 ---
 
 ## 概要
 
-Phase R7 では「既存システムを Layer 3 / hook に接続してドラマ性を強化」を目的として、
-戦術・感情・思考システムの統合を行った。
+Phase R7 は既存システムを Layer 3 / NarrativeHook に接続し、ドラマ性を強化する。
+`BatterDetailedOrder`、心理システム（v0.21.0）、思考コメント生成、実況テンプレートの4系統を統合した。
 
 ---
 
-## 実装内容
+## 実装サマリー
 
-### R7-1: BatterDetailedOrder → Layer 3 入力 E への接続
+### R7-1. BatterDetailedOrder → Layer 3 入力 E 接続強化
 
-**ファイル**: `src/engine/match/pitch/process-pitch.ts`
+**変更ファイル**: `src/engine/physics/bat-ball/latent-state.ts`
 
-**変更内容**:
-- `buildBatBallContext()` に `batterMP: MatchPlayer` パラメータを追加
-- `batterTraits: []`（ハードコード）→ `batterMP.player.traits` を実際のトレイト配列に変更
-- `batterSwingType` を特性から動的決定:
-  - `hotblooded / competitive / passionate / bold` → `'pull'` 傾向
-  - `calm / stoic / strategist` → `'opposite'` 傾向
-  - その他 → `'spray'`（中間）
+**追加定数**:
 
-**効果**:
-- 同じ打席状況でも打者特性が異なれば打球方向・物理演算に差が出る
-- Layer 3（25入力）の カテゴリ E（采配・性格）が完全に機能するようになった
+| 定数 | 説明 |
+|------|------|
+| `AGGRESSIVENESS_CONTACT_BIAS` | `orderAggressiveness` → `contactQuality` への補正マップ |
+| `AGGRESSIVENESS_PRESSURE_BIAS` | `orderAggressiveness` → `decisionPressure` への補正マップ |
+
+**補正値**:
+
+- `aggressive`: contactQuality `-0.04`、decisionPressure `-0.05`
+- `passive`: contactQuality `+0.03`、decisionPressure `+0.03`
+- `normal`: 補正なし
+
+既存の `orderFocusArea` → `FOCUS_AREA_INTENT_BIAS` → `swingIntent` (±0.2) も確認済み。
+`BatterDetailedOrder` は `buildBatBallContext()` で既に抽出されており、R7-1 は補正値の実装で完結。
 
 ---
 
-### R7-2: 既存心理システムの hook 購読インターフェース整備
+### R7-2. NarrativeHook 購読インターフェース整備
 
-**ファイル**: `src/engine/narrative/types.ts`（R6 が定義済み、R7 が拡張）
+**変更ファイル**: `src/engine/narrative/psyche-bridge.ts`, `src/engine/narrative/index.ts`
 
-**追加型定義**:
+**追加 API**:
+
 ```typescript
-// 思考コメント型
-export interface ThoughtComment {
-  role: 'batter' | 'pitcher' | 'catcher';
-  speakerName: string;
-  text: string;
-  category: 'tactical' | 'emotional' | 'analytical' | 'situational';
-  effectSummary?: string;
+type NarrativeHookSubscriber = (input: NarrativeHookSubscribeInput) => void;
+
+function notifyNarrativeHookSubscribers(
+  subscribers: ReadonlyArray<NarrativeHookSubscriber>,
+  hook: NarrativeHook,
+  options?: { suggestedBatterConfidenceDelta?: number; suggestedPitcherConfidenceDelta?: number },
+): void;
+
+function computeConfidenceDelta(hook: NarrativeHook, role: 'batter' | 'pitcher'): number;
+function extractConfidenceDeltas(input: NarrativeHookSubscribeInput): { batter: number; pitcher: number };
+```
+
+drama level 倍率: `dramatic=2.0`, `high=1.5`, `medium=1.0`, `low=0.5`。
+confidence delta は ±10 にクランプ。
+
+---
+
+### R7-3. 1球ごと思考コメント生成拡張
+
+**変更ファイル**: `src/engine/narrative/thought-comment-generator.ts`
+
+**パターン数**: 40 → **63** パターン（+23）
+
+新規追加カテゴリ:
+- hook 連動（打者/投手/捕手）: 打球結果への感情的反応
+- 球種認識（打者）: fastball/breaking 球への戦略思考
+- 速度認識（打者）: 145km/h 以上への反応
+- 連続凡退（打者）: スランプ状態の内的葛藤
+- 好調感・速球自信（投手）: スタミナ高時・143km/h 以上
+- 終盤粘投（投手）: 8回以降・スタミナ低下
+- 捕手の配球見直し・初球戦略・ドラマ演出
+
+---
+
+### R7-4. 実況パターン拡張（21種 × 投球種 × カウント）
+
+**変更ファイル**: `src/engine/narrative/hook-generator.ts`, `src/engine/narrative/index.ts`
+
+**追加型**:
+
+```typescript
+interface CommentaryContext {
+  pitchType?: string;
+  balls?: number;
+  strikes?: number;
+  recentCommentaryIds?: ReadonlySet<string>;
 }
-
-// 思考コメント生成コンテキスト
-export interface ThoughtCommentContext { ... }
-
-// NarrativeHook 購読インターフェース
-export interface NarrativeHookSubscribeInput { ... }
 ```
 
-**設計方針**:
-- R6 が定義した `NarrativeHook` 型を基盤として拡張
-- 既存の `MonologueEntry` / `PitchMonologues`（psyche システム）はそのまま維持
-- `ThoughtComment` は思考コメント専用の軽量型として独立
+**テンプレートDB**: 45 テンプレート（hitType × pitchType × count の組み合わせ）
+
+優先順位: hitType+pitchType+count 全一致 > hitType+count > hitType+pitchType > hitType のみ
+
+代表例:
+- HR × fastball: 「ストレートを完璧に捉えた！弾丸ライナーがそのままスタンドへ！」
+- HR × 2strikes: 「追い込まれてからのホームラン！逆転劇に会場が沸く！」
+- HR × fullcount: 「フルカウントからの長打！ドラマチックな一打がスタンドへ！」
+- 当たり損ね × fork: 「フォークに引っかかった！当たり損ねで投手前へ！」
+
+`${pitchLabel}` プレースホルダーで投球種ラベルを動的置換。
+`recentCommentaryIds` で直近使用済みテンプレートを除外し単調さを回避。
 
 ---
 
-### R7-3: 1球ごと思考コメント生成
+## テスト結果
 
-**ファイル**: `src/engine/narrative/thought-comment-generator.ts`（新規作成）
+**新規テスト**: `tests/engine/narrative/phase-r7.test.ts` — **48 件** 全パス
 
-**主要機能**:
-- `generateThoughtComments(ctx, speakerNames)` — バッター・ピッチャー・キャッチャー視点で各1件生成
-- カテゴリ別パターン（44+件のパターンDB）:
-  - **状況系**: 2ストライク、フルカウント、満塁、得点圏、終盤、リード/ビハインド
-  - **特性系**: hotblooded, stoic, clutch_hitter, timid, big_game_player, ace, scatterbrained, cautious
-  - **采配系**: outside_focus, inside_focus, aggressive, passive
-  - **甲子園系**: 大舞台特有のコメント
-- 決定論的な選択（RNG 不使用、状況ハッシュで選択）
-- `recentCommentIds` による重複回避
+| テストグループ | 件数 |
+|-------------|------|
+| R7-1: orderAggressiveness/focusArea 接続 | 9 件 |
+| R7-2: 購読インターフェース | 9 件 |
+| R7-3: 思考コメント生成 | 15 件 |
+| R7-4: 実況テンプレート | 15 件 |
 
-**エクスポート**:
-```typescript
-export function generateThoughtComments(ctx, speakerNames): ThoughtComment[]
-export function extractThoughtCommentIds(comments): string[]
-export function updateThoughtCommentRing(current, newIds, ringSize?): Set<string>
-```
+**既存テスト**: 714 件全パス確認済み
 
 ---
 
-### R7-4: 実況パターン拡張
+## 完了条件チェック
 
-**ファイル**: `src/ui/narration/buildNarration.ts`（既存ファイル拡張）
-
-**追加機能**:
-- `selectPitchNarrationPhrase(pitchType, outcome, countBand, recentPhrases?)` — 球種×結果×カウント帯の組み合わせで実況テキスト選択
-- 対応球種: `fastball / slider / curve / changeup / fork` と `default`
-- 対応アウトカム: `called_strike / swinging_strike / ball / foul`
-- カウント帯: `'early' (〜1S) / 'twoStrikes' (2S) / 'full' (3-2)`
-- `recentPhrases: Set<string>` による重複回避（同じフレーズの連続を防止）
-- `getCountBand(balls, strikes)` — カウントからカウント帯を判定
-- `updatePhraseRing(current, newKey, maxSize?)` — フレーズリングバッファ管理
+| 条件 | 結果 |
+|------|------|
+| 同じ打席でも心理状態・采配が違えば結果が変わる | ✅ orderAggressiveness → contactQuality/decisionPressure 補正 |
+| 思考コメントが状況に応じて多様化（1試合内で同じが連発しない） | ✅ recentCommentIds + 63 パターン |
+| 既存テスト全パス + 新規テスト 30 件以上 | ✅ 714 件 + 48 件 |
+| main にプッシュ済み | ✅ |
+| PHASE-R7-REPORT.md 作成 | ✅ 本ファイル |
 
 ---
 
-## テスト
+## 変更ファイル一覧
 
-### 新規テスト（56件）
-
-| ファイル | テスト数 | 内容 |
-|--------|---------|------|
-| `tests/engine/narrative/thought-comment-generator.test.ts` | 27 | R7-3 思考コメント生成 |
-| `tests/ui/narration/r7-pitch-pattern.test.ts` | 22 | R7-4 実況パターン選択・重複回避 |
-| `tests/engine/match/pitch/r7-batter-traits.test.ts` | 7 | R7-1 traits 接続 |
-
-### テスト結果
-- **R7 新規テスト**: 56件 全合格
-- **既存テスト**: 変更なし（process-pitch.ts のシグネチャ変更は内部のみ）
+| ファイル | 変更内容 |
+|---------|---------|
+| `src/engine/physics/bat-ball/latent-state.ts` | AGGRESSIVENESS_CONTACT/PRESSURE_BIAS 追加、computeContactQuality/computeDecisionPressure に反映 |
+| `src/engine/narrative/psyche-bridge.ts` | NarrativeHookSubscriber 型、notify/computeDelta/extractDeltas 追加 |
+| `src/engine/narrative/thought-comment-generator.ts` | 40 → 63 パターン（+23）追加 |
+| `src/engine/narrative/hook-generator.ts` | CommentaryContext 型、COMMENTARY_TEMPLATE_DB（45 件）、selectCommentaryTemplate 追加 |
+| `src/engine/narrative/index.ts` | 新規エクスポート追加 |
+| `tests/engine/narrative/phase-r7.test.ts` | 新規テスト 48 件 |
 
 ---
 
-## 完了基準の達成状況
+## 次フェーズへの引き継ぎ（Phase R8）
 
-| 基準 | 状態 | 備考 |
-|------|------|------|
-| 同じ打席でも心理・采配が違えば結果が変わる | ✅ | R7-1: traits → batterSwingType → sprayAngle 変化 |
-| 思考コメントが状況に応じて多様化 | ✅ | R7-3: 44+パターン、重複回避ロジック |
-| 既存テスト全パス | ✅ | src/ 配下の TS エラーなし |
-| 新規テスト 30 件以上 | ✅ | 56件 |
-| main にプッシュ済み | ✅ | |
-| PHASE-R7-REPORT.md 作成 | ✅ | 本ファイル |
-
----
-
-## アーキテクチャ変更サマリ
-
-```
-Before R7:
-  processPitch → buildBatBallContext → BatBallContext { batterTraits: [] }
-
-After R7:
-  processPitch → buildBatBallContext(batterMP) → BatBallContext { batterTraits: player.traits }
-                                               → batterSwingType: pull/spray/opposite (by traits)
-
-Before R7:
-  NarrativeHook (R6定義) — 思考コメント生成なし
-
-After R7:
-  NarrativeHook + ThoughtComment (R7定義)
-  generateThoughtComments() → ThoughtComment[] (batter/pitcher/catcher × 状況/特性/采配)
-
-Before R7:
-  buildNarrationForPitch → 固定テンプレート
-
-After R7:
-  buildNarrationForPitch + selectPitchNarrationPhrase() → 球種×カウント帯×重複回避
-```
-
----
-
-## R6 並行実施との調整
-
-- R7 は `src/engine/match/tactics/*` と `src/engine/psyche/*` 周辺に集中
-- `src/engine/narrative/types.ts` は R6 が定義した型を**拡張のみ**（既存定義を変更しない）
-- `NarrativeHook` 型定義（R6 管轄）に対して R7 は `ThoughtComment` / `ThoughtCommentContext` / `NarrativeHookSubscribeInput` を**追記**
-- ファイル衝突なし
-
----
-
-## 既知の制限事項
-
-1. `generateThoughtComments()` は RNG 不使用で決定論的。より多様にするには将来 RNG サポートが望ましい
-2. `selectPitchNarrationPhrase()` の結果は `match-store.ts` の `stepOnePitch()` / `stepOneAtBat()` には未統合（UI への接続は Phase R8 以降で行う想定）
-3. 思考コメント（`ThoughtComment`）の `PitchLogEntry` への統合は Phase R8 の作業範囲
-
----
-
-*Generated by Claude (Phase R7 implementation, 2026-04-29)*
+- `AGGRESSIVENESS_CONTACT_BIAS` (-0.04/+0.03) は 1000 試合シミュ後に調整が必要
+- `computeConfidenceDelta` の乗数（5 倍）は統計測定後に最適化
+- `recentCommentaryIds` のリングバッファサイズ（デフォルト 6）は多様性指標測定後に調整

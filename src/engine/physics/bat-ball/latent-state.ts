@@ -32,6 +32,31 @@ export const FOCUS_AREA_INTENT_BIAS: Readonly<Record<string, number>> = {
   none: 0.0,
 };
 
+/**
+ * R7-1: order.aggressiveness → contactQuality 補正
+ *
+ * aggressive: 積極的に振りに行く → ミート集中が分散、タイミングばらつき増加 → -0.04
+ * passive:    選球優先 → 好球必打で芯を捉えやすい → +0.03
+ * normal:     補正なし
+ */
+export const AGGRESSIVENESS_CONTACT_BIAS: Readonly<Record<string, number>> = {
+  aggressive: -0.04,
+  normal:      0.0,
+  passive:    +0.03,
+};
+
+/**
+ * R7-1: order.aggressiveness → decisionPressure 補正
+ *
+ * aggressive: 振る決断が早い → プレッシャー低減 (-0.05)
+ * passive:    見極めようとする → プレッシャー上昇 (+0.03)
+ */
+export const AGGRESSIVENESS_PRESSURE_BIAS: Readonly<Record<string, number>> = {
+  aggressive: -0.05,
+  normal:      0.0,
+  passive:    +0.03,
+};
+
 /** ガウシアン揺らぎの標準偏差 */
 export const CONTACT_QUALITY_NOISE_STDDEV = 0.05;
 export const TIMING_WINDOW_NOISE_BASE = 0.05;
@@ -125,12 +150,17 @@ export function computeContactQuality(ctx: BatBallContext, rng: RNG): number {
   // 0.5 をニュートラルとし、上下に ±0.15 補正（独立入力）
   const ballOnBatBonus = (ctx.ballOnBat - 0.5) * 0.3;
 
+  // R7-1: orderAggressiveness → contactQuality 補正
+  // passive: 好球必打で芯を捉えやすい、aggressive: 強振でミートが分散
+  const aggressivenessBias = AGGRESSIVENESS_CONTACT_BIAS[ctx.orderAggressiveness] ?? 0;
+
   const raw =
     0.4 * contactStat +
     0.3 * techniqueStat -
     0.5 * timingPenalty -
     0.4 * difficulty +
-    ballOnBatBonus;
+    ballOnBatBonus +
+    aggressivenessBias;
 
   const noise = rng.gaussian(0, CONTACT_QUALITY_NOISE_STDDEV);
 
@@ -236,8 +266,13 @@ export function computeDecisionPressure(ctx: BatBallContext): number {
   // mood: -1〜+1。負=悪い=プレッシャー拡大、正=良い=低下
   const moodAdjustment = -ctx.batterMood * 0.15;
 
+  // R7-1: orderAggressiveness → decisionPressure 補正
+  // aggressive: 振ると決めているため迷いが減る → プレッシャー低減
+  // passive:    見極め判断が増える → プレッシャー上昇
+  const aggressivenessPressureBias = AGGRESSIVENESS_PRESSURE_BIAS[ctx.orderAggressiveness] ?? 0;
+
   return clamp01(
-    DECISION_PRESSURE_BASELINE + situationPressure - mentalReduction + moodAdjustment,
+    DECISION_PRESSURE_BASELINE + situationPressure - mentalReduction + moodAdjustment + aggressivenessPressureBias,
   );
 }
 
