@@ -223,3 +223,118 @@ interface GrowthEvent {
 - A: タイミング感が「自動進行」設定と整合しているか
 - B: 既存 UI を破壊していないか、バッジ計算が正確か
 - C: motivation 更新ロジックがオーバーシュートしないか、イベント発生頻度が適切か
+
+---
+
+## テスト方針（詳細）
+
+### グループA テスト（演出系）
+
+| テストID | 種別 | 対象 | 内容 |
+|----------|------|------|------|
+| A1-test1 | unit | `src/ui/match-visual/MatchPlayerHooks.test.ts` | プレイボールイベント後、`PLAY_BALL_DELAY_MS` ms 経過まで次ピッチが発火しないことを fake timer で検証 |
+| A1-test2 | unit | 同上 | autoSpeedMultiplier=2 で待機時間が半減することを検証 |
+| A2-test1 | unit | 同上 | チェンジ（3アウト）イベント後、`CHANGE_DELAY_MS` 経過まで次ピッチが発火しないこと |
+| A3-test1 | integration | `src/engine/match/runner.test.ts` | 通常打席（チャンスでもピンチでもない）で auto-pause が起きないこと |
+| A3-test2 | integration | 同上 | チャンスで pause、解除で再開、ピンチで pause、解除で再開すること |
+| A4-test1 | unit | `src/ui/narration/buildNarration.test.ts` | walk イベントから "フォアボール" を含むナレーションが生成されること |
+| A5-test1 | integration | `MatchPlayerHooks.test.ts` | 三振後 1.5s 待機 → 次打者ログ → 0.5s 待機 → 投球開始（合計2s）の順序が守られること |
+| A6-test1 | render | `PsycheWindowAnalyst.test.tsx` | 1イニング終了時にアナリスト評価コンポーネントが表示されること |
+
+### グループB テスト（UI拡張系）
+
+| テストID | 種別 | 対象 | 内容 |
+|----------|------|------|------|
+| B1-test1 | snapshot | `src/app/play/page.test.tsx` | ホーム画面のメインナビが10項目（ホーム/チーム/練習/スタッフ/ニュース/スカウト/大会/試合/試合結果/OB）になっていること |
+| B1-test2 | snapshot | `src/components/GlobalHeader.test.tsx` | GlobalHeader から 練習/スタッフ/試合 が削除されていること |
+| B2-test1 | render | nav badge コンポーネント | 各項目に badge prop が渡され、count > 0 のとき表示されること |
+| B3-test1 | unit | `src/engine/practice/team-practice.test.ts` | 3スロット選択時、各スロットの効果が 1/3 ずつ加算されること |
+| B3-test2 | unit | 同上 | 同じメニューを2スロットで重複選択した場合の合算ロジックが正しいこと |
+| B4-test1 | unit | `src/data/practice-menus.test.ts` | 追加した個別練習メニュー（走力/守備/配球/メンタル/柔軟/動画）が定義されていること |
+| B5-test1 | render | `src/app/play/team/[playerId]/page.test.tsx` | 個別練習プルダウンが表示され、変更が persist すること |
+| B6-test1 | unit | `src/engine/growth/practice-feedback.test.ts` | stat delta に応じて適切なメッセージが返ること（meet+2 → 「ミート率があがったような気がする」など全閾値） |
+| B6-test2 | render | 選手詳細ページ | 直近10件の練習成果履歴が日付順で表示されること |
+
+### グループC テスト（成長＋イベント系）
+
+| テストID | 種別 | 対象 | 内容 |
+|----------|------|------|------|
+| C1-test1 | unit | `src/engine/growth/motivation.test.ts` | 休息日処理で motivation が +5〜+10 上がること |
+| C1-test2 | unit | 同上 | 練習日（適度）で +2、連続練習で -1 |
+| C1-test3 | unit | 同上 | サンデー休息日で +3 ボーナス、上限 100 を超えないこと |
+| C1-test4 | integration | `src/engine/world/world-ticker.test.ts` | tickMotivation() が world-ticker から呼ばれること（呼ばれていないバグの再発防止） |
+| C2-test1 | render | `src/components/SchoolNewsBoard.test.tsx` | 自校ニュース枠が30件表示・日付ソート・ジャンルアイコンを含むこと |
+| C2-test2 | integration | C3 イベント発生 → 自校ニュースに自動投稿されることを E2E で確認 |
+| C3-test1 | unit | `src/engine/growth/growth-events.test.ts` | 練習継続+適性で確率 0.5%/日 でイベント発生（10000日試行で範囲確認） |
+| C3-test2 | unit | 同上 | イベントの効果が Stats/Tactics に正しく反映されること |
+| C3-test3 | unit | 同上 | イベントログに永続化されること |
+
+### 統計・回帰テスト（マギが手動実行）
+
+- **バランス再シミュ**: 1000試合シミュを Phase S1 完了後にも回し、§12.3 7指標が範囲内を維持していること
+- **打球21種出現**: 引き続き全21種出現すること
+- **パフォーマンス**: 1試合所要時間が S1 前後で大きく劣化していないこと（±10% 以内）
+
+---
+
+## サブエージェント投入プロンプト（テンプレ）
+
+### Group A 用
+```
+Phase S1-A: 試合演出バグ修正（A1-A6）を実装してください。
+
+設計書: /home/work/.openclaw/workspace/projects/koushien-sim/PHASE-S1-DESIGN.md
+リポジトリ: /home/work/.openclaw/workspace/projects/koushien-sim (main ブランチ)
+
+タスク:
+- A1: プレイボール後3秒（autoSpeedMultiplier 連動）
+- A2: チェンジ後3秒（同上）
+- A3: 不要な auto-pause 修正
+- A4: フォアボール実況ログ
+- A5: 三振後2秒の演出（1.5s待機→次打者ログ→0.5s待機→投球）
+- A6: アナリスト評価枠の表示確認
+
+完了条件:
+1. テスト方針セクションの A1-test1〜A6-test1 を全て実装し pass
+2. 全既存テストが pass を維持
+3. PHASE-S1-A-REPORT.md を作成（変更ファイル一覧・動作確認手順・known issues）
+4. コミット: feat(phase-s1-a): 試合演出バグ修正（A1-A6）
+```
+
+### Group B 用
+```
+Phase S1-B: ホーム画面・チームUI拡張（B1-B6）を実装してください。
+（A完了後・main rebase 済み前提）
+設計書同上、タスク B1-B6、テスト B1-test1〜B6-test2 を pass、
+PHASE-S1-B-REPORT.md 作成、コミット feat(phase-s1-b): UI拡張（B1-B6）
+```
+
+### Group C 用
+```
+Phase S1-C: 成長システム + イベント生成（C1-C3）を実装してください。
+（B完了後・main rebase 済み前提）
+設計書同上、タスク C1-C3、テスト C1-test1〜C3-test3 を pass、
+PHASE-S1-C-REPORT.md 作成、コミット feat(phase-s1-c): 成長＋イベント（C1-C3）
+```
+
+---
+
+## 実装順序の判断
+
+- **A → B → C の直列**を推奨
+  - A は試合エンジン・narration、B は UI、C は growth engine と SchoolNewsBoard
+  - 表面上は依存しないが、**A で世界時間tickの修正を入れた後に C で motivation 更新を確実に呼ぶ流れが自然**
+  - また 3並列だと PR コンフリクト解消・統合に時間がかかる
+- もし時間優先なら A と B は並列可（C のみ最後）
+
+---
+
+## マギの作業
+
+1. 設計書（このファイル）の最終承認をもらう
+2. Group A をサブエージェント claude (acp) に投入、完了レポート受領
+3. レビュー → main マージ → 本番デプロイ（v0.45.0-rc.1）
+4. Group B 投入 → レビュー → マージ → デプロイ（v0.45.0-rc.2）
+5. Group C 投入 → レビュー → マージ → デプロイ（v0.45.0-rc.3）
+6. 最終統合テスト・1000試合バランス確認 → v0.45.0 リリース
+7. CHANGELOG / リリースノート整備
