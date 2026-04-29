@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.44.0';
+export const VERSION = '0.45.0';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-29 05:57 UTC';
-export const GIT_SHA = 'dd55899';
+export const BUILD_DATE = '2026-04-29 14:59 UTC';
+export const GIT_SHA = '6ebc785-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,24 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.45.0',
+    date: '2026-04-29',
+    changes: [
+      '🎬 v0.45.0: Phase S1-A 試合演出バグ修正（A1-A6）',
+      '',
+      '【A1】プレイボール後3秒ディレイ（autoSpeedMultiplier 連動: x1=3s, x2=1.5s, x4=0.75s）',
+      '【A2】チェンジ（3アウト）後3秒ディレイ（同上の連動）',
+      '【A3】チャンス/ピンチでない時の自動進行停止バグ修正',
+      '  - AUTO_PAUSE_ALLOWED_KINDS = scoring_chance | pinch | match_end のみ停止',
+      '  - shouldAutoPause(pauseKind) で判定一元化',
+      '【A4】フォアボール時に「フォアボール！打者は一塁へ！」実況ログ追加',
+      '【A5】三振後の演出シーケンス（1.5s待機 → 次打者ログ → 0.5s待機 → 投球）',
+      '【A6】マネージャーアナリスト評価枠の表示確認',
+      '',
+      '新規テスト 54件追加 / 全1910テスト合格（123 files）',
+    ],
+  },
   {
     version: '0.44.0',
     date: '2026-04-29',
