@@ -19,6 +19,7 @@ import {
   collectPitcherStats,
   selectMVP,
 } from './result';
+import { collectHitTypeStats } from '../narrative/hit-type-stats';
 
 // ============================================================
 // 試合実行
@@ -147,6 +148,17 @@ function finishGame(
     awayBatterIds,
   );
 
+  // Phase R6: 21種打球分類統計の集計
+  // ホームチームの打席（表イニング = アウェーが攻撃）と裏イニング（ホームが攻撃）を分離
+  const homeAtBats = allAtBatResults.filter((ab) =>
+    state.homeTeam.battingOrder.includes(ab.batterId),
+  );
+  const awayAtBats = allAtBatResults.filter((ab) =>
+    state.awayTeam.battingOrder.includes(ab.batterId),
+  );
+  const homeHitTypeStats = collectHitTypeStats(homeAtBats, homeBatterIds);
+  const awayHitTypeStats = collectHitTypeStats(awayAtBats, awayBatterIds);
+
   const result: MatchResult = {
     winner: winner as 'home' | 'away' | 'draw',
     finalScore: { ...state.score },
@@ -158,6 +170,8 @@ function finishGame(
     mvpPlayerId,
     batterStats,
     pitcherStats,
+    homeHitTypeStats,
+    awayHitTypeStats,
   };
 
   const finalState: MatchState = {

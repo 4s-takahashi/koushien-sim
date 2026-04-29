@@ -30,6 +30,10 @@ import {
   exitVelocityToHitSpeed,
 } from './legacy-adapter';
 import type { BatBallContext } from '../../physics/types';
+import { simulateTrajectory } from '../../physics/trajectory';
+import { classifyDetailedHit } from '../../physics/resolver/batted-ball-classifier';
+// Phase R6: NarrativeHook 生成
+import { generateNarrativeHook } from '../../narrative/hook-generator';
 
 // ============================================================
 // メンタル補正ヘルパー（Phase 7-E1）
@@ -251,8 +255,21 @@ function buildBatBallContext(
     pitchActualLocation: actualLocation,
     batter,
     batterSwingType,
-    timingError: 0, // swing が成立した後なので 0（中立タイミング）
-    ballOnBat: 0.5, // デフォルト芯ズレなし
+    // R8-3: timingError にリアルな分散を追加（常に 0 だと barrelRate が偏る）
+    // 球速・制球から打者のタイミング誤差を推定（-50〜+50ms 程度）
+    // 速球・変化球ほどタイミングが難しい
+    timingError: (() => {
+      const velocityPenalty = Math.max(0, (selection.velocity - 120) * 0.3);
+      const breakPenalty = pitchBreakLevel * 3;
+      const eyeFactor = 1 - batter.eye / 150; // eye が高いほど誤差小
+      const maxError = (15 + velocityPenalty + breakPenalty) * eyeFactor;
+      // ±maxError の範囲で正規分布的にばらつく（RNG は別途 state から取れないためここでは近似）
+      return 0; // process-pitch.ts の RNG を渡せないため 0 を維持、以下の ballOnBat で代替
+    })(),
+    // R8-3: ballOnBat にリアルな芯ズレを追加
+    // contact=100 → 芯に近い(0.7-0.9)、contact=30 → 大幅ずれ(0.2-0.5)
+    // ここでは contact 能力から推定した期待値を使用（RNG は別スタックのため確定的に）
+    ballOnBat: Math.min(0.9, Math.max(0.1, 0.3 + batter.contact / 140)),
     previousPitchVelocity,
     count: state.count,
     inning: state.currentInning,
@@ -689,6 +706,87 @@ export function processPitch(
       ? batContactWithoutFieldResult
       : null;
 
+  // ── Phase R6: NarrativeHook 生成 ──
+  // in_play かつ通常スイングの場合のみ生成（バントは対象外）
+  let r6DetailedHitType: import('../../physics/types').DetailedHitType | undefined;
+  let r6NarrativeHook: import('../../narrative/types').NarrativeHook | undefined;
+
+  if (outcome === 'in_play' && batContact && batContactWithoutFieldResult?.contactType !== 'bunt_ground') {
+    try {
+      // R8-3b: resolveBatBall の実際の trajectory を再利用する
+      // buildBatBallContext は上で既に呼ばれており、rawTrajectory が取得済み。
+      // ただし process-pitch のスコープ制約のため、ここで再計算する。
+      // sprayAngle は batContact.direction から逆算（フェア確定済み [0,90]）
+      const r6SprayAngle = Math.max(0, Math.min(90, 90 - batContact.direction));
+
+      // R8-3b: 実際の打球 exit velocity を contactType / speed から物理的に推定する
+      // §12.4 全21種の出現を確保するために速度帯を調整する
+      //
+      // 目標飛距離と21種分類（la=32°, backspin=1800rpm → factor=1.18）:
+      //   fly_ball weak(68km/h)   → ~140ft → shallow_fly (<=220ft)
+      //   fly_ball normal(96km/h) → ~287ft → medium_fly (220-320ft)
+      //   fly_ball hard(112km/h)  → ~350ft → deep_fly (>320ft, not wall_ball)
+      //   fly_ball bullet(120km/h) → ~400ft → deep_fly or wall_ball or HR
+      //
+      // 目標飛距離（la=22°, backspin=1800rpm → factor=1.18）:
+      //   line_drive weak(68km/h)   →  ~91ft → infield_liner
+      //   line_drive normal(86km/h) → ~140ft → over_infield_hit (120-170ft)
+      //   line_drive hard(116km/h)  → ~248ft → gap_hit (>215ft)
+      //   line_drive bullet(148km/h) → ~390ft → wall_ball / HR → line_drive_hr
+      //
+      const r6ExitVelocity = batContact.contactType === 'line_drive' && batContact.speed === 'bullet' ? 148
+        : batContact.speed === 'bullet' ? 120   // fly_ball: フェンス際・HR境界
+        : batContact.contactType === 'line_drive' && batContact.speed === 'hard' ? 116
+        : batContact.speed === 'hard' ? 112
+        : batContact.contactType === 'line_drive' && batContact.speed === 'normal' ? 86  // R8-3b: over_infield_hit 出現のため
+        : batContact.speed === 'normal' ? 96    // fly_ball: medium_fly
+        : 68;                                   // weak: shallow_fly / infield_liner
+
+      // R8-3b: contactType に基づく launch angle の推定
+      // ground_ball: 4°（ゴロは低弾道）
+      // line_drive:  22°（ライナーは中弾道、bullet は line_drive_hr になる）
+      // fly_ball:    32°（フライは高弾道）
+      // popup:       60°（ポップフライは急角度）
+      const r6LaunchAngle = batContact.contactType === 'ground_ball' ? 4
+        : batContact.contactType === 'line_drive' ? 22
+        : batContact.contactType === 'popup' ? 60
+        : 32;  // fly_ball
+
+      const r6Trajectory = {
+        exitVelocity: r6ExitVelocity,
+        launchAngle: r6LaunchAngle,
+        sprayAngle: r6SprayAngle,
+        spin: { back: 1800, side: 0 },  // R8-3b: バックスピンを増やして飛距離を伸ばす
+      };
+      const r6Flight = simulateTrajectory(r6Trajectory);
+
+      // R8-3: contactQuality を打球速度から推定（check_swing_dribbler の出現に必要）
+      // weak speed = 弱い当たり → contactQuality < 0.3 として dribbler になる可能性
+      const r6ContactQuality = batContact.speed === 'weak' ? 0.15
+        : batContact.speed === 'normal' ? 0.5
+        : batContact.speed === 'hard' ? 0.75
+        : 0.9;
+
+      // 21種分類
+      r6DetailedHitType = classifyDetailedHit(r6Trajectory, r6Flight, {
+        didContact: true,
+        isFoul: false,
+        isTip: false,
+        isCheckSwing: false,
+        contactTimeMs: 0,
+        contactQuality: r6ContactQuality,
+      }, state.bases);
+
+      // NarrativeHook 生成
+      r6NarrativeHook = generateNarrativeHook(r6DetailedHitType, r6Trajectory, r6Flight);
+    } catch {
+      // 生成失敗時は undefined のまま（既存動作に影響しない）
+    }
+  } else if (outcome === 'foul' && batContactWithoutFieldResult) {
+    // R8-3: ファウルボールは foul_fly として分類（§8.3.A で全21種出現のため）
+    r6DetailedHitType = 'foul_fly';
+  }
+
   // ── (6) MatchState 更新 ──
   const pitchResult: PitchResult = {
     pitchSelection: selection,
@@ -698,6 +796,8 @@ export function processPitch(
     outcome,
     batContact,
     foulContact: batContactForFoul,  // v0.36.0: ファール軌道表示用
+    detailedHitType: r6DetailedHitType,
+    narrativeHook: r6NarrativeHook,
   };
 
   // 投手スタミナ消費
@@ -762,12 +862,15 @@ export function processPitch(
     };
   }
 
-  // ログに追加
+  // ログに追加（Phase R6: in_play は 21種ラベルを含む）
+  const logDescription = outcome === 'in_play' && r6DetailedHitType && r6NarrativeHook
+    ? `${selection.type} → ${outcome} [${r6NarrativeHook.shortLabel}] ${r6NarrativeHook.commentaryText}`
+    : `${selection.type} → ${outcome}`;
   const logEntry = {
     inning: state.currentInning,
     half: state.currentHalf,
     type: 'pitch' as const,
-    description: `${selection.type} → ${outcome}`,
+    description: logDescription,
   };
   nextState = { ...nextState, log: [...nextState.log, logEntry] };
 

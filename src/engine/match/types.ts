@@ -12,6 +12,9 @@ import type {
 } from '../types/player';
 import type { Lineup, Team } from '../types/team';
 import type { RNG } from '../core/rng';
+import type { DetailedHitType } from '../physics/types';
+import type { NarrativeHook } from '../narrative/types';
+import type { MatchHitTypeStats } from '../narrative/hit-type-stats';
 
 // ============================================================
 // ストライクゾーン・コース
@@ -119,6 +122,11 @@ export interface PitchResult {
 
   // v0.36.0: ファール打球の軌道情報（UI描画専用、fieldResult 無し）
   foulContact?: Omit<BatContactResult, 'fieldResult'> | null;
+
+  // Phase R6: 21種打球分類（in_play の場合のみ）
+  detailedHitType?: DetailedHitType;
+  // Phase R6: NarrativeHook（in_play の場合のみ）
+  narrativeHook?: NarrativeHook;
 }
 
 // ============================================================
@@ -159,6 +167,10 @@ export interface AtBatResult {
   rbiCount: number;
   runnersBefore: BaseState;
   runnersAfter: BaseState;
+  // Phase R6: インプレー打球の21種分類（インプレーがない打席は undefined）
+  detailedHitType?: DetailedHitType;
+  // Phase R6: NarrativeHook（インプレーがない打席は undefined）
+  narrativeHook?: NarrativeHook;
 }
 
 // ============================================================
@@ -311,6 +323,9 @@ export interface MatchResult {
   mvpPlayerId: string | null;
   batterStats: MatchBatterStat[];
   pitcherStats: MatchPitcherStat[];
+  // Phase R6: 21種打球分類統計（ホーム・アウェー別）
+  homeHitTypeStats?: MatchHitTypeStats;
+  awayHitTypeStats?: MatchHitTypeStats;
 }
 
 /** 打者の試合個人成績 */

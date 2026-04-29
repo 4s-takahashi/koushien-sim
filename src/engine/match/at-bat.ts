@@ -348,6 +348,11 @@ export function processAtBat(
     finalState = { ...finalState, count: { balls: 0, strikes: 0 } };
   }
 
+  // Phase R6: インプレー打球の 21種分類・NarrativeHook を AtBatResult に格納
+  const inPlayPitch = pitches.find(
+    (p) => p.outcome === 'in_play' && p.detailedHitType !== undefined,
+  );
+
   return {
     nextState: finalState,
     result: {
@@ -359,6 +364,8 @@ export function processAtBat(
       rbiCount,
       runnersBefore,
       runnersAfter,
+      detailedHitType: inPlayPitch?.detailedHitType,
+      narrativeHook: inPlayPitch?.narrativeHook,
     },
   };
 }
