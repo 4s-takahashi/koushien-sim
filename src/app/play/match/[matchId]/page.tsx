@@ -1696,14 +1696,21 @@ export default function MatchPage() {
             (s2.pauseReason !== null &&
               !['pitch_start', 'at_bat_start', 'inning_end'].includes(s2.pauseReason.kind));
           if (cantNow) {
-            // S1-I: ガードで弾かれた場合はクールダウンを設定しない。
-            // 100ms ポーリングがすぐ次のタイマーを仕掛けて、ユーザーアクション
-            // （指示送信・指示画面を閉じるなど）後の再開を遅延させない。
+            // S1-J bugfix: ガード弾きでも 800ms のクールダウンを入れる
+            //   - S1-I では「即時 retry」にしたが、それが「指示後カウント3回繰り返し」を
+            //     引き起こした。指示送信時の React state 連続更新（setSelectMode +
+            //     applyOrder + resumeFromPause）の各々で 100ms tick がガード弾きを
+            //     繰り返してしまう。
+            //   - ガード弾き時もクールダウンすれば、状態遷移の途中で複数回タイマーを
+            //     仕掛けることを防げる。800ms あれば React の連続 set 反映後に1回だけ
+            //     正しく仕掛かる。
+            autoAdvanceCooldownUntilRef.current = Date.now() + 800;
             return;
           }
 
-          // S1-H: 実際に進行が走る場合のみクールダウン（500ms）を設定して二重タイマー防止
-          autoAdvanceCooldownUntilRef.current = Date.now() + 500;
+          // S1-J: 実際に進行が走る場合のクールダウンは 1500ms（500ms→1500ms に拡大）
+          //   stepOnePitch + 演出（staging）が確実に終わるまで新タイマーを抑制
+          autoAdvanceCooldownUntilRef.current = Date.now() + 1500;
 
           // pendingNextOrder を消費して adopt する
           const fn2 = autoAdvanceFnRef.current;

@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.45.8';
+export const VERSION = '0.45.9';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-05-01 21:05 UTC';
-export const GIT_SHA = 'f25ddca-dirty';
+export const BUILD_DATE = '2026-05-01 23:10 UTC';
+export const GIT_SHA = '465677f-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,27 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.45.9',
+    date: '2026-05-01',
+    changes: [
+      '🐛 v0.45.9: Phase S1-J 監督指示後の3回カウント繰り返し修正',
+      '',
+      '【症状】',
+      '  指示画面で「そのまま」など押すと、自動進行のカウントが3回繰り返されてから',
+      '  ようやく投球される現象。',
+      '',
+      '【原因】',
+      '  S1-I で「ガード弾き時はクールダウンしない」にしたため、',
+      '  handleOrder の連続 React state 更新（setSelectMode + applyOrder + resumeFromPause）',
+      '  の途中で 100ms tick が走るたびにガード弾き→新タイマー→ガード弾き→...と',
+      '  ループしていた。',
+      '',
+      '【修正】2段階クールダウン',
+      '  - ガード弾き時: 800ms クールダウン（state 連続反映の隙を埋める）',
+      '  - 実進行走行時: 1500ms クールダウン（500ms→1500ms に拡大、演出時間も含める）',
+    ],
+  },
   {
     version: '0.45.8',
     date: '2026-05-01',
