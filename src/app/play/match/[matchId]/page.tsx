@@ -1601,94 +1601,121 @@ export default function MatchPage() {
     }
   }, [narration.length, initialized, matchResult]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Phase 12-H: 新自動進行タイマー (autoAdvance) ──
-  // A1: プレイボール後 / A2: チェンジ後 / A5: 三振後 の isStagingDelay が true の間は発火しない
-  useEffect(() => {
-    // 前のタイマーをクリア
-    if (autoAdvanceTimerRef.current !== null) {
-      clearTimeout(autoAdvanceTimerRef.current);
-      autoAdvanceTimerRef.current = null;
-    }
+  // ── Phase S1-G: 新自動進行 — setInterval ベースの独立ポーリングループ ──
+  //
+  // 【設計の意図】
+  // useEffect の依存配列パズルでは「タイマーが消えて再起動されない」フリーズが
+  // S1-D/E/F と何度も発生したため、根本的に方針転換：
+  //   - 100ms ごとに setInterval で「自動進行可能か？」をポーリング
+  //   - 可能なら fireAt をセット（既存があれば触らない）
+  //   - fireAt 到達したら stepOnePitch / stepOneAtBat を実行
+  //   - 中断条件（pause/processing/staging/match_end）になったら fireAt クリア
+  // これにより React 状態変化トリガーへの依存が消え、必ず動き出すことを保証する。
+  //
+  // 【最新の参照を ref で持つ】
+  // setInterval コールバックから最新の状態を見るために、すべての関連する変数を
+  // ref に同期する。
+  const autoAdvanceStateRef = useRef({
+    initialized: false,
+    autoAdvance: false,
+    runnerMode,
+    pauseReason: null as typeof pauseReason,
+    matchResult: null as typeof matchResult,
+    isProcessing: false,
+    selectMode: selectMode,
+    isStagingDelay: false,
+  });
+  autoAdvanceStateRef.current = {
+    initialized,
+    autoAdvance,
+    runnerMode,
+    pauseReason,
+    matchResult,
+    isProcessing,
+    selectMode,
+    isStagingDelay,
+  };
+  // 関数 ref（最新を維持）
+  const autoAdvanceFnRef = useRef({ consumeNextOrder, applyOrder, stepOnePitch, stepOneAtBat });
+  autoAdvanceFnRef.current = { consumeNextOrder, applyOrder, stepOnePitch, stepOneAtBat };
 
-    if (!initialized) return;
-    if (!autoAdvance) {
-      setNextAutoAdvanceAt(null);
-      return;
-    }
-    // 自動進行中は pitch_start / at_bat_start / inning_end の「通常停止」は無視して進める。
-    // 勝負所 (scoring_chance / pinch / pitcher_tired / close_and_late) と match_end のみ停止。
-    if (pauseReason !== null) {
-      const routineKinds = ['pitch_start', 'at_bat_start', 'inning_end'];
-      const isRoutine = routineKinds.includes(pauseReason.kind);
-      if (!isRoutine) {
-        // 勝負所・試合終了 → 自動進行を一時中断（タイマーをクリアして待機）
-        setNextAutoAdvanceAt(null);
+  useEffect(() => {
+    // ポーリングループ — マウント時に1回だけセットアップ、アンマウント時に1回だけクリア
+    const tick = () => {
+      const s = autoAdvanceStateRef.current;
+      const fn = autoAdvanceFnRef.current;
+
+      // 自動進行不可能な状態 → タイマーをクリア
+      const cannotAdvance =
+        !s.initialized ||
+        !s.autoAdvance ||
+        s.matchResult !== null ||
+        s.isProcessing ||
+        s.selectMode.type !== 'none' ||
+        s.isStagingDelay ||
+        // pauseReason: 非 routine（勝負所・試合終了）なら停止
+        (s.pauseReason !== null &&
+          !['pitch_start', 'at_bat_start', 'inning_end'].includes(s.pauseReason.kind));
+
+      if (cannotAdvance) {
+        if (autoAdvanceTimerRef.current !== null) {
+          clearTimeout(autoAdvanceTimerRef.current);
+          autoAdvanceTimerRef.current = null;
+        }
+        setNextAutoAdvanceAt((prev) => (prev !== null ? null : prev));
         return;
       }
-      // routine pause は無視して自動進行継続
-    }
-    if (matchResult !== null) {
-      setNextAutoAdvanceAt(null);
-      return;
-    }
-    if (isProcessing) {
-      // S1-E bugfix: isProcessing=true のとき nextAutoAdvanceAt をクリアしないと
-      // 直前にセットされた値が残り「今すぐ進める」ボタンが表示され続けるため null に戻す
-      setNextAutoAdvanceAt(null);
-      return;
-    }
-    if (selectMode.type !== 'none') {
-      setNextAutoAdvanceAt(null);
-      return;
-    }
-    // A1/A2/A5: ステージングディレイ中は次のピッチを発火しない
-    if (isStagingDelay) {
-      setNextAutoAdvanceAt(null);
-      return;
-    }
 
-    const delayMs = DELAY_MS[runnerMode.time];
-    const fireAt = Date.now() + delayMs;
-    setNextAutoAdvanceAt(fireAt);
+      // 自動進行可能 → タイマーがなければセット
+      if (autoAdvanceTimerRef.current === null) {
+        const delayMs = DELAY_MS[s.runnerMode.time];
+        const fireAt = Date.now() + delayMs;
+        setNextAutoAdvanceAt(fireAt);
 
-    autoAdvanceTimerRef.current = setTimeout(() => {
-      autoAdvanceTimerRef.current = null;
-      setNextAutoAdvanceAt(null);
-      // pendingNextOrder を消費して adopt する
-      const pending = consumeNextOrder();
-      if (pending && pending.type !== 'none') {
-        applyOrder(pending);
+        autoAdvanceTimerRef.current = setTimeout(() => {
+          autoAdvanceTimerRef.current = null;
+          setNextAutoAdvanceAt(null);
+          // 発火直前にもう一度ガードチェック（中断条件が後から成立した場合の保険）
+          const s2 = autoAdvanceStateRef.current;
+          const cantNow =
+            !s2.initialized ||
+            !s2.autoAdvance ||
+            s2.matchResult !== null ||
+            s2.isProcessing ||
+            s2.selectMode.type !== 'none' ||
+            s2.isStagingDelay ||
+            (s2.pauseReason !== null &&
+              !['pitch_start', 'at_bat_start', 'inning_end'].includes(s2.pauseReason.kind));
+          if (cantNow) return;
+
+          // pendingNextOrder を消費して adopt する
+          const fn2 = autoAdvanceFnRef.current;
+          const pending = fn2.consumeNextOrder();
+          if (pending && pending.type !== 'none') {
+            fn2.applyOrder(pending);
+          }
+          if (s2.runnerMode.pitch === 'on') {
+            fn2.stepOnePitch();
+          } else {
+            fn2.stepOneAtBat();
+          }
+        }, delayMs);
       }
-      if (runnerMode.pitch === 'on') {
-        stepOnePitch();
-      } else {
-        stepOneAtBat();
-      }
-    }, delayMs);
+    };
+
+    // 最初のチェックは即座に + その後 100ms ごとにポーリング
+    tick();
+    const intervalId = setInterval(tick, 100);
 
     return () => {
+      clearInterval(intervalId);
       if (autoAdvanceTimerRef.current !== null) {
         clearTimeout(autoAdvanceTimerRef.current);
         autoAdvanceTimerRef.current = null;
       }
     };
-  }, [
-    initialized,
-    autoAdvance,
-    runnerMode.time,
-    runnerMode.pitch,
-    pauseReason,
-    matchResult,
-    isProcessing,
-    selectMode.type,
-    isStagingDelay,
-    // S1-F bugfix: narration.length / pitchLog.length は依存配列から削除。
-    // タイマー稼働中（5秒待ち中）にナレーションが追加されると useEffect が再実行されて
-    // クリーンアップでタイマーが消える → 新タイマーが Date.now()+delayMs でリセットされる
-    // → ナレーションが頻繁に追加されると永遠にタイマーがリセットされ続けて発火しない、
-    //   というフリーズが発生していた。
-    // タイマー次回起動の判断は isProcessing / isStagingDelay の変化で十分検出できる。
-  ]); // eslint-disable-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // ← 依存配列は空。マウント時1回のみセットアップ
 
   // ── Phase 12-H: カウントダウン表示 (100msごとに再描画) ──
   useEffect(() => {

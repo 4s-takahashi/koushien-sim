@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.45.5';
+export const VERSION = '0.45.6';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-05-01 12:38 UTC';
-export const GIT_SHA = 'caeb748-dirty';
+export const BUILD_DATE = '2026-05-01 20:35 UTC';
+export const GIT_SHA = 'b76d13a-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,35 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.45.6',
+    date: '2026-05-01',
+    changes: [
+      '🐛 v0.45.6: Phase S1-G 自動進行フリーズ完全修正 — setInterval ベースの独立ポーリング方式',
+      '',
+      '【背景】',
+      '  S1-D/E/F と useEffect 依存配列の調整を繰り返したが、',
+      '  「監督の指示・そのまま」を押しても動かない、速度切替やトグルで動き出す、',
+      '  という症状が残っていた。useEffect の状態変化検出ではタイマー再起動を',
+      '  保証できないため根本方針転換。',
+      '',
+      '【修正】useEffect 状態変化トリガーから setInterval ポーリング方式へ',
+      '  - マウント時に setInterval(100ms) で独立ポーリングループを起動',
+      '  - autoAdvanceStateRef / autoAdvanceFnRef に最新状態と関数を同期',
+      '  - 100ms ごとに「自動進行可能か」を直接判定',
+      '    - 不可能 → タイマークリア + nextAutoAdvanceAt=null',
+      '    - 可能 + タイマーなし → 新タイマーセット',
+      '    - 可能 + タイマーあり → 何もしない（既存タイマーを守る）',
+      '  - タイマー発火直前にもガード再チェック（保険）',
+      '  - 依存配列を空にしたので useEffect 再実行によるタイマーキャンセル問題が消滅',
+      '',
+      '【効果】',
+      '  - React 状態変化トリガーへの依存が完全に消えた',
+      '  - どんな状態変化でも 100ms 以内にタイマーが正しく管理される',
+      '  - narration/pitchLog の追加でリセットされない',
+      '  - isProcessing 変化を見逃すことがない',
+    ],
+  },
   {
     version: '0.45.5',
     date: '2026-05-01',
