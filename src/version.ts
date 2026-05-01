@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.45.7';
+export const VERSION = '0.45.8';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-05-01 20:53 UTC';
-export const GIT_SHA = '3641f7a-dirty';
+export const BUILD_DATE = '2026-05-01 21:05 UTC';
+export const GIT_SHA = 'f25ddca-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,29 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.45.8',
+    date: '2026-05-01',
+    changes: [
+      '🐛 v0.45.8: Phase S1-I 監督指示後の発火不安定問題を修正',
+      '',
+      '【症状】',
+      '  監督の細かい指示（バント/盗塁/詳細采配など）を出した後、',
+      '  カウント終了時に投げないことがある（発火しない）。',
+      '',
+      '【原因】',
+      '  S1-H で発火コールバック先頭に 500ms クールダウンを置いていたが、',
+      '  ガードで弾かれた（selectMode変化中・pauseReason再評価などのタイミング）',
+      '  場合でもクールダウンが掛かり、500ms 経つまで新タイマーが仕掛からない。',
+      '  さらに 500ms 後に再度タイマー発火 → またガード弾き → クールダウン...',
+      '  というループで永遠に発火しない可能性があった。',
+      '',
+      '【修正】クールダウンは「実際に進行が走った場合」のみ設定',
+      '  - ガードで弾かれた場合は cooldownUntil をセットしない',
+      '  - 100ms ポーリングが即座に次のタイマーを仕掛けられる',
+      '  - ユーザーアクション後の再開遅延が解消',
+    ],
+  },
   {
     version: '0.45.7',
     date: '2026-05-01',

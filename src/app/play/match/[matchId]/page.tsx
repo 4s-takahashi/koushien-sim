@@ -1682,8 +1682,6 @@ export default function MatchPage() {
         setNextAutoAdvanceAt(fireAt);
 
         autoAdvanceTimerRef.current = setTimeout(() => {
-          // S1-H: 発火直後にクールダウン（500ms）を設定して二重タイマーを防止
-          autoAdvanceCooldownUntilRef.current = Date.now() + 500;
           autoAdvanceTimerRef.current = null;
           setNextAutoAdvanceAt(null);
           // 発火直前にもう一度ガードチェック（中断条件が後から成立した場合の保険）
@@ -1697,7 +1695,15 @@ export default function MatchPage() {
             s2.isStagingDelay ||
             (s2.pauseReason !== null &&
               !['pitch_start', 'at_bat_start', 'inning_end'].includes(s2.pauseReason.kind));
-          if (cantNow) return;
+          if (cantNow) {
+            // S1-I: ガードで弾かれた場合はクールダウンを設定しない。
+            // 100ms ポーリングがすぐ次のタイマーを仕掛けて、ユーザーアクション
+            // （指示送信・指示画面を閉じるなど）後の再開を遅延させない。
+            return;
+          }
+
+          // S1-H: 実際に進行が走る場合のみクールダウン（500ms）を設定して二重タイマー防止
+          autoAdvanceCooldownUntilRef.current = Date.now() + 500;
 
           // pendingNextOrder を消費して adopt する
           const fn2 = autoAdvanceFnRef.current;
