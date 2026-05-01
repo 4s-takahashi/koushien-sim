@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.45.9';
+export const VERSION = '0.45.10';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-05-01 23:10 UTC';
-export const GIT_SHA = '465677f-dirty';
+export const BUILD_DATE = '2026-05-01 23:28 UTC';
+export const GIT_SHA = 'e152a9a-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,27 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.45.10',
+    date: '2026-05-01',
+    changes: [
+      '🐛 v0.45.10: Phase S1-K 試合ロード時のデータ残存修正 + クールダウン微調整',
+      '',
+      '【症状1】試合前の日程からロードして試合開始すると、前の試合のナレーション/采配が残る',
+      '【原因】initMatch() で pitchLog はクリアしていたが、narration / pendingNextOrder /',
+      '         currentOrder / recentMonologueIds / lastOrder / nextAutoAdvanceAt が',
+      '         クリアされていなかった',
+      '【修正】試合状態に紐づくすべてのフィールドを initMatch で明示クリア',
+      '         （ユーザー設定の runnerMode/autoAdvance/autoPlay系は維持）',
+      '',
+      '【症状2】v0.45.9 でも自動進行が発火しないことがある',
+      '【原因】S1-J の 800ms ガード弾きクールダウンが長すぎて、',
+      '         状態遷移後の自動再開を遅らせていた可能性',
+      '【修正】クールダウン値を再調整',
+      '         - ガード弾き: 800ms → 200ms（連続 set 反映の最低限のみ）',
+      '         - 実進行走行: 1500ms → 1200ms（演出時間は確保しつつ短縮）',
+    ],
+  },
   {
     version: '0.45.9',
     date: '2026-05-01',

@@ -547,12 +547,23 @@ export const useMatchStore = create<MatchStore>()(
     const { runnerMode, autoAdvance } = get();
     const pauseReason = evaluatePause(runner, runnerMode, autoAdvance);
 
+    // S1-K bugfix: 試合をロードして開始するときに前の試合データが残ってしまうため、
+    // 試合状態に紐づくすべてのフィールドを明示的にクリアする。
+    // （narration / pendingNextOrder / currentOrder / recentMonologueIds / lastOrder /
+    //  nextAutoAdvanceAt が漏れていた）
+    // runnerMode / autoAdvance / autoPlayEnabled / autoPlaySpeed はユーザー設定なので維持する。
     set({
       runner,
       playerSchoolId,
       gameSeed: seed,
       pauseReason,
       pitchLog: [],
+      narration: [],
+      pendingNextOrder: null,
+      currentOrder: { type: 'none' },
+      recentMonologueIds: [],
+      lastOrder: null,
+      nextAutoAdvanceAt: null,
       matchResult: null,
       isProcessing: false,
       analystComments: [],
