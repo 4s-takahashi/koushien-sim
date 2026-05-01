@@ -1639,11 +1639,20 @@ export default function MatchPage() {
   const autoAdvanceFnRef = useRef({ consumeNextOrder, applyOrder, stepOnePitch, stepOneAtBat });
   autoAdvanceFnRef.current = { consumeNextOrder, applyOrder, stepOnePitch, stepOneAtBat };
 
+  // S1-H: タイマー発火直後のクールダウン用フラグ（二重カウント防止）
+  // 発火直後は stepOnePitch が isProcessing=true にするまでに数 tick の隙があり、
+  // そのまま「タイマーなし & isProcessing=false」と判定されて新タイマーが先行セットされる
+  // → カウントが2回繰り返される問題が発生していたため、500ms のクールダウンを設ける。
+  const autoAdvanceCooldownUntilRef = useRef<number>(0);
+
   useEffect(() => {
     // ポーリングループ — マウント時に1回だけセットアップ、アンマウント時に1回だけクリア
     const tick = () => {
       const s = autoAdvanceStateRef.current;
-      const fn = autoAdvanceFnRef.current;
+      const now = Date.now();
+
+      // クールダウン中は新タイマーを仕掛けない（既存タイマーには触らない）
+      const inCooldown = now < autoAdvanceCooldownUntilRef.current;
 
       // 自動進行不可能な状態 → タイマーをクリア
       const cannotAdvance =
@@ -1666,13 +1675,15 @@ export default function MatchPage() {
         return;
       }
 
-      // 自動進行可能 → タイマーがなければセット
-      if (autoAdvanceTimerRef.current === null) {
+      // 自動進行可能 → タイマーがなくクールダウン中でなければセット
+      if (autoAdvanceTimerRef.current === null && !inCooldown) {
         const delayMs = DELAY_MS[s.runnerMode.time];
-        const fireAt = Date.now() + delayMs;
+        const fireAt = now + delayMs;
         setNextAutoAdvanceAt(fireAt);
 
         autoAdvanceTimerRef.current = setTimeout(() => {
+          // S1-H: 発火直後にクールダウン（500ms）を設定して二重タイマーを防止
+          autoAdvanceCooldownUntilRef.current = Date.now() + 500;
           autoAdvanceTimerRef.current = null;
           setNextAutoAdvanceAt(null);
           // 発火直前にもう一度ガードチェック（中断条件が後から成立した場合の保険）

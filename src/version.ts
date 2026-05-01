@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.45.6';
+export const VERSION = '0.45.7';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-05-01 20:35 UTC';
-export const GIT_SHA = 'b76d13a-dirty';
+export const BUILD_DATE = '2026-05-01 20:53 UTC';
+export const GIT_SHA = '3641f7a-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,31 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.45.7',
+    date: '2026-05-01',
+    changes: [
+      '🐛 v0.45.7: Phase S1-H 自動進行カウント二重発火修正',
+      '',
+      '【症状】',
+      '  標準5秒のとき、5秒カウントが終わって投げる直前にもう一度5秒カウントが',
+      '  始まってから投球される現象（実質10秒待ち）。',
+      '',
+      '【根本原因】',
+      '  S1-G の setInterval ポーリング方式で、タイマー発火コールバックが',
+      '  `autoAdvanceTimerRef.current = null` した直後、stepOnePitch が呼ばれる前の',
+      '  数 tick で「タイマーなし & isProcessing=false」と判定されて',
+      '  100ms ポーリングが新タイマーを先行セットしてしまう。',
+      '  その後 stepOnePitch が走り isProcessing=true→false になっても、',
+      '  既に仕掛かった新タイマーは生き続け、もう一度カウントしてから発火する。',
+      '',
+      '【修正】タイマー発火後 500ms のクールダウン期間を導入',
+      '  - autoAdvanceCooldownUntilRef を追加',
+      '  - 発火コールバック先頭で Date.now()+500 をセット',
+      '  - tick で「クールダウン中なら新タイマーを仕掛けない」ガードを追加',
+      '  - これで stepOnePitch が isProcessing を確実に立てる時間を確保',
+    ],
+  },
   {
     version: '0.45.6',
     date: '2026-05-01',
