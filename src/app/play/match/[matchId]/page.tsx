@@ -1510,8 +1510,8 @@ export default function MatchPage() {
     matchResult,
     isProcessing,
     selectMode.type,
-    narration.length,
     stepOneAtBat,
+    // S1-F bugfix: narration.length を削除（同上の理由）
   ]);
 
   // ── Phase S1-A: ステージングディレイ (A1/A2/A5) ──
@@ -1681,9 +1681,13 @@ export default function MatchPage() {
     matchResult,
     isProcessing,
     selectMode.type,
-    narration.length,
-    pitchLog.length,
     isStagingDelay,
+    // S1-F bugfix: narration.length / pitchLog.length は依存配列から削除。
+    // タイマー稼働中（5秒待ち中）にナレーションが追加されると useEffect が再実行されて
+    // クリーンアップでタイマーが消える → 新タイマーが Date.now()+delayMs でリセットされる
+    // → ナレーションが頻繁に追加されると永遠にタイマーがリセットされ続けて発火しない、
+    //   というフリーズが発生していた。
+    // タイマー次回起動の判断は isProcessing / isStagingDelay の変化で十分検出できる。
   ]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Phase 12-H: カウントダウン表示 (100msごとに再描画) ──

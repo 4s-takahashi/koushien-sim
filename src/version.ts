@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.45.4';
+export const VERSION = '0.45.5';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-05-01 07:21 UTC';
-export const GIT_SHA = '1507d78-dirty';
+export const BUILD_DATE = '2026-05-01 12:38 UTC';
+export const GIT_SHA = 'caeb748-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,28 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.45.5',
+    date: '2026-05-01',
+    changes: [
+      '🐛 v0.45.5: Phase S1-F 自動進行フリーズ修正（標準5秒で発生していた最後の症状）',
+      '',
+      '【根本原因】タイマー稼働中のナレーション追加で useEffect がリセットループに陥る',
+      '  - 自動進行 useEffect の依存配列に narration.length / pitchLog.length が含まれていた',
+      '  - 5秒タイマー稼働中にナレーションが追加されると useEffect が再実行され、',
+      '    クリーンアップで setTimeout がキャンセルされ、新タイマーが Date.now()+5000 で',
+      '    再セットされる。ナレーション追加が頻繁に起きると 5秒タイマーが永遠にリセットされ',
+      '    続け、発火しないフリーズが発生していた。',
+      '  - ゆっくり 10秒に切り替えると runnerMode.time の変化で useEffect が一度再実行され',
+      '    その後ナレーション追加が落ち着いた瞬間に発火するため動き出していた。',
+      '',
+      '【修正】narration.length / pitchLog.length を依存配列から削除',
+      '  - 自動進行タイマーは isProcessing / isStagingDelay の変化で十分検出できる',
+      '  - 旧自動進行 (autoPlayEnabled) も同様の修正を適用（保険）',
+      '',
+      'Tests: ビルド成功、リグレッション確認は npm test で実施',
+    ],
+  },
   {
     version: '0.45.4',
     date: '2026-05-01',
