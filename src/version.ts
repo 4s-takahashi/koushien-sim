@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.45.3';
+export const VERSION = '0.45.4';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-05-01 04:44 UTC';
-export const GIT_SHA = 'dc728b9-dirty';
+export const BUILD_DATE = '2026-05-01 07:21 UTC';
+export const GIT_SHA = '1507d78-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,37 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.45.4',
+    date: '2026-05-01',
+    changes: [
+      '🐛 v0.45.4: Phase S1-E 自動進行フリーズ根本原因修正',
+      '',
+      '【根本原因1修正】ステージングディレイが CHANGE/STRIKEOUT を検出できなかった',
+      '  - buildNarrationForPitch は1回の stepOnePitch で複数エントリを追加する',
+      '    （例: 打者登場 + 三振 + アウト数 + チェンジ + 新イニング開始）',
+      '  - 従来コードは最終エントリのみをチェックしていたため CHANGE/STRIKEOUT を見逃し',
+      '    isStagingDelay=true がセットされず自動進行が継続してしまう問題があった',
+      '  - 修正: 全新規エントリを検索して CHANGE/STRIKEOUT を検出するよう変更',
+      '',
+      '【根本原因2修正】三振演出の delay2 タイマーが premature にキャンセルされていた',
+      '  - delay1 コールバック内で appendNarration を呼ぶと narration.length が変化し',
+      '    staging useEffect が再起動して delay2 タイマーをクリアしていた',
+      '  - 修正: appendNarration を呼ぶ前に stagingTimerRef.current = null にクリア',
+      '    これにより staging 効果が appendNarration による narLen 変化に反応しても',
+      '    タイマーを誤ってキャンセルしなくなる',
+      '',
+      '【根本原因3修正】isProcessing=true でも nextAutoAdvanceAt をクリアしていなかった',
+      '  - autoAdvance useEffect の isProcessing ガードで return するとき',
+      '    setNextAutoAdvanceAt(null) を呼んでいなかったため',
+      '    stale な nextAutoAdvanceAt 値が残り「今すぐ進める」ボタンが表示され続けた',
+      '  - 修正: isProcessing/selectMode/isStagingDelay の全ガード出口で null をセット',
+      '',
+      '【デバッグログ削除】前バージョンで追加したデバッグ console.log を全て削除',
+      '',
+      'テスト: UI(532) + Engine(1361) + Stores(27) + Phase9/Data(39) = PASS',
+    ],
+  },
   {
     version: '0.45.3',
     date: '2026-05-01',

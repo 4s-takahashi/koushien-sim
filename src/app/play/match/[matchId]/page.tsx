@@ -1522,23 +1522,28 @@ export default function MatchPage() {
     if (matchResult !== null) return;
     // ナレーションが増えていない場合はスキップ
     const len = narration.length;
-    if (len === prevNarrationLengthRef.current) return;
+    const prevLen = prevNarrationLengthRef.current;
+    if (len === prevLen) return;
     prevNarrationLengthRef.current = len;
 
-    const latestEntry = narration[len - 1];
-    if (!latestEntry) return;
+    // S1-E bugfix: buildNarrationForPitch は1回の stepOnePitch で複数エントリを追加する
+    // （例: 打者登場 + 三振 + アウト数 + チェンジ + 新イニング開始）。
+    // 最終エントリだけを見ると CHANGE/STRIKEOUT を見逃すため、全新規エントリを検索する。
+    const newEntries = narration.slice(prevLen);
+    const hasChange = newEntries.some((e) => isChangeNarration(e.text));
+    const hasStrikeout = newEntries.some((e) => isStrikeoutNarration(e.text));
 
     // 前のステージングタイマーをクリア
+    // S1-D bugfix: クリア時に isStagingDelay を解除する（永続フリーズ防止）
+    // S1-E 補足: CHANGE/STRIKEOUT が新規エントリに含まれる場合は直後に再セットするので問題なし
     if (stagingTimerRef.current !== null) {
       clearTimeout(stagingTimerRef.current);
       stagingTimerRef.current = null;
-      // S1-D bugfix: タイマーをクリアしたとき isStagingDelay が true のままなら解除する
-      // （チェンジ・三振以外の通常ナレーションが来た場合に永続フリーズを防ぐ）
       setIsStagingDelay(false);
     }
 
     // A2: チェンジイベント検出 → CHANGE_DELAY_MS 遅延
-    if (isChangeNarration(latestEntry.text)) {
+    if (hasChange) {
       const changeDelay = getChangeDelayMs(runnerMode.time);
       setIsStagingDelay(true);
       stagingTimerRef.current = setTimeout(() => {
@@ -1549,13 +1554,18 @@ export default function MatchPage() {
     }
 
     // A5: 三振イベント検出 → 1.5秒待機 → 次打者ログ → 0.5秒待機
-    if (isStrikeoutNarration(latestEntry.text)) {
+    if (hasStrikeout) {
       const delay1 = getStrikeoutDelay1Ms(runnerMode.time);
       const delay2 = getStrikeoutDelay2Ms(runnerMode.time);
       setIsStagingDelay(true);
 
       stagingTimerRef.current = setTimeout(() => {
         // 1.5秒後: 次打者ログを追加
+        // S1-E bugfix: appendNarration を呼ぶ前に stagingTimerRef を null にクリアしておく。
+        // appendNarration が narration.length を変化させ、staging useEffect が再起動されるが、
+        // その時点で stagingTimerRef.current が null であれば delay2 タイマーを誤って
+        // クリアしない（isStagingDelay=true のまま維持される）。
+        stagingTimerRef.current = null;
         const currentView = useMatchStore.getState().runner?.getState();
         if (currentView) {
           const battingTeam = currentView.currentHalf === 'top'
@@ -1621,8 +1631,16 @@ export default function MatchPage() {
       setNextAutoAdvanceAt(null);
       return;
     }
-    if (isProcessing) return;
-    if (selectMode.type !== 'none') return;
+    if (isProcessing) {
+      // S1-E bugfix: isProcessing=true のとき nextAutoAdvanceAt をクリアしないと
+      // 直前にセットされた値が残り「今すぐ進める」ボタンが表示され続けるため null に戻す
+      setNextAutoAdvanceAt(null);
+      return;
+    }
+    if (selectMode.type !== 'none') {
+      setNextAutoAdvanceAt(null);
+      return;
+    }
     // A1/A2/A5: ステージングディレイ中は次のピッチを発火しない
     if (isStagingDelay) {
       setNextAutoAdvanceAt(null);
