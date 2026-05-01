@@ -214,6 +214,8 @@ function buildBatterView(state: MatchState): BatterView {
   const battingTeam = state.currentHalf === 'top' ? state.awayTeam : state.homeTeam;
   const batterId = battingTeam.battingOrder[state.currentBatterIndex];
   const batterMP = battingTeam.players.find((mp) => mp.player.id === batterId);
+  // S1-D: 打順番号（1〜9）
+  const lineupNumber = state.currentBatterIndex + 1;
 
   if (!batterMP) {
     return {
@@ -224,6 +226,7 @@ function buildBatterView(state: MatchState): BatterView {
       overall: 0,
       moodLabel: '普通',
       trait: null,
+      lineupNumber,
     };
   }
 
@@ -235,6 +238,7 @@ function buildBatterView(state: MatchState): BatterView {
     overall: computeOverall(batterMP),
     moodLabel: moodToLabel(batterMP.player.condition.mood),
     trait: getFirstTraitLabel(batterMP),
+    lineupNumber,
   };
 }
 

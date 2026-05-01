@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.45.2';
+export const VERSION = '0.45.3';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-04-29 17:48 UTC';
-export const GIT_SHA = '50b4101-dirty';
+export const BUILD_DATE = '2026-05-01 04:44 UTC';
+export const GIT_SHA = 'dc728b9-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,30 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.45.3',
+    date: '2026-05-01',
+    changes: [
+      '🐛 v0.45.3: Phase S1-D UIバグ修正3件',
+      '',
+      '【バグ1修正】「今すぐ進める」ボタンが常時表示されるバグ',
+      '  - isStagingDelay が永続的に true のまま固まるバグを修正',
+      '    （チェンジ・三振以外の通常ナレーションが来たとき前のタイマーをクリアしたが',
+      '     isStagingDelay=false にリセットしていなかった）',
+      '  - 「今すぐ進める」ボタンの表示条件に remainingMs !== null を追加',
+      '    （タイマー稼働中のみ表示し、ステージングディレイ中は非表示）',
+      '',
+      '【バグ2修正】手動進行ボタン（1球/1打席/1回/最後）が常に disabled になるバグ',
+      '  - autoPlayEnabled のデフォルト値を true → false に変更',
+      '    （true のままだと stepsDisabled = !canProgress || enabled で常に disabled）',
+      '',
+      '【バグ3追加】打者表示に打順番号を追加',
+      '  - BatterView に lineupNumber フィールドを追加',
+      '  - ストライクゾーンラベルと打者パネルで「3番：遠藤孝雄(中京)」形式で表示',
+      '',
+      'テスト 2002/2002 PASS（リグレッションなし）',
+    ],
+  },
   {
     version: '0.45.2',
     date: '2026-04-29',

@@ -746,6 +746,8 @@ export interface BatterView {
   overall: number;
   moodLabel: string;
   trait: string | null; // 最初の特性名
+  /** 打順番号（1〜9）。S1-D で追加 */
+  lineupNumber: number;
 }
 
 /** リリーフ候補（UI用） */

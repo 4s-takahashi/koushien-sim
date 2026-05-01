@@ -383,7 +383,7 @@ function BatterPanel({ view, matchId }: { view: MatchViewState; matchId: string 
           className={styles.playerNameLink}
           onClick={handlePlayerClick}
         >
-          {b.name}{b.schoolShortName ? <span className={styles.schoolShortName}>({b.schoolShortName})</span> : null}
+          {b.lineupNumber}番：{b.name}{b.schoolShortName ? <span className={styles.schoolShortName}>({b.schoolShortName})</span> : null}
         </Link>
       </div>
 
@@ -1022,8 +1022,10 @@ function AutoAdvanceBar({
         </button>
       </div>
 
-      {/* カウントダウン・操作ボタン（自動進行ON時のみ表示） */}
-      {autoAdvance && !isPaused && (
+      {/* カウントダウン・操作ボタン（自動進行ON かつ タイマー稼働中のみ表示）
+           S1-D bugfix: isStagingDelay 中（remainingMs=null）は非表示にして
+           「今すぐ進める」が常時表示されるバグを修正 */}
+      {autoAdvance && !isPaused && remainingMs !== null && (
         <>
           {countdownText && (
             <span className={`${styles.autoAdvanceCountdown} ${remainingMs !== null && remainingMs < 2000 ? styles.autoAdvanceCountdownHighlight : ''}`}>
@@ -1530,6 +1532,9 @@ export default function MatchPage() {
     if (stagingTimerRef.current !== null) {
       clearTimeout(stagingTimerRef.current);
       stagingTimerRef.current = null;
+      // S1-D bugfix: タイマーをクリアしたとき isStagingDelay が true のままなら解除する
+      // （チェンジ・三振以外の通常ナレーションが来た場合に永続フリーズを防ぐ）
+      setIsStagingDelay(false);
     }
 
     // A2: チェンジイベント検出 → CHANGE_DELAY_MS 遅延
@@ -2126,7 +2131,7 @@ function MatchPageInner({
         <div className={visualStyles.strikeZoneColumn}>
           <div className={visualStyles.strikeZoneLabel}>
             <span>投手：{view.pitcher.name}{view.pitcher.schoolShortName ? `(${view.pitcher.schoolShortName})` : ''}</span>
-            <span>打者：{view.batter.name}{view.batter.schoolShortName ? `(${view.batter.schoolShortName})` : ''}</span>
+            <span>打者：{view.batter.lineupNumber}番：{view.batter.name}{view.batter.schoolShortName ? `(${view.batter.schoolShortName})` : ''}</span>
           </div>
           <StrikeZone history={markerHistory} />
         </div>

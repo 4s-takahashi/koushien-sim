@@ -228,7 +228,7 @@ const INITIAL_STATE: MatchStoreState = {
   pauseReason: null,
   pitchLog: [],
   narration: [],
-  autoPlayEnabled: true,
+  autoPlayEnabled: false, // S1-D bugfix: デフォルト false に変更（true だと手動進行ボタンが常に disabled になるバグ）
   autoPlaySpeed: 'normal',
   autoAdvance: false,
   nextAutoAdvanceAt: null,
