@@ -20,6 +20,8 @@ import {
   isStrikeoutNarration,
   buildNextBatterLog,
 } from '../../../../ui/match-visual/MatchPlayerHooks';
+// Phase S1-L: 単一オーナー自動進行コントローラ
+import { useAutoAdvanceController } from '../../../../ui/match-visual/useAutoAdvanceController';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useWorldStore } from '../../../../stores/world-store';
@@ -927,7 +929,8 @@ function AutoPlayBar({
 // ============================================================
 
 /**
- * TimeMode の遅延マッピング (ms)
+ * TimeMode の遅延マッピング (ms) — Phase S1-L: useAutoAdvanceController の
+ * AUTO_ADVANCE_DELAY_MS と同一値。AutoAdvanceBar の表示ラベル用にここでも定義。
  */
 const DELAY_MS: Record<import('../../../../engine/match/runner-types').TimeMode, number> = {
   slow:     10000,
@@ -1280,11 +1283,6 @@ export default function MatchPage() {
   const [initialized, setInitialized] = useState(false);
   // Phase 12-H: PLAY BALL 演出
   const [showPlayBall, setShowPlayBall] = useState(false);
-  // Phase 12-H: カウントダウン用タイムスタンプ
-  const [nextAutoAdvanceAt, setNextAutoAdvanceAt] = useState<number | null>(null);
-  // Phase 12-H: カウントダウン表示用の再描画トリガー
-  const [_countdownTick, setCountdownTick] = useState(0);
-  const autoAdvanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Phase S1-A: 演出ディレイ中かどうか (A1/A2/A5 の待機中フラグ)
   const [isStagingDelay, setIsStagingDelay] = useState(false);
   const stagingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1601,159 +1599,23 @@ export default function MatchPage() {
     }
   }, [narration.length, initialized, matchResult]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Phase S1-G: 新自動進行 — setInterval ベースの独立ポーリングループ ──
+  // ── Phase S1-L: 新自動進行 — 単一オーナー useAutoAdvanceController ──
   //
-  // 【設計の意図】
-  // useEffect の依存配列パズルでは「タイマーが消えて再起動されない」フリーズが
-  // S1-D/E/F と何度も発生したため、根本的に方針転換：
-  //   - 100ms ごとに setInterval で「自動進行可能か？」をポーリング
-  //   - 可能なら fireAt をセット（既存があれば触らない）
-  //   - fireAt 到達したら stepOnePitch / stepOneAtBat を実行
-  //   - 中断条件（pause/processing/staging/match_end）になったら fireAt クリア
-  // これにより React 状態変化トリガーへの依存が消え、必ず動き出すことを保証する。
+  // 【S1-G ～ S1-K の根本問題】
+  // setInterval 100ms ポーリング + クールダウン ref の組み合わせは、
+  // React state 更新の非同期性（handleOrder → setSelectMode + applyOrder +
+  // resumeFromPause の 3 回 setState が別 tick で反映）と競合し、
+  // クールダウン値を調整しても新たなエッジケースが生じ続けた。
   //
-  // 【最新の参照を ref で持つ】
-  // setInterval コールバックから最新の状態を見るために、すべての関連する変数を
-  // ref に同期する。
-  const autoAdvanceStateRef = useRef({
-    initialized: false,
-    autoAdvance: false,
-    runnerMode,
-    pauseReason: null as typeof pauseReason,
-    matchResult: null as typeof matchResult,
-    isProcessing: false,
-    selectMode: selectMode,
-    isStagingDelay: false,
-  });
-  autoAdvanceStateRef.current = {
-    initialized,
-    autoAdvance,
-    runnerMode,
-    pauseReason,
-    matchResult,
-    isProcessing,
-    selectMode,
-    isStagingDelay,
-  };
-  // 関数 ref（最新を維持）
-  const autoAdvanceFnRef = useRef({ consumeNextOrder, applyOrder, stepOnePitch, stepOneAtBat });
-  autoAdvanceFnRef.current = { consumeNextOrder, applyOrder, stepOnePitch, stepOneAtBat };
+  // 【S1-L の設計】
+  // - useAutoAdvanceController がタイマーの単一オーナーになる
+  // - canAdvance のブール値が変化したときだけ useEffect が再実行される
+  // - React バッチ更新後に canAdvance が確定してから新タイマーがセットされる
+  //   → 「3回繰り返し」「二重カウント」が物理的に起きない
+  // - クールダウン ref は不要（cleanup → 再 effect で安全にタイマーが置き換わる）
 
-  // S1-H: タイマー発火直後のクールダウン用フラグ（二重カウント防止）
-  // 発火直後は stepOnePitch が isProcessing=true にするまでに数 tick の隙があり、
-  // そのまま「タイマーなし & isProcessing=false」と判定されて新タイマーが先行セットされる
-  // → カウントが2回繰り返される問題が発生していたため、500ms のクールダウンを設ける。
-  const autoAdvanceCooldownUntilRef = useRef<number>(0);
-
-  useEffect(() => {
-    // ポーリングループ — マウント時に1回だけセットアップ、アンマウント時に1回だけクリア
-    const tick = () => {
-      const s = autoAdvanceStateRef.current;
-      const now = Date.now();
-
-      // クールダウン中は新タイマーを仕掛けない（既存タイマーには触らない）
-      const inCooldown = now < autoAdvanceCooldownUntilRef.current;
-
-      // 自動進行不可能な状態 → タイマーをクリア
-      const cannotAdvance =
-        !s.initialized ||
-        !s.autoAdvance ||
-        s.matchResult !== null ||
-        s.isProcessing ||
-        s.selectMode.type !== 'none' ||
-        s.isStagingDelay ||
-        // pauseReason: 非 routine（勝負所・試合終了）なら停止
-        (s.pauseReason !== null &&
-          !['pitch_start', 'at_bat_start', 'inning_end'].includes(s.pauseReason.kind));
-
-      if (cannotAdvance) {
-        if (autoAdvanceTimerRef.current !== null) {
-          clearTimeout(autoAdvanceTimerRef.current);
-          autoAdvanceTimerRef.current = null;
-        }
-        setNextAutoAdvanceAt((prev) => (prev !== null ? null : prev));
-        return;
-      }
-
-      // 自動進行可能 → タイマーがなくクールダウン中でなければセット
-      if (autoAdvanceTimerRef.current === null && !inCooldown) {
-        const delayMs = DELAY_MS[s.runnerMode.time];
-        const fireAt = now + delayMs;
-        setNextAutoAdvanceAt(fireAt);
-
-        autoAdvanceTimerRef.current = setTimeout(() => {
-          autoAdvanceTimerRef.current = null;
-          setNextAutoAdvanceAt(null);
-          // 発火直前にもう一度ガードチェック（中断条件が後から成立した場合の保険）
-          const s2 = autoAdvanceStateRef.current;
-          const cantNow =
-            !s2.initialized ||
-            !s2.autoAdvance ||
-            s2.matchResult !== null ||
-            s2.isProcessing ||
-            s2.selectMode.type !== 'none' ||
-            s2.isStagingDelay ||
-            (s2.pauseReason !== null &&
-              !['pitch_start', 'at_bat_start', 'inning_end'].includes(s2.pauseReason.kind));
-          if (cantNow) {
-            // S1-K bugfix: ガード弾き時のクールダウンは 200ms に短縮
-            //   - S1-J では 800ms にしたが、これだと「発火しないことがある」症状が出た
-            //   - 200ms あれば React の連続 set 反映が落ち着くタイミングで1回だけ仕掛かる
-            //   - 「3回繰り返し」が再発しないかは要観察、再発したら別アプローチで
-            autoAdvanceCooldownUntilRef.current = Date.now() + 200;
-            return;
-          }
-
-          // S1-K: 実進行走行時のクールダウンは 1200ms に微調整（1500ms→1200ms）
-          //   stepOnePitch + 演出（staging）が確実に終わるまで新タイマーを抑制
-          //   ただし「発火しない」現象を考慮して短めに
-          autoAdvanceCooldownUntilRef.current = Date.now() + 1200;
-
-          // pendingNextOrder を消費して adopt する
-          const fn2 = autoAdvanceFnRef.current;
-          const pending = fn2.consumeNextOrder();
-          if (pending && pending.type !== 'none') {
-            fn2.applyOrder(pending);
-          }
-          if (s2.runnerMode.pitch === 'on') {
-            fn2.stepOnePitch();
-          } else {
-            fn2.stepOneAtBat();
-          }
-        }, delayMs);
-      }
-    };
-
-    // 最初のチェックは即座に + その後 100ms ごとにポーリング
-    tick();
-    const intervalId = setInterval(tick, 100);
-
-    return () => {
-      clearInterval(intervalId);
-      if (autoAdvanceTimerRef.current !== null) {
-        clearTimeout(autoAdvanceTimerRef.current);
-        autoAdvanceTimerRef.current = null;
-      }
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // ← 依存配列は空。マウント時1回のみセットアップ
-
-  // ── Phase 12-H: カウントダウン表示 (100msごとに再描画) ──
-  useEffect(() => {
-    if (!autoAdvance || nextAutoAdvanceAt === null) return;
-    const interval = setInterval(() => {
-      setCountdownTick((t) => t + 1);
-    }, 100);
-    return () => clearInterval(interval);
-  }, [autoAdvance, nextAutoAdvanceAt]);
-
-  // 今すぐ進めるハンドラ
-  const handleAdvanceNow = useCallback(() => {
-    if (autoAdvanceTimerRef.current !== null) {
-      clearTimeout(autoAdvanceTimerRef.current);
-      autoAdvanceTimerRef.current = null;
-    }
-    setNextAutoAdvanceAt(null);
+  // onFire コールバック: 採配消費 + 1球/1打席進行
+  const handleAutoFire = useCallback(() => {
     const pending = consumeNextOrder();
     if (pending && pending.type !== 'none') {
       applyOrder(pending);
@@ -1765,10 +1627,29 @@ export default function MatchPage() {
     }
   }, [consumeNextOrder, applyOrder, runnerMode.pitch, stepOnePitch, stepOneAtBat]);
 
-  // 指示なしで進めるハンドラ（pendingNextOrder をクリア → タイマーリセット）
+  const { remainingMs: autoAdvanceRemainingMs, fireNow: handleAdvanceNowFromController } =
+    useAutoAdvanceController(
+      {
+        autoAdvance,
+        initialized,
+        isMatchOver: matchResult !== null,
+        isProcessing,
+        isStagingDelay,
+        isSelectModeActive: selectMode.type !== 'none',
+        pauseReason,
+        timeMode: runnerMode.time,
+      },
+      handleAutoFire,
+    );
+
+  // 今すぐ進めるハンドラ（"今すぐ進める" ボタン用）
+  const handleAdvanceNow = useCallback(() => {
+    handleAdvanceNowFromController();
+  }, [handleAdvanceNowFromController]);
+
+  // 指示なしで進めるハンドラ（後方互換のため残す — 実際は何もしない）
   const handleSkipOrder = useCallback(() => {
-    // pendingNextOrder をクリアするだけ。タイマーは継続
-    // ここでは applyOrder({ type: 'none' }) は不要。タイマーが発火したとき pending=null で進む
+    // pendingNextOrder をクリアするだけ。タイマーは継続（useAutoAdvanceController が管理）
   }, []);
 
   // ── Phase 12-K: イニング終了時にアナリストコメントを生成 ──
@@ -1821,7 +1702,8 @@ export default function MatchPage() {
 
   const matchId = typeof _matchId === 'string' ? _matchId : 'current';
 
-  const remainingMs = nextAutoAdvanceAt !== null ? Math.max(0, nextAutoAdvanceAt - Date.now()) : null;
+  // Phase S1-L: remainingMs は useAutoAdvanceController から直接受け取る
+  const remainingMs = autoAdvanceRemainingMs;
 
   return (
     <MatchPageInner

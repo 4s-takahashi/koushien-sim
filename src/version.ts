@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.45.10';
+export const VERSION = '0.45.11';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-05-01 23:28 UTC';
-export const GIT_SHA = 'e152a9a-dirty';
+export const BUILD_DATE = '2026-05-02 00:28 UTC';
+export const GIT_SHA = '94f38a4-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,36 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.45.11',
+    date: '2026-05-02',
+    changes: [
+      '🐛 v0.45.11: Phase S1-L 自動進行タイマー根本修正 — 単一オーナー FSM 設計',
+      '',
+      '【根本原因】',
+      'S1-G ～ S1-K の setInterval 100ms ポーリング + クールダウン ref の組み合わせは',
+      'React state 更新の非同期性（handleOrder → setSelectMode + applyOrder +',
+      'resumeFromPause の 3 回 setState が別 tick で反映）と競合し、',
+      'クールダウン値を調整しても新たなエッジケースが生じ続けた:',
+      '  - 3回カウント繰り返し（S1-J で 800ms → S1-K で 200ms に変更しても再発）',
+      '  - 二重カウント（S1-H で導入したクールダウン機構）',
+      '  - 監督指示後フリーズ（S1-I で「ガード弾きはクールダウンしない」にしたが別症状）',
+      '',
+      '【修正: useAutoAdvanceController フック】',
+      '- タイマー所有権を page.tsx から useAutoAdvanceController フックに完全移管',
+      '- canAutoAdvance(cond) の Boolean 値を useEffect 依存配列に使用',
+      '  → React バッチ更新後に条件が確定してから1回だけ effect が再実行される',
+      '  → cleanup で clearTimeout → 新 effect で新 setTimeout が安全に置き換わる',
+      '  → setInterval ポーリング廃止・クールダウン ref 廃止',
+      '- 二重発火・3回繰り返し・フリーズが物理的に不可能な設計',
+      '',
+      '【テスト追加】',
+      'tests/ui/match-visual/useAutoAdvanceController.test.ts (27テスト)',
+      '  - canAutoAdvance 純粋関数テスト（全 PauseReason 種別）',
+      '  - 二重発火防止・3回繰り返し防止・CHANGE 演出中停止・試合終了後停止',
+      '  - timeMode 変更でタイマーリセット・autoAdvance OFF→ON サイクル',
+    ],
+  },
   {
     version: '0.45.10',
     date: '2026-05-01',
