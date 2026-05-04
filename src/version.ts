@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.45.11';
+export const VERSION = '0.46.0';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-05-02 00:28 UTC';
-export const GIT_SHA = '94f38a4-dirty';
+export const BUILD_DATE = '2026-05-04 12:59 UTC';
+export const GIT_SHA = 'bfe46ce';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,24 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.46.0',
+    date: '2026-05-04',
+    changes: [
+      '✨ v0.46.0: Phase S2 キャッチャー性格システム + 配球指揮システム',
+      '',
+      '【新機能】',
+      '- 攻撃時=バッターへ指示、守備時=キャッチャーへ指示 (役割分担 UI)',
+      '- キャッチャー性格 3種: 積極派 / 慎重派 / 分析派',
+      '- キャッチャー能力: 配球精度・リーダーシップ',
+      '- ピッチャー状況連動配球: キレ良→ストレート推し、コントロール悪→ゾーン勝負',
+      '- 選手心理ウィンドウにキャッチャー思考を統合',
+      '- 自チーム心理のみ表示 (相手心理は非公開)',
+      '',
+      '【テスト】',
+      'キャッチャー思考エンジン ユニットテスト 33件追加 / 既存 1191件 全 PASS',
+    ],
+  },
   {
     version: '0.45.11',
     date: '2026-05-02',
