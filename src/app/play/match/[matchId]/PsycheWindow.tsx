@@ -55,6 +55,21 @@ interface PsycheWindowProps {
    * タブがクリックされた際に呼ばれる
    */
   onAnalystRead?: () => void;
+  /**
+   * Phase S2: 自チームが攻撃中かどうか
+   * - true: バッター心理を表示（現状維持）
+   * - false: キャッチャー思考を表示（相手チームのバッター心理は非表示）
+   */
+  isPlayerBatting?: boolean;
+  /**
+   * Phase S2: キャッチャーの思考テキスト（守備時）
+   * isPlayerBatting=false のときに表示される
+   */
+  catcherThought?: string;
+  /**
+   * Phase S2: キャッチャー名（守備時の吹き出しに表示）
+   */
+  catcherName?: string;
 }
 
 // ============================================================
@@ -174,6 +189,9 @@ export function PsycheWindow({
   hasAnalyst = false,
   lastReadAnalystId = null,
   onAnalystRead,
+  isPlayerBatting,
+  catcherThought,
+  catcherName,
 }: PsycheWindowProps) {
   const [roleIndex, setRoleIndex] = useState(0);
   const [visible, setVisible] = useState(true);
@@ -181,14 +199,52 @@ export function PsycheWindow({
 
   // アクティブなバブルを計算（hooks の前に計算して依存関係を安定させる）
   const batter = monologues?.find((m) => m.role === 'batter');
-  const catcher = monologues?.find((m) => m.role === 'catcher');
+  const catcherMonologue = monologues?.find((m) => m.role === 'catcher');
   const pitcher = monologues?.find((m) => m.role === 'pitcher');
 
-  const activeBubbles = [
-    batter  ? { entry: batter,  name: batterSchoolShortName ? `${batterName}(${batterSchoolShortName})` : batterName } : null,
-    catcher ? { entry: catcher, name: '捕手' } : null,
-    pitcher ? { entry: pitcher, name: pitcherSchoolShortName ? `${pitcherName}(${pitcherSchoolShortName})` : pitcherName } : null,
-  ].filter((b): b is NonNullable<typeof b> => b !== null);
+  // Phase S2: 自チームのみ表示ルール
+  // - isPlayerBatting=true (自チーム攻撃中): バッター心理のみ表示
+  // - isPlayerBatting=false (自チーム守備中): キャッチャー思考 + 自チーム投手モノローグ
+  // - isPlayerBatting=undefined: 従来通り全員表示
+  const activeBubbles = (() => {
+    if (isPlayerBatting === true) {
+      // 攻撃時: バッター心理のみ
+      return [
+        batter ? { entry: batter, name: batterSchoolShortName ? `${batterName}(${batterSchoolShortName})` : batterName } : null,
+      ].filter((b): b is NonNullable<typeof b> => b !== null);
+    } else if (isPlayerBatting === false) {
+      // 守備時: キャッチャー思考（generateCatcherThought から）+ 自チーム投手モノローグ
+      const bubbles: Array<{ entry: MonologueEntry; name: string }> = [];
+
+      // キャッチャー思考テキスト（性格システムから生成）
+      if (catcherThought) {
+        bubbles.push({
+          entry: { role: 'catcher', text: catcherThought },
+          name: catcherName ?? '捕手',
+        });
+      } else if (catcherMonologue) {
+        // フォールバック: モノローグDBのキャッチャーパターン
+        bubbles.push({ entry: catcherMonologue, name: catcherName ?? '捕手' });
+      }
+
+      // 自チーム投手のモノローグ（守備チームの投手 = 表示対象）
+      if (pitcher) {
+        bubbles.push({
+          entry: pitcher,
+          name: pitcherSchoolShortName ? `${pitcherName}(${pitcherSchoolShortName})` : pitcherName,
+        });
+      }
+
+      return bubbles;
+    } else {
+      // 従来動作: 全員表示
+      return [
+        batter  ? { entry: batter,  name: batterSchoolShortName ? `${batterName}(${batterSchoolShortName})` : batterName } : null,
+        catcherMonologue ? { entry: catcherMonologue, name: '捕手' } : null,
+        pitcher ? { entry: pitcher, name: pitcherSchoolShortName ? `${pitcherName}(${pitcherSchoolShortName})` : pitcherName } : null,
+      ].filter((b): b is NonNullable<typeof b> => b !== null);
+    }
+  })();
 
   const hasBubble = activeBubbles.length > 0;
   const showAnalyst = hasAnalyst && analystComments !== undefined;

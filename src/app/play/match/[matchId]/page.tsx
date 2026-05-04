@@ -9,7 +9,7 @@
  * Phase 7-F: 高校名・選手名クリックで詳細画面へ遷移。
  */
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 // Phase S1-A: 試合演出タイミング制御
 import {
   getPlayBallDelayMs,
@@ -60,7 +60,7 @@ type SelectMode =
   | { type: 'pitching_change' }
   | { type: 'steal' }
   | { type: 'bunt' }
-  | { type: 'detailed_order'; mode: 'batter' | 'pitcher' };
+  | { type: 'detailed_order'; mode: 'batter' | 'pitcher' | 'catcher' };
 
 // ============================================================
 // ヘルパー
@@ -457,7 +457,7 @@ function TacticsBar({ view, onOrder, selectMode, setSelectMode, disabled, showBa
   const hasContinuingDetailedOrder =
     lastOrder !== undefined &&
     lastOrder !== null &&
-    (lastOrder.type === 'batter_detailed' || lastOrder.type === 'pitcher_detailed');
+    (lastOrder.type === 'batter_detailed' || lastOrder.type === 'pitcher_detailed' || lastOrder.type === 'catcher_detailed');
 
   const handleNone = useCallback(() => {
     onOrder({ type: 'none' });
@@ -503,7 +503,8 @@ function TacticsBar({ view, onOrder, selectMode, setSelectMode, disabled, showBa
     if (selectMode.type === 'detailed_order') {
       setSelectMode({ type: 'none' });
     } else {
-      const mode = isPlayerBatting ? 'batter' : 'pitcher';
+      // Phase S2: 守備時はキャッチャーへの指示に変更
+      const mode = isPlayerBatting ? 'batter' : 'catcher';
       setSelectMode({ type: 'detailed_order', mode });
     }
   }, [selectMode, setSelectMode, isPlayerBatting]);
@@ -538,7 +539,9 @@ function TacticsBar({ view, onOrder, selectMode, setSelectMode, disabled, showBa
           <span style={{ fontSize: 14 }}>📋</span>
           <span>
             継続中の詳細采配：<strong>
-              {lastOrder?.type === 'batter_detailed' ? '打者への指示' : '投手への指示'}
+              {lastOrder?.type === 'batter_detailed' ? '打者への指示' :
+               lastOrder?.type === 'catcher_detailed' ? 'キャッチャーへの指示' :
+               '投手への指示'}
             </strong>（打者交代まで維持）
           </span>
         </div>
@@ -618,7 +621,7 @@ function TacticsBar({ view, onOrder, selectMode, setSelectMode, disabled, showBa
           title="コース・球種など細かく指示する"
         >
           ⚙ 細かく指示
-          <span className={styles.tacticsBtnLabel}>{isPlayerBatting ? '打者指示' : '投手指示'}</span>
+          <span className={styles.tacticsBtnLabel}>{isPlayerBatting ? '打者指示' : 'キャッチャーへ指示'}</span>
         </button>
       </div>
     </div>
@@ -630,7 +633,7 @@ function TacticsBar({ view, onOrder, selectMode, setSelectMode, disabled, showBa
 // ============================================================
 
 interface SelectPanelProps {
-  mode: Exclude<SelectMode, { type: 'none' } | { type: 'detailed_order'; mode: 'batter' | 'pitcher' }>;
+  mode: Exclude<SelectMode, { type: 'none' } | { type: 'detailed_order'; mode: 'batter' | 'pitcher' | 'catcher' }>;
   view: MatchViewState;
   onSelect: (order: TacticalOrder) => void;
   onCancel: () => void;
@@ -1835,6 +1838,66 @@ function MatchPageInner({
   const [selectMode, setSelectMode] = useState<SelectMode>({ type: 'none' });
   const matchResult = useMatchStore((s) => s.matchResult);
 
+  // ===== Phase S2: キャッチャー思考生成 =====
+  // 守備時（自チームがフィールディング）にキャッチャーの思考テキストを生成する
+  const catcherThoughtInfo = useMemo(() => {
+    if (view.isPlayerBatting) return null; // 攻撃時は不要
+    const runner = useMatchStore.getState().runner;
+    if (!runner) return null;
+    const state = runner.getState();
+    const fieldingTeam = state.currentHalf === 'top' ? state.homeTeam : state.awayTeam;
+    const battingTeam = state.currentHalf === 'top' ? state.awayTeam : state.homeTeam;
+
+    // キャッチャーを取得
+    let catcherMP: import('../../../../engine/match/types').MatchPlayer | undefined;
+    fieldingTeam.fieldPositions.forEach((pos, playerId) => {
+      if (pos === 'catcher') {
+        catcherMP = fieldingTeam.players.find((mp) => mp.player.id === playerId);
+      }
+    });
+    if (!catcherMP) return null;
+
+    // ピッチャーを取得
+    const pitcherMP = fieldingTeam.players.find((mp) => mp.player.id === fieldingTeam.currentPitcherId);
+    if (!pitcherMP) return null;
+
+    // バッターを取得
+    const batterId = battingTeam.battingOrder[state.currentBatterIndex];
+    const batterMP = battingTeam.players.find((mp) => mp.player.id === batterId);
+    if (!batterMP) return null;
+
+    // ピッチャーの変化球キレ推定（スタミナから近似）
+    const breakingBallSharpness = Math.min(1.0, pitcherMP.stamina / 70);
+
+    const { generateCatcherThought, catcherProfileToContext } = require('../../../../engine/psyche/catcher-thinking');
+    const catcherCtx = {
+      ...catcherProfileToContext(catcherMP.player.catcherProfile),
+      pitcherStamina: pitcherMP.stamina,
+      pitcherControl: pitcherMP.player.stats.pitching?.control ?? 50,
+      pitcherBreakingBallSharpness: breakingBallSharpness,
+      pitcherMental: pitcherMP.player.stats.base.mental,
+      pitcherCurrentStamina: pitcherMP.stamina,
+      batterTraits: batterMP.player.traits,
+      batterContact: batterMP.player.stats.batting.contact,
+      batterPower: batterMP.player.stats.batting.power,
+      batterEye: batterMP.player.stats.batting.eye,
+      inning: state.currentInning,
+      scoreDiff: state.score.home - state.score.away,
+      outs: state.outs,
+      runnersOn: (state.bases.first && state.bases.second && state.bases.third) ? 'bases_loaded'
+        : (state.bases.third) ? 'scoring'
+        : (state.bases.first || state.bases.second) ? 'some'
+        : 'none',
+      isKoshien: state.config.isKoshien,
+      consecutiveHits: 0,
+      managerOrder: lastOrder?.type === 'catcher_detailed' ? lastOrder : undefined,
+    };
+
+    const thought = generateCatcherThought(catcherCtx);
+    const catcherName = `${catcherMP.player.lastName}${catcherMP.player.firstName}`;
+    return { thought, catcherName };
+  }, [view.isPlayerBatting, view.inningLabel, view.count.balls, view.count.strikes, lastOrder]);
+
   // ===== Phase 12: ボールアニメーション =====
   const { ballState, triggerPitchAnimation, triggerHitAnimation, triggerHomeRunEffect, triggerPlaySequence, resetBall } = useBallAnimation();
 
@@ -2103,6 +2166,9 @@ function MatchPageInner({
               hasAnalyst={hasAnalyst}
               lastReadAnalystId={lastReadAnalystId}
               onAnalystRead={onAnalystRead}
+              isPlayerBatting={view.isPlayerBatting}
+              catcherThought={catcherThoughtInfo?.thought.thoughtText}
+              catcherName={catcherThoughtInfo?.catcherName}
             />
           ) : null}
         </div>
