@@ -569,6 +569,7 @@ export function processPitch(
     state.count.balls,
     state.count.strikes,
     rng,
+    overrides?.catcherPitchingBias, // Phase S2: キャッチャー配球方針補正
   );
 
   // ── (2) 制球誤差の適用 ──
