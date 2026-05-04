@@ -401,6 +401,28 @@ export interface PitcherDetailedOrder {
   intimidation?: 'brush_back' | 'normal';
 }
 
+// ============================================================
+// Phase S2: キャッチャーへの詳細采配
+// ============================================================
+
+/** キャッチャーへの配球スタイル */
+export type CatcherCallingStyle = 'attack' | 'careful' | 'mixed';
+
+/**
+ * キャッチャーへの詳細采配
+ * 守備時に監督がキャッチャーに指示する内容。
+ * キャッチャーが解釈してピッチャーへサインを送る。
+ */
+export interface CatcherDetailedOrder {
+  type: 'catcher_detailed';
+  /** 配球スタイル: attack=攻める / careful=慎重 / mixed=バランス */
+  callingStyle?: CatcherCallingStyle;
+  /** コース指定 */
+  focusArea?: 'outside' | 'inside' | 'any';
+  /** 積極度: aggressive=積極 / normal=普通 / passive=消極 */
+  aggressiveness?: 'aggressive' | 'normal' | 'passive';
+}
+
 /** 監督の采配指示 */
 export type TacticalOrder =
   | { type: 'none' }
@@ -414,7 +436,8 @@ export type TacticalOrder =
   | { type: 'defensive_sub'; outPlayerId: string; inPlayerId: string; position: Position }
   | { type: 'mound_visit' }
   | BatterDetailedOrder
-  | PitcherDetailedOrder;
+  | PitcherDetailedOrder
+  | CatcherDetailedOrder;
 
 /** 采配を入力するコールバック */
 export type TacticsProvider = (state: MatchState) => TacticalOrder;

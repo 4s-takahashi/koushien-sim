@@ -39,6 +39,36 @@ export type TraitId =
   /** ace: 甲子園・大一番で球速+3, 制球+5% */
   | 'ace';
 
+// ============================================================
+// Phase S2: キャッチャー性格システム
+// ============================================================
+
+/**
+ * キャッチャーの性格タイプ
+ * - aggressive: 積極派 — 攻める配球、決め球を積極的に投げる
+ * - cautious: 慎重派 — カウントを整えてから勝負球
+ * - analytical: 分析派 — 打者の傾向を分析して弱点を突く
+ */
+export type CatcherPersonality = 'aggressive' | 'cautious' | 'analytical';
+
+/**
+ * キャッチャーのバッテリー特性（捕手ポジションの選手のみ使用）
+ */
+export interface CatcherProfile {
+  /** 性格タイプ */
+  personality: CatcherPersonality;
+  /**
+   * リーダーシップ: 投手を引っ張る力 0-100
+   * 高いとピッチャーへのメンタル補正効果が大きくなる
+   */
+  leadershipScore: number;
+  /**
+   * 配球精度: 弱点を突く正確さ 0-100
+   * 低いとPitchingBiasにランダム誤差が生じる
+   */
+  callingAccuracy: number;
+}
+
 export type MentalFlag =
   | 'slump' | 'in_the_zone' | 'injury_anxiety'
   | 'in_love' | 'family_trouble' | 'team_conflict';
@@ -181,4 +211,10 @@ export interface Player {
   eventHistory?: import('./player-history').PlayerEvent[];
   /** 直近練習履歴（最大14日分）(Phase 11.5-E) */
   practiceHistory?: import('./player-history').PracticeHistoryEntry[];
+  /**
+   * Phase S2: キャッチャーのバッテリー特性
+   * 捕手ポジションの選手のみ有効。undefined の場合はデフォルト値を使用。
+   * デフォルト: { personality: 'cautious', leadershipScore: 50, callingAccuracy: 50 }
+   */
+  catcherProfile?: CatcherProfile;
 }

@@ -37,6 +37,21 @@ export interface MatchOverrides {
     /** 制球補正 (相対係数: -0.3 ~ +0.3) */
     controlBonus?: number;
   };
+  /**
+   * Phase S2: キャッチャーの配球方針による補正
+   * generateCatcherThought() の結果から生成される。
+   * selectPitch() に渡されて球種・コース選択に影響する。
+   */
+  catcherPitchingBias?: {
+    /** ストレート確率補正 (-0.3〜+0.3): 正=ストレート多め、負=変化球多め */
+    fastballRatioBias: number;
+    /** ゾーン内狙い率補正 (-0.3〜+0.3): 正=ストライクゾーン重視 */
+    strikeZoneBias: number;
+    /** 外角コース優先 (true = 外角側シフト) */
+    preferOutside: boolean;
+    /** 内角コース優先 (true = 内角側シフト) */
+    preferInside: boolean;
+  };
 }
 
 // ============================================================
