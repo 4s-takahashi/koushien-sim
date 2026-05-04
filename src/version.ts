@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.46.0';
+export const VERSION = '0.46.1';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-05-04 12:59 UTC';
-export const GIT_SHA = 'bfe46ce';
+export const BUILD_DATE = '2026-05-04 15:09 UTC';
+export const GIT_SHA = 'adc69d2-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,19 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.46.1',
+    date: '2026-05-04',
+    changes: [
+      '🐛 v0.46.1: Phase S2 バグ修正 — 旧自動進行UI削除 + セーブロード後の試合状態リセット',
+      '',
+      '【バグ修正】',
+      '- Bug 1: 旧自動進行UI (AutoPlayBar / ▶ 再生マーク) を完全削除し、新自動進行バー (Phase 12-H) のみに統一',
+      '  旧UIと新UIが並存して状態が競合し、自動進行が停止するバグを修正',
+      '- Bug 2: セーブロード時に match-store を必ずリセット。ロード後に試合ページへ遷移すると',
+      '  前の試合の途中状態から始まるバグを修正 (world-store.loadGame + cloud load 両経路)',
+    ],
+  },
   {
     version: '0.46.0',
     date: '2026-05-04',

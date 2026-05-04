@@ -805,129 +805,6 @@ function RecentLog({ pitches }: { pitches: PitchLogEntry[] }) {
 }
 
 // ============================================================
-// 自動進行バー
-// ============================================================
-
-interface AutoPlayBarProps {
-  enabled: boolean;
-  speed: 'slow' | 'normal' | 'fast';
-  onToggle: () => void;
-  onSetSpeed: (s: 'slow' | 'normal' | 'fast') => void;
-  // 進行ボタン (2026-04-19 Issue 進行パネル統合)
-  pitchModeEnabled?: boolean;
-  canProgress?: boolean;
-  onStepOnePitch?: () => void;
-  onStepOneAtBat?: () => void;
-  onStepOneInning?: () => void;
-  onRunToEnd?: () => void;
-  isProcessing?: boolean;
-  isMatchOver?: boolean;
-}
-
-function AutoPlayBar({
-  enabled, speed, onToggle, onSetSpeed,
-  pitchModeEnabled, canProgress, onStepOnePitch, onStepOneAtBat,
-  onStepOneInning, onRunToEnd, isProcessing, isMatchOver,
-}: AutoPlayBarProps) {
-  // コントロールバー (自動進行 + 進行ボタンを1行に統合)
-  // 左側: 進行ボタン (1球/1打席/1イニング/最後まで)
-  // 右側: 自動進行 (⏸/▶ + 速度3種)
-  // 自動進行ONのときは手動進行ボタンを disabled にする
-  const stepsDisabled = !canProgress || enabled;
-  const showSteps = !isMatchOver && onStepOnePitch && onStepOneAtBat && onStepOneInning && onRunToEnd;
-
-  return (
-    <div className={styles.autoPlayBar} data-compact="true">
-      {/* 進行ボタン (左寄せ) */}
-      {showSteps && (
-        <div className={styles.progressBtnGroup} role="group" aria-label="進行ボタン">
-          {pitchModeEnabled && (
-            <button
-              className={styles.progressIconBtn}
-              onClick={onStepOnePitch}
-              disabled={stepsDisabled}
-              title={enabled ? '自動進行ON中は使えません' : '1球進める'}
-              aria-label="1球進める"
-            >
-              ⚾<span className={styles.progressIconLabel}>1球</span>
-            </button>
-          )}
-          <button
-            className={`${styles.progressIconBtn} ${styles.progressIconBtnPrimary}`}
-            onClick={onStepOneAtBat}
-            disabled={stepsDisabled}
-            title={enabled ? '自動進行ON中は使えません' : '1打席進める'}
-            aria-label="1打席進める"
-          >
-            👤<span className={styles.progressIconLabel}>1打席</span>
-          </button>
-          <button
-            className={styles.progressIconBtn}
-            onClick={onStepOneInning}
-            disabled={stepsDisabled}
-            title={enabled ? '自動進行ON中は使えません' : '1イニング進める'}
-            aria-label="1イニング進める"
-          >
-            🔔<span className={styles.progressIconLabel}>1回</span>
-          </button>
-          <button
-            className={`${styles.progressIconBtn} ${styles.progressIconBtnDanger}`}
-            onClick={onRunToEnd}
-            disabled={!canProgress}
-            title="試合終了まで自動で進める"
-            aria-label="最後まで進める"
-          >
-            ⏩<span className={styles.progressIconLabel}>最後</span>
-          </button>
-        </div>
-      )}
-
-      {isProcessing && (
-        <span className={styles.progressProcessing}>処理中...</span>
-      )}
-
-      <div className={styles.autoPlaySpacer} />
-
-      {/* 自動進行 (右寄せ、旧UIを残す) */}
-      <button
-        className={`${styles.autoPlayToggle} ${enabled ? styles.autoPlayToggleOn : ''}`}
-        onClick={onToggle}
-        title={enabled ? '自動進行を停止' : '自動進行を開始'}
-        aria-label={enabled ? '自動進行を停止' : '自動進行を開始'}
-      >
-        {enabled ? '⏸' : '▶'}
-      </button>
-      <div className={styles.autoPlaySpeedGroup} role="group" aria-label="再生速度">
-        <button
-          className={`${styles.autoPlaySpeedBtn} ${speed === 'slow' ? styles.autoPlaySpeedBtnActive : ''}`}
-          onClick={() => onSetSpeed('slow')}
-          title="ゆっくり"
-          aria-label="ゆっくり"
-        >
-          🐢
-        </button>
-        <button
-          className={`${styles.autoPlaySpeedBtn} ${speed === 'normal' ? styles.autoPlaySpeedBtnActive : ''}`}
-          onClick={() => onSetSpeed('normal')}
-          title="標準速度"
-          aria-label="標準速度"
-        >
-          ▶
-        </button>
-        <button
-          className={`${styles.autoPlaySpeedBtn} ${speed === 'fast' ? styles.autoPlaySpeedBtnActive : ''}`}
-          onClick={() => onSetSpeed('fast')}
-          title="高速"
-          aria-label="高速"
-        >
-          ⚡
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ============================================================
 // Phase 12-H: 新自動進行コントロールバー
 // ============================================================
 
@@ -1267,10 +1144,6 @@ export default function MatchPage() {
   const pauseReason = useMatchStore((s) => s.pauseReason);
   const pitchLog = useMatchStore((s) => s.pitchLog);
   const narration = useMatchStore((s) => s.narration);
-  const autoPlayEnabled = useMatchStore((s) => s.autoPlayEnabled);
-  const autoPlaySpeed = useMatchStore((s) => s.autoPlaySpeed);
-  const toggleAutoPlay = useMatchStore((s) => s.toggleAutoPlay);
-  const setAutoPlaySpeed = useMatchStore((s) => s.setAutoPlaySpeed);
   const lastOrder = useMatchStore((s) => s.lastOrder);
   const autoAdvance = useMatchStore((s) => s.autoAdvance);
   const setAutoAdvance = useMatchStore((s) => s.setAutoAdvance);
@@ -1474,47 +1347,6 @@ export default function MatchPage() {
     router.push('/play');
   }, [dumpSnapshot, pauseInteractiveMatch, router, matchResult]);
 
-  // ── 旧自動進行タイマー (autoPlayEnabled) ──
-  // 後方互換: autoAdvance が OFF のときは旧ロジックで動作
-  // A3: チャンス/ピンチでないのに止まるバグ修正: routine な pauseReason は無視して進行
-  useEffect(() => {
-    if (!initialized) return;
-    if (!autoPlayEnabled) return;
-    if (autoAdvance) return; // 新自動進行が ON なら旧ロジックは動かない
-    // A3: 非 routine な pauseReason のみ停止（match_end / scoring_chance）
-    if (pauseReason !== null) {
-      const routineKinds: string[] = ['pitch_start', 'at_bat_start', 'inning_end'];
-      if (!routineKinds.includes(pauseReason.kind)) return;
-      // routine pause（pitch_start/at_bat_start/inning_end）は無視して自動進行継続
-    }
-    if (matchResult !== null) return;
-    if (isProcessing) return;
-    if (selectMode.type !== 'none') return;
-
-    // 速度に応じたインターバル（ms）: 打席単位の進行
-    const intervalMs =
-      autoPlaySpeed === 'slow' ? 2000 :
-      autoPlaySpeed === 'fast' ? 300 :
-      1000;
-
-    const timer = setTimeout(() => {
-      stepOneAtBat();
-    }, intervalMs);
-
-    return () => clearTimeout(timer);
-  }, [
-    initialized,
-    autoPlayEnabled,
-    autoAdvance,
-    autoPlaySpeed,
-    pauseReason,
-    matchResult,
-    isProcessing,
-    selectMode.type,
-    stepOneAtBat,
-    // S1-F bugfix: narration.length を削除（同上の理由）
-  ]);
-
   // ── Phase S1-A: ステージングディレイ (A1/A2/A5) ──
   // narration の最新エントリを監視し、チェンジ/三振後に追加の遅延を挿入する
   const appendNarration = useMatchStore((s) => s.appendNarration);
@@ -1715,10 +1547,6 @@ export default function MatchPage() {
       playerSchoolId={worldState.playerSchoolId}
       pitchLog={pitchLog}
       narration={narration}
-      autoPlayEnabled={autoPlayEnabled}
-      autoPlaySpeed={autoPlaySpeed}
-      toggleAutoPlay={toggleAutoPlay}
-      setAutoPlaySpeed={setAutoPlaySpeed}
       runnerMode={runnerMode}
       setTimeMode={setTimeMode}
       setPitchMode={setPitchMode}
@@ -1760,10 +1588,6 @@ interface MatchPageInnerProps {
   playerSchoolId: string;
   pitchLog: PitchLogEntry[];
   narration: import('../../../../ui/narration/buildNarration').NarrationEntry[];
-  autoPlayEnabled: boolean;
-  autoPlaySpeed: 'slow' | 'normal' | 'fast';
-  toggleAutoPlay: () => void;
-  setAutoPlaySpeed: (s: 'slow' | 'normal' | 'fast') => void;
   runnerMode: import('../../../../engine/match/runner-types').RunnerMode;
   setTimeMode: (t: import('../../../../engine/match/runner-types').TimeMode) => void;
   setPitchMode: (p: 'on' | 'off') => void;
@@ -1803,10 +1627,6 @@ function MatchPageInner({
   playerSchoolId,
   pitchLog,
   narration,
-  autoPlayEnabled,
-  autoPlaySpeed,
-  toggleAutoPlay,
-  setAutoPlaySpeed,
   runnerMode,
   setTimeMode,
   setPitchMode,
@@ -2173,22 +1993,6 @@ function MatchPageInner({
           ) : null}
         </div>
       </div>
-
-      {/* コントロールバー */}
-      <AutoPlayBar
-        enabled={autoPlayEnabled}
-        speed={autoPlaySpeed}
-        onToggle={toggleAutoPlay}
-        onSetSpeed={setAutoPlaySpeed}
-        pitchModeEnabled={runnerMode.pitch === 'on'}
-        canProgress={canProgress}
-        onStepOnePitch={handleStepOnePitch}
-        onStepOneAtBat={handleStepOneAtBat}
-        onStepOneInning={handleStepOneInning}
-        onRunToEnd={handleRunToEnd}
-        isProcessing={isProcessing}
-        isMatchOver={isMatchOver}
-      />
 
       {/* Phase 12-H/I: 新自動進行コントロールバー */}
       <AutoAdvanceBar
