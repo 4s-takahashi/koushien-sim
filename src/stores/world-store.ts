@@ -703,6 +703,12 @@ export const useWorldStore = create<WorldStore>()(
         recentNews: [],
         lastDayResult: null,
       });
+      // ロード時に試合中の状態（match-store）を必ずリセットする。
+      // これを行わないと、ロード前にプレイしていた試合データが
+      // match-store の localStorage persist 経由で残り続け、
+      // 新しいセーブの試合画面に入ったとき「続きから始まる」バグが発生する。
+      const { useMatchStore } = await import('./match-store');
+      useMatchStore.getState().resetMatch();
     }
     return result;
   },

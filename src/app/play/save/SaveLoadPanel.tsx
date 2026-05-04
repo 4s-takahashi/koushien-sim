@@ -318,6 +318,9 @@ function CloudTabContent({ mode, hasGame, onClose }: CloudTabContentProps) {
       const { deserializeWorldState } = await import('../../../engine/save/world-serializer');
       const world = deserializeWorldState(data.entry.stateJson);
       useWorldStore.setState({ worldState: world, recentResults: [], recentNews: [], lastDayResult: null });
+      // ロード時に試合中の状態をリセットする（バグ2修正: 旧試合データの残留防止）
+      const { useMatchStore } = await import('../../../stores/match-store');
+      useMatchStore.getState().resetMatch();
       setMessage({ type: 'success', text: 'クラウドからロードしました。' });
       setTimeout(() => onClose(), 800);
     } catch {
