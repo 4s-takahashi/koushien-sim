@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.46.2';
+export const VERSION = '0.46.3';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-05-05 16:39 UTC';
-export const GIT_SHA = 'b982ef0-dirty';
+export const BUILD_DATE = '2026-05-05 16:56 UTC';
+export const GIT_SHA = '2f6f123-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,28 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.46.3',
+    date: '2026-05-05',
+    changes: [
+      '🔧 v0.46.3: 試合自動進行が止まる致命バグ修正 (safety net)',
+      '',
+      '【症状】',
+      '- 1回の試合中、特定のタイミング（特にチェンジ後）で自動進行が永久に停止',
+      '- matchStore は健全（pauseReason=null, isProcessing=false）のに止まる',
+      '- 「今すぐ進める」ボタンも表示されず、唯一 stepOnePitch を直接呼ぶと進む',
+      '',
+      '【原因】',
+      '- React local state `isStagingDelay` (演出ディレイフラグ) が true のまま固着',
+      '- staging useEffect 内のタイマー連鎖中に何らかの理由で解除タイミングが失われる',
+      '- canAutoAdvance が永遠に false を返し、useAutoAdvanceController がタイマーを起動しない',
+      '',
+      '【修正】',
+      '- isStagingDelay safety net 追加: true になってから最大 8秒で強制 false',
+      '- 既存の正常フロー（チェンジ 2.5-3秒 / 三振 2秒）には影響なし',
+      '- 異常時のみ safety net 発動 → console.warn で検知可能',
+    ],
+  },
   {
     version: '0.46.2',
     date: '2026-05-05',

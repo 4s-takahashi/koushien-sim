@@ -1173,6 +1173,24 @@ export default function MatchPage() {
     };
   }, []);
 
+  // Phase S2-fix (2026-05-05): isStagingDelay safety net
+  // 何らかの理由で isStagingDelay=true のまま固着するバグ（v0.46.2 で発見）の対策。
+  // 最大 8秒経過しても staging が解除されない場合、強制的に false に戻す。
+  // これにより、staging タイマーがどこかで失われても自動進行が再開できる。
+  useEffect(() => {
+    if (!isStagingDelay) return;
+    const safetyTimer = setTimeout(() => {
+      // eslint-disable-next-line no-console
+      console.warn('[match] isStagingDelay safety net triggered after 8s — forcing release');
+      setIsStagingDelay(false);
+      if (stagingTimerRef.current !== null) {
+        clearTimeout(stagingTimerRef.current);
+        stagingTimerRef.current = null;
+      }
+    }, 8000);
+    return () => clearTimeout(safetyTimer);
+  }, [isStagingDelay]);
+
   // Phase 12-L: hydration タイムアウト
   // match-store の persist が 3 秒以内に完了しない場合、強制的に _hasHydrated を true に設定する。
   // localStorage が破損・ロックされているときに「読み込み中...」で固まるバグを防ぐ。
