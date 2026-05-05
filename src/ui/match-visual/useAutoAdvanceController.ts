@@ -155,6 +155,11 @@ export function useAutoAdvanceController(
   // カウントダウン表示用の再描画 tick
   const [, setDisplayTick] = useState(0);
 
+  // 2026-05-05 fix: タイマー発火時 canAutoAdvance が false だった場合、
+  // 同じ effect の依存値 (can) が変わらないと再実行されないデッドロックを回避するための tick。
+  // 発火時に false 判定で空振りしたら restartTick を increment して effect を再起動する。
+  const [restartTick, setRestartTick] = useState(0);
+
   const can = canAutoAdvance(conditions);
 
   useEffect(() => {
@@ -175,12 +180,16 @@ export function useAutoAdvanceController(
       // 発火直前にも最新の条件を再チェック（タイマー待機中に状態が変化した場合の保険）
       const latestCond = conditionsRef.current;
       if (!canAutoAdvance(latestCond)) {
-        // 進行不可になっていた → 何もしない（次の effect サイクルで再評価される）
+        // 進行不可になっていた → effect を再起動するため tick を進める
+        // (can の値が変わっていないため、これがないと effect が再実行されずデッドロック)
+        setRestartTick((t) => t + 1);
         return;
       }
 
       // 進行を実行
       onFireRef.current();
+      // 進行後も次サイクルを起動するために tick を進める
+      setRestartTick((t) => t + 1);
     }, delayMs);
 
     return () => {
@@ -191,10 +200,11 @@ export function useAutoAdvanceController(
   }, [
     // canAdvance のブール値だけを依存させることで、条件が変化した時だけ再実行される。
     // timeMode は遅延 ms に影響するため明示的に含める。
-    // can が変化 → cleanup でタイマークリア → 新しいタイマーをセット、という安全な遷移。
+    // restartTick: タイマー発火後に effect を確実に再実行するため。
     // eslint-disable-next-line react-hooks/exhaustive-deps
     can,
     conditions.timeMode,
+    restartTick,
   ]);
 
   // カウントダウン表示用の 100ms 間隔再描画

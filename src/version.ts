@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.46.3';
+export const VERSION = '0.46.4';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-05-05 16:56 UTC';
-export const GIT_SHA = '2f6f123-dirty';
+export const BUILD_DATE = '2026-05-05 17:06 UTC';
+export const GIT_SHA = '187ef16-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,29 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.46.4',
+    date: '2026-05-05',
+    changes: [
+      '🔧 v0.46.4: 試合自動進行 デッドロック根本修正 (restartTick)',
+      '',
+      '【症状】(v0.46.3 でも残存していた致命バグ)',
+      '- タイマー発火時に canAutoAdvance が一瞬 false になると、',
+      '  その後 true に戻っても useEffect が再実行されず永久停止',
+      '- 「自動進行 OFF→ON」を切り替えると復活する = 依存値が変わらない問題',
+      '',
+      '【原因】',
+      '- useAutoAdvanceController の useEffect 依存が [can, timeMode] のみ',
+      '- can=true で timer 発火 → 中身で canAutoAdvance(latest)=false で空振り',
+      '- can は true のまま変化しないので effect 再実行のトリガーがない',
+      '- → タイマー再セットされず永久停止',
+      '',
+      '【修正】',
+      '- restartTick state を追加して依存配列に含める',
+      '- timer 発火後（成功時も空振り時も）必ず tick++ → effect 再実行',
+      '- これにより can=true が継続中はタイマーが連続生成される',
+    ],
+  },
   {
     version: '0.46.3',
     date: '2026-05-05',
