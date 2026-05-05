@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.46.1';
+export const VERSION = '0.46.2';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-05-04 15:09 UTC';
-export const GIT_SHA = 'adc69d2-dirty';
+export const BUILD_DATE = '2026-05-05 16:39 UTC';
+export const GIT_SHA = 'b982ef0-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,21 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.46.2',
+    date: '2026-05-05',
+    changes: [
+      '🔍 v0.46.2: 自動進行調査用デバッグ機能追加',
+      '',
+      '【追加】',
+      '- ブラウザ DevTools 用に `window.__matchStore()` / `window.__matchStoreFull()` を公開',
+      '  自動進行が止まる現象を再現したとき、F12 コンソールから状態を直接確認できる',
+      '  使い方:',
+      '    __matchStore()                                          // 主要フィールドのスナップショット',
+      "    __matchStore('autoAdvance', 'pauseReason', 'isProcessing')  // 指定キーだけ",
+      '    __matchStoreFull()                                      // 全 state (重い)',
+    ],
+  },
   {
     version: '0.46.1',
     date: '2026-05-04',

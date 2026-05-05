@@ -1183,3 +1183,40 @@ export const useMatchStore = create<MatchStore>()(
     },
   ),
 );
+
+// ──────────────────────────────────────────────────────
+// 開発デバッグ用: ブラウザ DevTools から store 状態を観察できるよう
+// window グローバルに公開する。本番でも利用可能（ユーザ自身がデバッグ可能）。
+// 利用例:
+//   __matchStore()           // → 現在の state スナップショット
+//   __matchStore('autoAdvance', 'isProcessing', 'pauseReason')
+//                            // → 指定キーだけ抽出
+// ──────────────────────────────────────────────────────
+if (typeof window !== 'undefined') {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (window as any).__matchStore = (...keys: string[]) => {
+    const s = useMatchStore.getState() as unknown as Record<string, unknown>;
+    if (keys.length === 0) {
+      // 主要フィールドだけを抽出して返す（runner など重いフィールドは除外）
+      return {
+        autoAdvance: s.autoAdvance,
+        initialized: s.initialized,
+        isProcessing: s.isProcessing,
+        isMatchOver: s.isMatchOver,
+        pauseReason: s.pauseReason,
+        runnerMode: s.runnerMode,
+        pendingNextOrder: s.pendingNextOrder,
+        currentOrder: s.currentOrder,
+        lastOrder: s.lastOrder,
+        matchResult: s.matchResult,
+        narrationLength: Array.isArray(s.narration) ? (s.narration as unknown[]).length : 0,
+      };
+    }
+    const out: Record<string, unknown> = {};
+    for (const k of keys) out[k] = s[k];
+    return out;
+  };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (window as any).__matchStoreFull = () => useMatchStore.getState();
+}
+
