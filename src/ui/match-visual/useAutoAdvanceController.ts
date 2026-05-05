@@ -216,6 +216,22 @@ export function useAutoAdvanceController(
     return () => clearInterval(interval);
   }, [can, nextFireAt]);
 
+  // 2026-05-05 fix v2: 保険ウォッチドッグ。
+  // can=true なのに nextFireAt=null の状態が 1 秒以上続いたら、強制的に restartTick を進めて effect を再起動。
+  // 「発火しない」現象（特に slow=10s モード）への二重保険。
+  useEffect(() => {
+    if (!can) return;
+    const watchdog = setInterval(() => {
+      if (canAutoAdvance(conditionsRef.current) && nextFireAt === null) {
+        // タイマーがセットされていない異常状態 → restartTick を進めて effect 再起動
+        // eslint-disable-next-line no-console
+        console.warn('[autoAdvance watchdog] can=true but nextFireAt=null — forcing restart');
+        setRestartTick((t) => t + 1);
+      }
+    }, 1000);
+    return () => clearInterval(watchdog);
+  }, [can, nextFireAt]);
+
   // 今すぐ進める
   const fireNow = useCallback(() => {
     // タイマーをキャンセルして即座に進行

@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.46.4';
+export const VERSION = '0.46.5';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-05-05 17:06 UTC';
-export const GIT_SHA = '187ef16-dirty';
+export const BUILD_DATE = '2026-05-05 17:11 UTC';
+export const GIT_SHA = '023e38c-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,23 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.46.5',
+    date: '2026-05-05',
+    changes: [
+      '🔧 v0.46.5: 自動進行 watchdog 二重保険',
+      '',
+      '【症状】',
+      '- v0.46.4 後、ほぼ止まらないが「ゆっくり10秒」モードで稀に発火しない',
+      '- 5秒モードでは現象が出にくく、長時間モードで顕著',
+      '',
+      '【追加】',
+      '- watchdog useEffect: 1秒間隔で監視',
+      '- can=true & canAutoAdvance(latest)=true なのに nextFireAt=null の状態を検出',
+      '- 異常時に setRestartTick で effect を強制再起動',
+      '- console.warn で検知可能 (本番でログ収集可能)',
+    ],
+  },
   {
     version: '0.46.4',
     date: '2026-05-05',
