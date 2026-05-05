@@ -155,89 +155,57 @@ export function useAutoAdvanceController(
   // カウントダウン表示用の再描画 tick
   const [, setDisplayTick] = useState(0);
 
-  // 2026-05-05 fix: タイマー発火時 canAutoAdvance が false だった場合、
-  // 同じ effect の依存値 (can) が変わらないと再実行されないデッドロックを回避するための tick。
-  // 発火時に false 判定で空振りしたら restartTick を increment して effect を再起動する。
-  const [restartTick, setRestartTick] = useState(0);
-
-  const can = canAutoAdvance(conditions);
+  // 2026-05-05 v0.46.6 全面書き直し:
+  // setTimeout ベースを廃止 → setInterval (100ms) で時刻ベース監視に変更。
+  // - fireAtRef で「次に発火すべき絶対時刻」を保持
+  // - 100ms ごとに canAutoAdvance(latest) と Date.now() を見て判断
+  // - setTimeout の React StrictMode 二重マウント / cleanup race condition を完全回避
+  // - restartTick / watchdog / 複雑な useEffect 依存配列がすべて不要に
+  const fireAtRef = useRef<number | null>(null);
 
   useEffect(() => {
-    // 進行不可能ならタイマーをセットしない（cleanup もタイマーなしで終了）
-    if (!can) {
-      setNextFireAt(null);
-      return;
-    }
-
-    // タイマーをセット
-    const delayMs = AUTO_ADVANCE_DELAY_MS[conditions.timeMode];
-    const fireAt = Date.now() + delayMs;
-    setNextFireAt(fireAt);
-
-    const timerId = setTimeout(() => {
-      setNextFireAt(null);
-
-      // 発火直前にも最新の条件を再チェック（タイマー待機中に状態が変化した場合の保険）
+    const intervalId = setInterval(() => {
       const latestCond = conditionsRef.current;
-      if (!canAutoAdvance(latestCond)) {
-        // 進行不可になっていた → effect を再起動するため tick を進める
-        // (can の値が変わっていないため、これがないと effect が再実行されずデッドロック)
-        setRestartTick((t) => t + 1);
+      const canNow = canAutoAdvance(latestCond);
+
+      if (!canNow) {
+        // 進行不可 → fireAt をクリア
+        if (fireAtRef.current !== null) {
+          fireAtRef.current = null;
+          setNextFireAt(null);
+        }
         return;
       }
 
-      // 進行を実行
-      onFireRef.current();
-      // 進行後も次サイクルを起動するために tick を進める
-      setRestartTick((t) => t + 1);
-    }, delayMs);
-
-    return () => {
-      clearTimeout(timerId);
-      setNextFireAt(null);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    // canAdvance のブール値だけを依存させることで、条件が変化した時だけ再実行される。
-    // timeMode は遅延 ms に影響するため明示的に含める。
-    // restartTick: タイマー発火後に effect を確実に再実行するため。
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    can,
-    conditions.timeMode,
-    restartTick,
-  ]);
-
-  // カウントダウン表示用の 100ms 間隔再描画
-  useEffect(() => {
-    if (!can || nextFireAt === null) return;
-    const interval = setInterval(() => {
-      setDisplayTick((t) => t + 1);
-    }, 100);
-    return () => clearInterval(interval);
-  }, [can, nextFireAt]);
-
-  // 2026-05-05 fix v2: 保険ウォッチドッグ。
-  // can=true なのに nextFireAt=null の状態が 1 秒以上続いたら、強制的に restartTick を進めて effect を再起動。
-  // 「発火しない」現象（特に slow=10s モード）への二重保険。
-  useEffect(() => {
-    if (!can) return;
-    const watchdog = setInterval(() => {
-      if (canAutoAdvance(conditionsRef.current) && nextFireAt === null) {
-        // タイマーがセットされていない異常状態 → restartTick を進めて effect 再起動
-        // eslint-disable-next-line no-console
-        console.warn('[autoAdvance watchdog] can=true but nextFireAt=null — forcing restart');
-        setRestartTick((t) => t + 1);
+      // 進行可能
+      if (fireAtRef.current === null) {
+        // 新規セット
+        const delayMs = AUTO_ADVANCE_DELAY_MS[latestCond.timeMode];
+        const newFireAt = Date.now() + delayMs;
+        fireAtRef.current = newFireAt;
+        setNextFireAt(newFireAt);
+        return;
       }
-    }, 1000);
-    return () => clearInterval(watchdog);
-  }, [can, nextFireAt]);
+
+      // 時刻チェック
+      if (Date.now() >= fireAtRef.current) {
+        // 発火
+        fireAtRef.current = null;
+        setNextFireAt(null);
+        onFireRef.current();
+      } else {
+        // カウントダウン再描画用の tick
+        setDisplayTick((t) => (t + 1) % 1000);
+      }
+    }, 100);
+
+    return () => clearInterval(intervalId);
+  }, []);
 
   // 今すぐ進める
   const fireNow = useCallback(() => {
-    // タイマーをキャンセルして即座に進行
-    // useEffect の cleanup は React が責任を持つが、ここでは手動でタイマーをキャンセル
-    // するのではなく、条件を変化させる方が正しい。
-    // ただし "今すぐ" ボタンの場合はカウントダウンを見せないため即実行する。
+    // 即座に進行
+    fireAtRef.current = null;
     setNextFireAt(null);
 
     // 最新の条件で進行可能かを再チェック

@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.46.5';
+export const VERSION = '0.46.6';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-05-05 17:11 UTC';
-export const GIT_SHA = '023e38c-dirty';
+export const BUILD_DATE = '2026-05-05 17:22 UTC';
+export const GIT_SHA = 'd0a1ff3-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,28 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.46.6',
+    date: '2026-05-05',
+    changes: [
+      '🔥 v0.46.6: 自動進行タイマーを setInterval ベースに全面書き直し',
+      '',
+      '【症状】',
+      '- v0.46.5 watchdog 追加後も、標準5秒・高速3秒で稀に発火しない',
+      '',
+      '【根本原因の推定】',
+      '- setTimeout + 複数 useEffect 依存配列の race condition',
+      '- React StrictMode の二重 mount や cleanup タイミングで setTimeout を取りこぼす',
+      '- restartTick / watchdog の補強でも完全には防げず',
+      '',
+      '【対応】',
+      '- setTimeout 廃止、setInterval 100ms 単発の純粋ループに統一',
+      '- fireAtRef で「次に発火すべき絶対時刻」を保持',
+      '- 100ms ごとに canAutoAdvance(latest) と Date.now() を見て判断',
+      '- restartTick / watchdog すべて削除（不要に）',
+      '- カウントダウン UI も同じループで更新',
+    ],
+  },
   {
     version: '0.46.5',
     date: '2026-05-05',
