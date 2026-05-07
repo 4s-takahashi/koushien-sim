@@ -1798,7 +1798,12 @@ function MatchPageInner({
     }
 
     // ストライクゾーンマーカー追加
-    const uv = pitchLocationToUV(latest.location.row, latest.location.col);
+    const uv = pitchLocationToUV(
+      latest.location.row,
+      latest.location.col,
+      latest.location.rowExact,
+      latest.location.colExact,
+    );
     const pitchClass = isFastballClass(latest.pitchType) ? 'fastball' as const : 'breaking' as const;
     const result: 'strike' | 'ball' | 'foul' | 'in_play' =
       latest.outcome === 'called_strike' || latest.outcome === 'swinging_strike'

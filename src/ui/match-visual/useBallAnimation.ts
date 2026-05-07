@@ -88,7 +88,14 @@ export interface BallTrajectory {
 
 /** 投球の視覚情報 */
 export interface PitchResultVisual {
-  actualLocation: { row: number; col: number };
+  actualLocation: {
+    row: number;
+    col: number;
+    /** 制球誤差適用後の連続 row 座標（丸め前）。ボール着弾点サブセル表示用。 */
+    rowExact?: number;
+    /** 制球誤差適用後の連続 col 座標（丸め前）。ボール着弾点サブセル表示用。 */
+    colExact?: number;
+  };
   speedKmh: number;
   pitchType: string;
 }
@@ -1432,11 +1439,13 @@ export function pitchSpeedToDuration(speedKmh: number): number {
 function pitchLocationToField(location: {
   row: number;
   col: number;
+  rowExact?: number;
+  colExact?: number;
 }): FieldPoint {
   // ホームプレート付近に投球が来る
   // col: 0=内角ボール〜4=外角ボール → x: -2 〜 2 feet
   // row: 0=高めボール〜4=低めボール → ホームプレート上（y≈0）
-  const uv = pitchLocationToUV(location.row, location.col);
+  const uv = pitchLocationToUV(location.row, location.col, location.rowExact, location.colExact);
   return {
     x: (uv.x - 0.5) * 4, // ±2 feet
     y: 1, // ホームプレート直前

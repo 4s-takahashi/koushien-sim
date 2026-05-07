@@ -22,8 +22,16 @@ export function applyControlError(
   const rowError = rng.gaussian(0, stddev);
   const colError = rng.gaussian(0, stddev);
 
-  const actualRow = Math.max(0, Math.min(4, Math.round(target.row + rowError)));
-  const actualCol = Math.max(0, Math.min(4, Math.round(target.col + colError)));
+  const rowRaw = target.row + rowError;
+  const colRaw = target.col + colError;
 
-  return { row: actualRow, col: actualCol };
+  const actualRow = Math.max(0, Math.min(4, Math.round(rowRaw)));
+  const actualCol = Math.max(0, Math.min(4, Math.round(colRaw)));
+
+  // rowExact / colExact: 丸め前の連続座標（UI のサブセル散布描画用）
+  // ゲームロジック（ストライク/ボール判定）は actualRow / actualCol の整数値のみ使用する。
+  const rowExact = Math.max(0, Math.min(4, rowRaw));
+  const colExact = Math.max(0, Math.min(4, colRaw));
+
+  return { row: actualRow, col: actualCol, rowExact, colExact };
 }

@@ -380,13 +380,39 @@ function computeBreakDirection(
 
 /**
  * Phase 12-B: ピッチ位置 (5×5グリッド) → UV 座標 (0-1)
+ *
+ * rowExact / colExact が渡された場合は連続座標として隣接セル中心間の線形補間を行い、
+ * サブセル散布（ピクセルレベルのばらつき）を表現する。
+ * pitch-marker-types.ts の pitchLocationToUV と同一ロジック。
  */
-function pitchLocationToUV(row: number, col: number): { x: number; y: number } {
-  const rowMap = [0.05, 0.2, 0.5, 0.8, 0.95];
-  const colMap = [0.05, 0.2, 0.5, 0.8, 0.95];
+function pitchLocationToUV(
+  row: number,
+  col: number,
+  rowExact?: number,
+  colExact?: number,
+): { x: number; y: number } {
+  const cellCenters = [0.05, 0.2, 0.5, 0.8, 0.95] as const;
+
+  function continuousToUV(v: number): number {
+    const clamped = Math.max(0, Math.min(4, v));
+    const cellIdx = Math.floor(clamped);
+    if (cellIdx >= 4) {
+      return cellCenters[4];
+    }
+    const frac = clamped - cellIdx;
+    return cellCenters[cellIdx]! + frac * (cellCenters[cellIdx + 1]! - cellCenters[cellIdx]!);
+  }
+
+  if (rowExact !== undefined && colExact !== undefined) {
+    return {
+      x: continuousToUV(colExact),
+      y: continuousToUV(rowExact),
+    };
+  }
+
   return {
-    x: colMap[col] ?? 0.5,
-    y: rowMap[row] ?? 0.5,
+    x: cellCenters[col] ?? 0.5,
+    y: cellCenters[row] ?? 0.5,
   };
 }
 
@@ -769,6 +795,8 @@ export const useMatchStore = create<MatchStore>()(
         location: {
           row: pitchResult.actualLocation.row,
           col: pitchResult.actualLocation.col,
+          rowExact: pitchResult.actualLocation.rowExact,
+          colExact: pitchResult.actualLocation.colExact,
         },
         batterId,
         batterName,
@@ -786,7 +814,12 @@ export const useMatchStore = create<MatchStore>()(
         // Phase 12-B: 変化方向・スイング位置
         breakDirection: computeBreakDirection(pitchResult.pitchSelection.type, pitcherHand),
         swingLocation: isSwingAction(pitchResult.batterAction)
-          ? pitchLocationToUV(pitchResult.actualLocation.row, pitchResult.actualLocation.col)
+          ? pitchLocationToUV(
+              pitchResult.actualLocation.row,
+              pitchResult.actualLocation.col,
+              pitchResult.actualLocation.rowExact,
+              pitchResult.actualLocation.colExact,
+            )
           : null,
         // Phase 12-D: 打球詳細
         // v0.36.0: ファール時も foulContact を batContact に合流させて軌道表示
@@ -913,7 +946,12 @@ export const useMatchStore = create<MatchStore>()(
         half: stateBefore.currentHalf,
         pitchType: p.pitchSelection.type,
         outcome: p.outcome,
-        location: { row: p.actualLocation.row, col: p.actualLocation.col },
+        location: {
+          row: p.actualLocation.row,
+          col: p.actualLocation.col,
+          rowExact: p.actualLocation.rowExact,
+          colExact: p.actualLocation.colExact,
+        },
         batterId,
         batterName,
         // v0.23.0: 打者の所属チーム短縮名
@@ -927,7 +965,12 @@ export const useMatchStore = create<MatchStore>()(
         // Phase 12-B: 変化方向・スイング位置
         breakDirection: computeBreakDirection(p.pitchSelection.type, pitcherHandAb),
         swingLocation: isSwingAction(p.batterAction)
-          ? pitchLocationToUV(p.actualLocation.row, p.actualLocation.col)
+          ? pitchLocationToUV(
+              p.actualLocation.row,
+              p.actualLocation.col,
+              p.actualLocation.rowExact,
+              p.actualLocation.colExact,
+            )
           : null,
         // Phase 12-D: 打球詳細
         batContact: p.batContact

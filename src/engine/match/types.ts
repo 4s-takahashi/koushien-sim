@@ -24,10 +24,18 @@ import type { MatchHitTypeStats } from '../narrative/hit-type-stats';
  * 投球コース (5×5 グリッド)
  * ストライクゾーン = 中央3×3 (row 1-3, col 1-3)
  * ボールゾーン = 外周 (row 0 or 4, col 0 or 4)
+ *
+ * rowExact / colExact: 制球誤差適用後の連続座標（丸め前）。
+ *   UI の描画でサブセル散布（ピクセルレベルのばらつき）を表現するために使用。
+ *   ゲームロジック（ストライク/ボール判定）は row / col の整数値のみ参照する。
  */
 export interface PitchLocation {
   row: number; // 0-4 (0=高めボール, 1=高め, 2=中段, 3=低め, 4=低めボール)
   col: number; // 0-4 (0=内角ボール, 1=内角, 2=真中, 3=外角, 4=外角ボール)
+  /** 制球誤差適用後の連続 row 座標（丸め前）。UI 描画用。 */
+  rowExact?: number;
+  /** 制球誤差適用後の連続 col 座標（丸め前）。UI 描画用。 */
+  colExact?: number;
 }
 
 /** 投球がストライクゾーン内か */

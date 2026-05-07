@@ -40,17 +40,51 @@ export interface AtBatMarkerHistory {
 /**
  * エンジンの 5×5 グリッド座標を UV 座標（0-1）に変換
  * row 0-4, col 0-4 → x, y ∈ [0, 1]
+ *
+ * rowExact / colExact が渡された場合（PitchLocation.rowExact など）は
+ * 連続座標として隣接セル中心間の線形補間を行い、
+ * サブセル散布（ピクセルレベルのばらつき）を表現する。
+ * - v が整数のとき → そのセル中心 UV と一致（後方互換）
+ * - v が非整数のとき → 隣接セル中心間を線形補間
+ * 省略時は整数グリッドのセンター点にフォールバックする。
  */
 export function pitchLocationToUV(
   row: number,
   col: number,
+  rowExact?: number,
+  colExact?: number,
 ): { x: number; y: number } {
+  // 各グリッドセル（0-4）の UV 中心座標
   // 0→0.05, 1→0.2, 2→0.5, 3→0.8, 4→0.95
-  const rowMap = [0.05, 0.2, 0.5, 0.8, 0.95];
-  const colMap = [0.05, 0.2, 0.5, 0.8, 0.95];
+  const cellCenters = [0.05, 0.2, 0.5, 0.8, 0.95] as const;
+
+  /**
+   * 連続座標 v (0-4) を UV に変換する
+   * v が整数 n → cellCenters[n]（整数グリッドの中心と完全一致）
+   * v が非整数 → 隣接セル中心間の線形補間
+   */
+  function continuousToUV(v: number): number {
+    const clamped = Math.max(0, Math.min(4, v));
+    const cellIdx = Math.floor(clamped);
+    if (cellIdx >= 4) {
+      return cellCenters[4];
+    }
+    const frac = clamped - cellIdx;
+    // frac=0 → cellCenters[cellIdx], frac=1 → cellCenters[cellIdx+1]
+    return cellCenters[cellIdx]! + frac * (cellCenters[cellIdx + 1]! - cellCenters[cellIdx]!);
+  }
+
+  if (rowExact !== undefined && colExact !== undefined) {
+    return {
+      x: continuousToUV(colExact),
+      y: continuousToUV(rowExact),
+    };
+  }
+
+  // フォールバック: 整数グリッドのセンター点
   return {
-    x: colMap[col] ?? 0.5,
-    y: rowMap[row] ?? 0.5,
+    x: cellCenters[col] ?? 0.5,
+    y: cellCenters[row] ?? 0.5,
   };
 }
 

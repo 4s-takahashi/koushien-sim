@@ -665,7 +665,14 @@ export interface PitchLogEntry {
   half: 'top' | 'bottom';
   pitchType: string;
   outcome: string;
-  location: { row: number; col: number };
+  location: {
+    row: number;
+    col: number;
+    /** 制球誤差適用後の連続 row 座標（丸め前）。UI 描画のサブセル散布用。 */
+    rowExact?: number;
+    /** 制球誤差適用後の連続 col 座標（丸め前）。UI 描画のサブセル散布用。 */
+    colExact?: number;
+  };
   batterId: string;
   batterName: string;
   /** 打者の所属チーム短縮名 — v0.23.0 追加（optional: 旧セーブデータ互換） */
