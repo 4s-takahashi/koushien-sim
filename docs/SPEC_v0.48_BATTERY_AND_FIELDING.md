@@ -323,3 +323,397 @@ distance は `bat-contact.ts` の旧計算（L211-234）の値を継承してい
 つまり物理的な飛距離と守備到達計算が整合していない。
 
 ---
+
+## Section 3 — 新仕様：シミュレーション設計
+
+### 3.1 キャッチャー要求位置生成
+
+**新規ファイル**: `src/engine/match/pitch/catcher-target-location.ts`
+
+#### 概念
+
+1 球ごとに、キャッチャーが「ここに投げてほしい」と要求する **`catcherRequest: PitchLocation`** を生成する。
+投手は `catcherRequest` を受け入れるか（首を縦に振る）、独自の判断で変える（首振り）かを決める。
+最終的な `target` が投手の意図、`actualLocation` が実際の着弾。
+
+#### 型定義
+
+```ts
+// src/engine/match/pitch/catcher-target-location.ts
+
+import type { PitchLocation } from '../../match/types';
+import type { RNG } from '../../core/rng';
+import type { CatcherProfile } from '../../types/player';
+import type { CatcherDetailedOrder } from '../../match/types';
+
+/**
+ * キャッチャーの 1 球あたり要求位置コンテキスト
+ */
+export interface CatcherRequestContext {
+  /** キャッチャープロフィール */
+  catcherProfile: CatcherProfile;
+  /** キャッチャー実効 fielding 0-100 */
+  catcherFielding: number;
+  /** キャッチャー実効 mental 0-100 */
+  catcherMental: number;
+  /** 投手の現在コントロール 0-100 */
+  pitcherControl: number;
+  /** 投手スタミナ 0-100 */
+  pitcherStamina: number;
+  /** カウント */
+  count: { balls: number; strikes: number };
+  /** 監督の詳細指示（省略可） */
+  managerOrder?: CatcherDetailedOrder;
+  /** 監督指示コンプライアンス率（省略時 = 0.9） */
+  managerComplianceRate?: number;
+}
+
+/**
+ * キャッチャーの要求生成結果
+ */
+export interface CatcherRequestResult {
+  /** キャッチャーが要求するコース（5×5グリッド） */
+  requestLocation: PitchLocation;
+  /**
+   * 監督指示が反映されたか
+   * true = 監督の意図通りのコースを要求
+   * false = キャッチャー独自の判断
+   */
+  isManagerOrderApplied: boolean;
+  /**
+   * 要求の質スコア 0-1
+   * 1.0 = キャッチャーが最適なコースを要求
+   * 0.5 = 能力制限で妥協したコース
+   */
+  requestQuality: number;
+}
+
+/**
+ * キャッチャーの 1 球あたり要求位置を生成する
+ * 純粋関数（Math.random() 不使用）
+ *
+ * @param ctx  要求生成コンテキスト
+ * @param rng  乱数生成器
+ */
+export function generateCatcherRequest(
+  ctx: CatcherRequestContext,
+  rng: RNG,
+): CatcherRequestResult;
+```
+
+#### 設計詳細
+
+**要求位置の決定ロジック**:
+
+```
+1. callingAccuracy(配球精度) によりベースコースを決定
+   - 高精度(>=70): 打者弱点コースを狙う最適座標
+   - 中精度(40-70): ±1マスの誤差あり
+   - 低精度(<40): ランダム成分が大きい
+
+2. managerOrder がある場合:
+   - outside/inside/high/low の指示を座標に変換
+   - complianceRate(default=0.90) で指示に従うか判定
+   - 従わない場合はキャッチャー独自の要求に戻る
+   - isManagerOrderApplied = 従ったかどうか
+
+3. requestQuality の計算:
+   = (callingAccuracy / 100) × 0.6 + (catcherMental / 100) × 0.4
+   × (pitcherControl / 100) の制限: キャッチャーが要求しても
+     投手の制球が悪ければ質は低くなる
+```
+
+---
+
+### 3.2 ピッチャー首振り判定
+
+**新規ファイル**: `src/engine/match/pitch/pitcher-shake-off.ts`
+
+#### 概念
+
+キャッチャーの要求を投手が受け入れる（頷く）か首を振るかを決定する。
+首を振った場合、投手は独自の球種・コースを選ぶ。
+
+#### 型定義
+
+```ts
+// src/engine/match/pitch/pitcher-shake-off.ts
+
+import type { PitchLocation } from '../../match/types';
+import type { RNG } from '../../core/rng';
+
+export interface ShakeOffContext {
+  /** キャッチャー要求コース */
+  catcherRequest: PitchLocation;
+  /** キャッチャー要求球種（省略可: 球種まで要求しない場合） */
+  catcherRequestPitch?: string;
+  /** 投手のメンタル 0-100 */
+  pitcherMental: number;
+  /** 投手の経験（pitchCountInGame で代替） */
+  pitcherExperience: number;
+  /**
+   * バッテリー信頼関係スコア 0-100
+   * = (pitcher.mental + catcher.leadership) / 2 の近似
+   */
+  batteryTrust: number;
+  /** 投手の特性 */
+  pitcherTraits: readonly string[];
+}
+
+export interface ShakeOffResult {
+  /** 首を振ったか */
+  isShakeOff: boolean;
+  /**
+   * 採用された target コース
+   * 首を縦に振った場合 = catcherRequest と同一
+   * 首を振った場合 = 投手独自の判断
+   */
+  targetLocation: PitchLocation;
+}
+
+/**
+ * 投手の首振り判定を行う
+ *
+ * @param ctx      判定コンテキスト
+ * @param rng      乱数生成器
+ */
+export function decidePitcherShakeOff(
+  ctx: ShakeOffContext,
+  rng: RNG,
+): ShakeOffResult;
+```
+
+#### 首振り確率の計算式
+
+```
+baseShakeOffRate = 0.10  // 通常 10% が首を振る
+
+ボーナス/ペナルティ:
+  batteryTrust >= 80: -0.05（信頼が厚いほど首を振らない）
+  batteryTrust <= 30: +0.15（信頼が薄いと自己判断多）
+  stubborn 特性: +0.20
+  pitcherMental < 40: +0.10（精神的に不安定）
+  pitcherExperience > 80球: +0.08（疲労で判断力低下）
+
+shakeOffRate = clamp(baseShakeOffRate + ボーナス合計, 0.02, 0.60)
+```
+
+---
+
+### 3.3 監督指示反映率
+
+**新規ファイル**: `src/engine/match/pitch/manager-order-compliance.ts`
+
+#### 概念
+
+監督がサインを出した場合、キャッチャーがそれを守るかどうかの判定。
+既存の `applyManagerOrder()`（catcher-thinking.ts）は「反映したとして bias を計算」していたが、
+新設計では「反映したか否か」を明示的に記録してUI表示に使う。
+
+#### 型定義
+
+```ts
+// src/engine/match/pitch/manager-order-compliance.ts
+
+import type { CatcherDetailedOrder } from '../../match/types';
+
+export interface ComplianceContext {
+  /** 監督指示 */
+  order: CatcherDetailedOrder;
+  /** キャッチャーのリーダーシップ 0-100 */
+  catcherLeadership: number;
+  /** キャッチャーの性格 */
+  catcherPersonality: 'aggressive' | 'cautious' | 'analytical';
+  /** 状況プレッシャー 0-100 */
+  situationPressure: number;
+}
+
+export interface ComplianceResult {
+  /** 指示に従ったか */
+  complied: boolean;
+  /** 実効コンプライアンス率（0-1） */
+  effectiveRate: number;
+  /**
+   * 不服従の理由（complied=false のとき）
+   * 'personality': 性格的に従いたくない
+   * 'situation': 状況判断で変えた
+   * 'distrust': 監督への不信
+   */
+  reason?: 'personality' | 'situation' | 'distrust';
+}
+
+/**
+ * 監督指示への従否を判定する
+ *
+ * 従否率の計算:
+ *   baseRate = SIGN_COMPLIANCE_BASE(=0.90)
+ *   慎重派 + 攻め指示 → -0.15（性格と合わない）
+ *   積極派 + 様子見指示 → -0.10
+ *   leadership < 30 → +0.05（指示に素直）
+ *   situationPressure > 70 → -0.10（プレッシャーで自己判断）
+ */
+export function computeComplianceResult(
+  ctx: ComplianceContext,
+  rng: import('../../core/rng').RNG,
+): ComplianceResult;
+```
+
+---
+
+### 3.4 ワイルドピッチ・パスボール
+
+**新規ファイル**: `src/engine/match/pitch/battery-error.ts`
+
+#### 概念
+
+1球ごとに「暴投（WP）」または「パスボール（PB）」が起きるか判定。
+発生した場合は走者が進塁する（`process-pitch.ts` の `updateMatcherAfterPitch` で処理）。
+
+#### 設計原則
+
+- **ワイルドピッチ（WP）**: 投手の暴投。ピッチャーの control が低い + ボール球判定のとき。
+- **パスボール（PB）**: キャッチャーの捕球ミス。ボール球かつキャッチャーの fielding が低いとき。
+- **グリッド外拡張**: WP は 5×5グリッド外にも着弾できる（row=-1〜5, col=-1〜5）。
+
+#### 型定義
+
+```ts
+// src/engine/match/pitch/battery-error.ts
+
+import type { PitchLocation } from '../../match/types';
+import type { RNG } from '../../core/rng';
+
+export type BatteryErrorType = 'wild_pitch' | 'passed_ball';
+
+export interface BatteryErrorContext {
+  /** 投球の実際着弾コース（制球誤差適用後） */
+  actualLocation: PitchLocation;
+  /** 投球アウトカム（'ball' のときのみ WP/PB 判定） */
+  outcome: 'ball' | 'called_strike' | 'swinging_strike' | 'foul' | 'foul_bunt' | 'in_play';
+  /** 投手の実効コントロール 0-100 */
+  pitcherEffectiveControl: number;
+  /** キャッチャーの fielding 0-100 */
+  catcherFielding: number;
+  /** キャッチャーの agility（base.speed で代替） 0-100 */
+  catcherAgility: number;
+  /** ランナーの有無（WP/PBの意味がある場合のみ発生させる） */
+  hasRunners: boolean;
+  /** 球種（変化球は捕球ミスしやすい） */
+  pitchType: string;
+}
+
+export interface BatteryErrorResult {
+  /** エラーが発生したか */
+  occurred: boolean;
+  /** エラー種別（occurred=false のとき undefined） */
+  type?: BatteryErrorType;
+  /**
+   * 走者進塁数（通常 1 塁ずつ）
+   * occurred=true かつ hasRunners=true のとき 1
+   */
+  advanceBases: number;
+}
+
+/**
+ * ワイルドピッチ・パスボール発生を判定する
+ *
+ * 発生確率の計算:
+ *   WP発生条件: outcome === 'ball'
+ *   wpBaseRate = max(0, (50 - pitcherEffectiveControl) / 500)
+ *     = control=30 → 0.04 (4%)
+ *     = control=50 → 0.00 (基準: control>=50 では WP はほぼ起きない)
+ *   変化球補正: fork/curve/slider → +0.005〜+0.010
+ *
+ *   PB発生条件: outcome === 'ball' かつ WP でなかった場合
+ *   pbBaseRate = max(0, (50 - catcherFielding) / 1000)
+ *     = fielding=30 → 0.02 (2%)
+ *     = fielding=70 → 0.00
+ *   変化球補正: +0.003〜+0.008
+ *
+ * 合算すると「素晴らしいバッテリー」では 1 試合 0〜1 回程度に収まる。
+ * 制球の悪い投手 + 未熟なキャッチャーでは 1 試合 2〜4 回の発生もありえる。
+ */
+export function judgeBatteryError(
+  ctx: BatteryErrorContext,
+  rng: RNG,
+): BatteryErrorResult;
+```
+
+#### 走者進塁処理の拡張
+
+`process-pitch.ts` の `updateMatcherAfterPitch()` に `outcome === 'ball' && batteryError.occurred` のブランチを追加:
+
+```ts
+// process-pitch.ts 追加ロジック（擬似コード）
+if (outcome === 'ball') {
+  const batteryError = judgeBatteryError(ctx, rng);
+  if (batteryError.occurred && batteryError.advanceBases > 0) {
+    bases = advanceRunnersOnBatteryError(bases, batteryError.advanceBases);
+    // WP/PB ログ追記
+    nextState = { ...nextState, log: [...nextState.log, {
+      type: batteryError.type,
+      description: batteryError.type === 'wild_pitch' ? '暴投' : 'パスボール'
+    }]};
+  }
+}
+```
+
+---
+
+### 3.5 打球シミュレーション再検証
+
+#### 問題
+
+`process-pitch.ts` の通常スイングフロー:
+
+```
+resolveBatBall() → sprayAngle → legacyContact.direction（OK）
+bat-contact.ts の distance 計算 → resolveFieldResult()（問題：固定 FLY_CATCH_BASE）
+```
+
+#### 改善方針
+
+**Phase 1 修正（v0.48）**:
+
+`resolveFieldResult()` の外野フライ処理に外野手能力・距離チェックを追加:
+
+```ts
+// field-result.ts の修正案（fly_ball セクション）
+if (contact.contactType === 'fly_ball') {
+  // 外野手の守備エリアから飛距離を考慮した到達判定
+  const fielderZone = getOutfielderZone(contact.direction);
+  const outfielderAbility = getOutfielderAbility(fieldingTeam, fielderZone);
+
+  // 飛距離が外野手のカバー範囲外なら自動ヒット（距離ベース）
+  const maxReachDistance = 70 + (outfielderAbility.speed / 100) * 25; // 70-95m
+  if (contact.distance > maxReachDistance) {
+    // 外野手が追いつけない → ヒット確定
+    const hitType = contact.distance > 90 ? 'triple' : 'double';
+    return { type: hitType, fielder: fielderZone, isError: false };
+  }
+
+  // 追いつける範囲内: 捕球確率（従来の FLY_CATCH_BASE を踏襲）
+  const catchChance = FLY_CATCH_BASE + (outfielderAbility.fielding / 100) * 0.15;
+  if (!rng.chance(catchChance)) {
+    return { type: 'single', fielder: fielderZone, isError: false };
+  }
+  // アウト or 犠飛
+  ...
+}
+```
+
+**Phase 2 修正（v0.49 以降）**:
+- `resolvePlay()`（physics/resolver/index.ts）を `process-pitch.ts` に統合
+- バント以外の全打球を物理モデルで処理
+
+#### 外野手カバー範囲の定義
+
+| 外野ポジション | カバー方向 | maxReachBase |
+|--------------|-----------|-------------|
+| left         | 0°-30°    | 68m         |
+| center       | 30°-60°   | 72m         |
+| right        | 60°-90°   | 68m         |
+
+speed=100 の外野手は +25m = 93〜97m まで追いつける（ホームラン距離95m と重複するため微調整要）。
+
+---
