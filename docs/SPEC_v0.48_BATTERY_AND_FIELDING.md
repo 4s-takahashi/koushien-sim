@@ -717,3 +717,243 @@ if (contact.contactType === 'fly_ball') {
 speed=100 の外野手は +25m = 93〜97m まで追いつける（ホームラン距離95m と重複するため微調整要）。
 
 ---
+
+## Section 4 — UI: ストライクゾーン上のキャッチャーミット
+
+### 4.1 ViewState 拡張
+
+`src/ui/projectors/view-state-types.ts` の `PitchLogEntry` に以下を追加:
+
+```ts
+// PitchLogEntry への追加（optional: 後方互換）
+export interface PitchLogEntry {
+  // ... 既存フィールド ...
+
+  /**
+   * v0.48: キャッチャーミット表示用データ
+   * Phase 1: 要求位置のみ。Phase 2: リアルタイムアニメーション対応。
+   */
+  catcherMitt?: CatcherMittData | null;
+}
+
+/** キャッチャーミット表示データ */
+export interface CatcherMittData {
+  /**
+   * ミットの初期構え位置（UV座標）
+   * キャッチャーが要求した座標を UV(0-1) に変換したもの
+   */
+  requestPosition: { x: number; y: number };
+  /**
+   * 実際の捕球位置（UV座標）
+   * actualLocation を UV に変換したもの
+   */
+  catchPosition: { x: number; y: number };
+  /**
+   * 首振りが発生したか
+   * true の場合、requestPosition と最終 target が異なる
+   */
+  wasShakeOff: boolean;
+  /**
+   * 監督指示が反映されたか
+   */
+  managerOrderApplied: boolean;
+  /**
+   * 要求の質スコア 0-1
+   * 視覚的な演出（ミットの色/大きさ）に使用
+   */
+  requestQuality: number;
+}
+```
+
+### 4.2 CatcherMitt.tsx の設計
+
+**新規ファイル**: `src/ui/match-visual/CatcherMitt.tsx`
+
+```tsx
+// CatcherMitt.tsx の外部インターフェース
+
+interface CatcherMittProps {
+  /** ミット表示データ */
+  data: CatcherMittData;
+  /** 現在の投球アニメーション進行度 0-1（投球中は 0→1） */
+  pitchProgress: number;
+  /** SVGのビューボックスサイズ */
+  svgW: number;
+  svgH: number;
+}
+
+/**
+ * ストライクゾーン上に表示するワイヤーフレームキャッチャーミット
+ *
+ * アニメーション仕様:
+ * Phase A（pitchProgress 0-0.4）: requestPosition に静止表示
+ * Phase B（pitchProgress 0.4-0.8）: requestPosition → catchPosition にゆっくり移動
+ * Phase C（pitchProgress 0.8-1.0）: catchPosition で捕球エフェクト
+ *
+ * ワイヤーフレーム視覚デザイン:
+ * - ミット外形: 半楕円（横長）、ストローク線のみ（fill透明）
+ * - 色:
+ *   requestQuality >= 0.8 → 水色 (rgba(100, 200, 255, 0.7))
+ *   requestQuality >= 0.5 → 白 (rgba(255, 255, 255, 0.6))
+ *   requestQuality < 0.5 → 薄黄 (rgba(255, 220, 100, 0.5))
+ * - 首振り発生時: 点線スタイル
+ * - 監督指示反映 true: ミット外周に★アイコンを小さく添付
+ * - 捕球エフェクト: 着弾後 200ms でパルスアニメーション
+ */
+export function CatcherMitt({ data, pitchProgress, svgW, svgH }: CatcherMittProps): React.ReactElement;
+```
+
+#### ワイヤーフレームミット SVG 形状仕様
+
+```
+ミット外形（楕円）:
+  rx = 18px（横幅）
+  ry = 14px（縦幅）
+  中心 = (cx, cy): SVG座標
+
+ミットポケット（内側の小楕円）:
+  rx = 8px
+  ry = 6px
+  strokeDasharray = "2 2"（点線で区別）
+
+ストローク:
+  strokeWidth = 1.5
+  fill = "none"（ワイヤーフレーム）
+  stroke = 状態依存の色
+
+構え線（ミット左右に垂れる紐の表現）:
+  2本の短い直線（ミット底部から -5px Y方向）
+```
+
+### 4.3 アニメーション仕様
+
+投球ボールアニメーション（既存 `PitchBallAnimSvg`）との連動:
+
+| タイミング | ボール | ミット |
+|-----------|--------|--------|
+| 0ms（投球前） | 非表示 | requestPosition で静止表示（薄く） |
+| 投球開始〜着弾前 | 飛来中 | requestPosition で静止（やや明るく） |
+| 着弾 50ms 前 | フェードアウト開始 | requestPosition → catchPosition へ移動開始 |
+| 着弾時 | 消去 | catchPosition でパルスエフェクト |
+| 着弾後 300ms | - | catchPosition で残留（通常輝度） |
+
+既存の `PITCH_TRAJ_DURATION = 380ms`（StrikeZone.tsx L102）を参照し、
+ミット移動の開始は `380 × 0.7 = 266ms` 付近。
+
+### 4.4 StrikeZone.tsx への統合
+
+既存の `StrikeZone.tsx` の SVG 内、マーカーより前面（z-order 上位）に追加:
+
+```tsx
+{/* Phase 1: キャッチャーミット（マーカーの上、ボールの下） */}
+{catcherMittData && pitchBall && (
+  <CatcherMitt
+    data={catcherMittData}
+    pitchProgress={pitchBall.progress}
+    svgW={ZONE_SVG_W}
+    svgH={ZONE_SVG_H}
+  />
+)}
+```
+
+`catcherMittData` は `history.latestMittData`（新規 prop）から取得。
+`AtBatMarkerHistory` に `latestMittData?: CatcherMittData` フィールドを追加。
+
+---
+
+## Section 5 — データフロー: 1球の処理フロー
+
+### 5.1 現在のフロー（v0.47）
+
+```
+processPitch(state, order, rng)
+  │
+  ├─ getEffectivePitcherParams()       // 投手実効パラメータ
+  ├─ getEffectiveBatterParams()        // 打者実効パラメータ
+  │
+  ├─ selectPitch()                     // 球種・ターゲット選択
+  │   └─ pitchingBias（キャッチャー方針）を反映
+  │
+  ├─ applyControlError()               // 制球誤差適用
+  │
+  ├─ decideBatterAction()              // 打者の反応
+  │
+  ├─ [swing] calculateSwingResult()   // スイング結果
+  │    └─ generateBatContact()         // 打球生成
+  │
+  ├─ [in_play] resolveBatBall()       // 物理打球解析
+  │    └─ resolveFieldResult()         // 旧守備モデル
+  │
+  └─ return { nextState, pitchResult }
+```
+
+### 5.2 v0.48 の新フロー
+
+```
+processPitch(state, order, rng)
+  │
+  ├─ getEffectivePitcherParams()
+  ├─ getEffectiveBatterParams()
+  ├─ getEffectiveCatcherParams()  ★新規: キャッチャー実効パラメータ取得
+  │
+  │── 要求生成フェーズ ─────────────────────────────────────
+  ├─ generateCatcherRequest()     ★新規
+  │   ├─ callingAccuracy → 最適コース候補
+  │   ├─ managerOrder → コンプライアンス判定
+  │   └─ return { requestLocation, isManagerOrderApplied, requestQuality }
+  │
+  │── 首振りフェーズ ──────────────────────────────────────
+  ├─ decidePitcherShakeOff()      ★新規
+  │   ├─ batteryTrust → 首振り確率
+  │   └─ return { isShakeOff, targetLocation }
+  │
+  │── 投球フェーズ ───────────────────────────────────────
+  ├─ selectPitch(... target=targetLocation ...)  // 修正: target を外部から注入
+  ├─ applyControlError()
+  │
+  │── WP/PB 判定フェーズ ──────────────────────────────
+  ├─ [outcome=ball] judgeBatteryError()  ★新規
+  │   ├─ pitcherControl × catcherFielding → WP/PB 確率
+  │   └─ hasRunners → 走者進塁処理
+  │
+  │── 打者反応フェーズ ─────────────────────────────────
+  ├─ decideBatterAction()
+  ├─ [swing] calculateSwingResult()
+  │
+  │── インプレーフェーズ ────────────────────────────────
+  ├─ [in_play] resolveBatBall()
+  │    └─ resolveFieldResult() with 外野到達計算  ★修正
+  │
+  │── PitchResult 組み立て ─────────────────────────────
+  └─ return {
+       nextState,
+       pitchResult: {
+         ...既存,
+         catcherRequest,       ★新規
+         wasShakeOff,          ★新規
+         managerOrderApplied,  ★新規
+         batteryError,         ★新規
+       }
+     }
+```
+
+### 5.3 ViewState への伝播
+
+```
+pitchResult
+  │
+  ├─ matchProjector.ts
+  │    └─ buildPitchLogEntry(pitchResult) → PitchLogEntry
+  │         └─ catcherMitt: {
+  │              requestPosition: uvFromLocation(pitchResult.catcherRequest),
+  │              catchPosition:   uvFromLocation(pitchResult.actualLocation),
+  │              wasShakeOff:     pitchResult.wasShakeOff,
+  │              managerOrderApplied: pitchResult.managerOrderApplied,
+  │              requestQuality:  pitchResult.catcherRequestQuality,
+  │            }
+  │
+  └─ match-visual-store.ts
+       └─ AtBatMarkerHistory.latestMittData = PitchLogEntry.catcherMitt
+```
+
+---
