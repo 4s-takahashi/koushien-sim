@@ -957,3 +957,217 @@ pitchResult
 ```
 
 ---
+
+## Section 6 — テスト戦略
+
+### 6.1 ユニットテスト
+
+#### 新規モジュールのユニットテスト
+
+**`battery-error.test.ts`**:
+
+```ts
+describe('judgeBatteryError', () => {
+  test('control=100のピッチャーはWPが発生しない', () => {
+    const ctx = { pitcherEffectiveControl: 100, catcherFielding: 50, ... };
+    const result = judgeBatteryError(ctx, deterministicRng);
+    expect(result.occurred).toBe(false);
+  });
+
+  test('control=20のピッチャーはボール球でWP率が高い', () => {
+    // 1000回試行してWP率が3-8%の範囲にある
+    const wpCount = runTrials(1000, ctx => judgeBatteryError({...ctx, pitcherEffectiveControl: 20}, rng));
+    expect(wpCount / 1000).toBeGreaterThan(0.02);
+    expect(wpCount / 1000).toBeLessThan(0.10);
+  });
+
+  test('WP発生時は走者が進塁する', () => {
+    const ctx = { ..., hasRunners: true };
+    // WPが発生するシードで確認
+    const result = judgeBatteryError(ctx, seededRng);
+    if (result.occurred) {
+      expect(result.advanceBases).toBe(1);
+    }
+  });
+
+  test('ランナーなしでWPが発生しても進塁数は0', () => {
+    const ctx = { ..., hasRunners: false };
+    const result = judgeBatteryError(ctx, seededRng);
+    expect(result.advanceBases).toBe(0);
+  });
+});
+```
+
+**`catcher-target-location.test.ts`**:
+
+```ts
+describe('generateCatcherRequest', () => {
+  test('callingAccuracy=100のキャッチャーはrequestQuality>=0.8', () => {...});
+  test('managerOrder反映時はisManagerOrderApplied=true', () => {...});
+  test('低精度キャッチャーはコース誤差あり', () => {...});
+});
+```
+
+**`pitcher-shake-off.test.ts`**:
+
+```ts
+describe('decidePitcherShakeOff', () => {
+  test('batteryTrust=100のバッテリーは首振り率 < 5%', () => {
+    // 1000回試行
+    const shakeCount = runTrials(1000, () => decidePitcherShakeOff({batteryTrust: 100, ...}, rng));
+    expect(shakeCount / 1000).toBeLessThan(0.05);
+  });
+
+  test('stubborn特性の投手は首振り率が高い', () => {
+    const ctx = { pitcherTraits: ['stubborn'], batteryTrust: 50, ... };
+    const shakeCount = runTrials(1000, () => decidePitcherShakeOff(ctx, rng));
+    expect(shakeCount / 1000).toBeGreaterThan(0.20);
+  });
+});
+```
+
+### 6.2 統計テスト（100試合シミュレーション）
+
+**目標指標**:
+
+| 指標 | 目標値 | 計測方法 |
+|------|-------|---------|
+| WP/試合 | 0.3〜1.5 | 試合ログ集計 |
+| PB/試合 | 0.1〜0.5 | 試合ログ集計 |
+| 外野フライヒット率 | 15〜30% | fly_ball の in_play 件数/total |
+| 外野二塁打以上の割合 | 外野ヒットの 40〜60% | double+triple/outfield_hit |
+| 首振り率 | 5〜20% | pitchResult.wasShakeOff の比率 |
+| 監督指示コンプライアンス | 80〜95% | pitchResult.managerOrderApplied |
+
+**統計テストスクリプト**:
+
+```ts
+// tests/stats/battery-and-fielding.stats.test.ts
+describe('100試合統計テスト', () => {
+  test('バッテリーエラー頻度が目標範囲内', async () => {
+    const results = await run100Games();
+    const avgWP = results.totalWP / 100;
+    const avgPB = results.totalPB / 100;
+    expect(avgWP).toBeGreaterThan(0.2);
+    expect(avgWP).toBeLessThan(2.0);
+    expect(avgPB).toBeLessThan(0.8);
+  });
+
+  test('外野フライヒット率が目標範囲内', async () => {
+    const results = await run100Games();
+    const flyHitRate = results.flyBallHits / results.flyBallTotal;
+    expect(flyHitRate).toBeGreaterThan(0.15);
+    expect(flyHitRate).toBeLessThan(0.35);
+  });
+});
+```
+
+---
+
+## Section 7 — 実装フェーズ分割（リリース計画）
+
+### Phase 1 — ワイルドピッチ・パスボール（推定 2〜3日）
+
+**含む作業**:
+1. `battery-error.ts` 新規作成（WP/PB 判定ロジック）
+2. `process-pitch.ts` に `judgeBatteryError()` 呼び出しを追加
+3. `updateMatcherAfterPitch()` に WP/PB 走者進塁処理を追加
+4. `PitchResult` に `batteryError` フィールドを追加
+5. `PitchLogEntry` に WP/PB フラグを追加
+6. ユニットテスト + 統計テスト確認
+
+**リリース条件**:
+- WP/試合 0.3〜1.5 の範囲に収まること
+- 既存テスト全通過
+
+---
+
+### Phase 2 — 外野守備改善（推定 3〜4日）
+
+**含む作業**:
+1. `field-result.ts` の `fly_ball` セクション修正（外野到達距離計算追加）
+2. `getOutfielderZone()` と `getOutfielderAbility()` ヘルパー追加
+3. ライナー系（`line_drive`）の外野到達計算も修正
+4. 統計テストで外野フライヒット率 15〜30% の確認
+
+**リリース条件**:
+- 外野フライヒット率 15〜30%
+- HR率が既存の目標範囲（0.4〜1.5/試合）を維持
+
+---
+
+### Phase 3 — キャッチャー要求位置・首振り・ミット UI（推定 5〜7日）
+
+**含む作業**:
+1. `catcher-target-location.ts` 新規作成
+2. `pitcher-shake-off.ts` 新規作成
+3. `manager-order-compliance.ts` 新規作成
+4. `select-pitch.ts` を修正して外部から target を受け入れ可能にする
+5. `process-pitch.ts` に要求生成・首振りフェーズを追加
+6. `PitchResult` / `PitchLogEntry` に catcherMitt データ追加
+7. `CatcherMittData` 型を `view-state-types.ts` に追加
+8. `CatcherMitt.tsx` 新規作成（ワイヤーフレームミット SVG）
+9. `StrikeZone.tsx` にミット描画を統合
+10. `match-visual-store.ts` に `latestMittData` 追加
+
+**リリース条件**:
+- ミットがストライクゾーンに表示され、動く
+- 首振り・監督指示反映が UI に反映される
+
+---
+
+### Phase 4 — 本格物理守備モデル統合（推定 7〜10日、v0.49 予定）
+
+**含む作業**:
+1. `process-pitch.ts` のインプレーフローを `resolvePlay()` に切り替え
+2. バント処理を `resolvePlay()` に統合（`field-result.ts` の廃止）
+3. 全打球タイプで物理的な野手到達計算を適用
+4. 既存テストの更新・統計再取得
+
+**リリース条件**:
+- 外野ヒット・二塁打・三塁打の分布が実際の野球統計と近似
+
+---
+
+## Section 8 — 既存コードへの影響範囲
+
+### 8.1 改修が必要なファイル
+
+| ファイル | 変更種別 | 影響度 | 詳細 |
+|---------|---------|--------|------|
+| `src/engine/match/pitch/process-pitch.ts` | 修正 | **高** | 要求生成・首振り・WP/PB・キャッチャー取得の追加 |
+| `src/engine/match/pitch/select-pitch.ts` | 修正 | **中** | target を外部注入可能に変更（後方互換オプション） |
+| `src/engine/match/pitch/field-result.ts` | 修正 | **中** | fly_ball 外野到達計算追加 |
+| `src/engine/match/types.ts` | 修正 | **低** | `PitchResult` に新フィールド追加 |
+| `src/ui/projectors/view-state-types.ts` | 修正 | **低** | `CatcherMittData` 型追加、`PitchLogEntry` 拡張 |
+| `src/ui/match-visual/StrikeZone.tsx` | 修正 | **低** | CatcherMitt 統合（optional prop） |
+| `src/ui/match-visual/pitch-marker-types.ts` | 修正 | **低** | `AtBatMarkerHistory` に `latestMittData` 追加 |
+| `src/stores/match-visual-store.ts` | 修正 | **低** | ミットデータの伝播処理追加 |
+| `src/ui/projectors/matchProjector.ts` | 修正 | **低** | catcherMitt データ変換ロジック追加 |
+
+### 8.2 新規作成ファイル
+
+| ファイル | 目的 |
+|---------|------|
+| `src/engine/match/pitch/catcher-target-location.ts` | キャッチャー要求位置生成 |
+| `src/engine/match/pitch/pitcher-shake-off.ts` | 首振り判定 |
+| `src/engine/match/pitch/manager-order-compliance.ts` | 監督指示反映率 |
+| `src/engine/match/pitch/battery-error.ts` | ワイルドピッチ・パスボール判定 |
+| `src/ui/match-visual/CatcherMitt.tsx` | ワイヤーフレームミット SVG コンポーネント |
+| `tests/stats/battery-and-fielding.stats.test.ts` | 100試合統計テスト |
+
+### 8.3 影響を受けないファイル
+
+- `src/engine/psyche/catcher-thinking.ts`（既存の配球方針生成はそのまま維持、新モジュールと並存）
+- `src/engine/physics/` 以下の物理計算モジュール（Phase 4 まで不変）
+- `src/engine/growth/`、`src/engine/calendar/` など試合外システム
+
+### 8.4 セーブデータ互換性
+
+すべての新フィールドは `optional`（`?`）として追加するため、
+既存セーブデータは追加フィールドを持たない状態で正常に動作する。
+WP/PB が発生しない旧バージョンのセーブデータは、そのまま v0.48 でロード可能。
+
+---
+
+設計完了。マギ＝高橋さんレビュー待ち
