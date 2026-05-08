@@ -46,7 +46,7 @@ import { computeTrajectory, buildPlaySequence, buildHomeRunSequence } from '../.
 import { pitchLocationToUV, getBreakDirection, isFastballClass } from '../../../../ui/match-visual/pitch-marker-types';
 import type { AtBatMarkerHistory } from '../../../../ui/match-visual/pitch-marker-types';
 // v0.34.0: 効果音
-import { useSound, hitContactToBatSoundId, pitchSpeedToCatchSoundId } from '../../../../ui/sound/useSound';
+import { useSound, hitContactToBatSoundId, pitchSpeedToCatchSoundId, pitchOutcomeToVoiceSoundId } from '../../../../ui/sound/useSound';
 import { SoundControl } from './SoundControl';
 import visualStyles from './match-visual.module.css';
 
@@ -1848,6 +1848,36 @@ function MatchPageInner({
         const catchSoundId = pitchSpeedToCatchSoundId(latest.pitchSpeed);
         const catchDelay = Math.min(450, 60000 / latest.pitchSpeed); // 球速が速いほど早い
         setTimeout(() => sound.play(catchSoundId, { volume: 0.9 }), catchDelay);
+      }
+
+      // v0.44.0: 球審ボイス（元NPB審判 山崎夏生クローン声）
+      // 同打席内の以前の投球からカウントを推定
+      // pitchLog の末尾は latest 自身。それ以前の同 batterId のエントリのみ集計。
+      let priorBalls = 0;
+      let priorStrikes = 0;
+      for (let i = pitchLog.length - 2; i >= 0; i--) {
+        const entry = pitchLog[i];
+        if (!entry || entry.batterId !== latest.batterId) break;
+        if (entry.outcome === 'ball') priorBalls += 1;
+        else if (entry.outcome === 'called_strike' || entry.outcome === 'swinging_strike') priorStrikes += 1;
+        else if (entry.outcome === 'foul' || entry.outcome === 'foul_bunt') {
+          if (priorStrikes < 2) priorStrikes += 1;
+        }
+      }
+
+      // 今回の投球後の strikes 値を算出
+      let strikesAfter = priorStrikes;
+      if (latest.outcome === 'called_strike' || latest.outcome === 'swinging_strike') {
+        strikesAfter = priorStrikes + 1;
+      } else if (latest.outcome === 'foul' || latest.outcome === 'foul_bunt') {
+        strikesAfter = priorStrikes < 2 ? priorStrikes + 1 : priorStrikes;
+      }
+
+      const voiceId = pitchOutcomeToVoiceSoundId(latest.outcome, strikesAfter);
+      if (voiceId) {
+        // 球審のコールはミット到達 + わずかな間 (300-400ms) 後にする
+        const voiceDelay = Math.min(550, 60000 / latest.pitchSpeed) + 250;
+        setTimeout(() => sound.play(voiceId, { volume: 0.85 }), voiceDelay);
       }
     }
 

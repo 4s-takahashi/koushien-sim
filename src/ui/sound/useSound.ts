@@ -37,6 +37,14 @@ const SOUND_FILES = {
   catch_lv3: '/sounds/generated/catch_lv3.mp3',
   catch_lv4: '/sounds/generated/catch_lv4.mp3',
   catch_lv5: '/sounds/generated/catch_lv5.mp3',
+  // v0.44.0: 球審ボイス（元NPB審判 山崎夏生クローン声）
+  voice_strike: '/sounds/voice/voice_strike.mp3',
+  voice_strike_two: '/sounds/voice/voice_strike_two.mp3',
+  voice_strike_three: '/sounds/voice/voice_strike_three.mp3',
+  voice_ball: '/sounds/voice/voice_ball.mp3',
+  voice_out: '/sounds/voice/voice_out.mp3',
+  voice_strikeout: '/sounds/voice/voice_strikeout.mp3',
+  voice_foul: '/sounds/voice/voice_foul.mp3',
 } as const;
 
 export type SoundId = keyof typeof SOUND_FILES;
@@ -118,6 +126,55 @@ export function hitContactToBatSoundId(
 
   const clamped = Math.max(1, Math.min(5, level));
   return `bat_metal_lv${clamped}` as SoundId;
+}
+
+/**
+ * 投球結果から球審ボイスを返す（v0.44.0）
+ *
+ * @param outcome 投球結果
+ * @param strikesAfter ストライクカウント（このピッチ後）。ストライク種別の判定に使う。
+ *                     例: 1 → 「ストライク・ワン」相当（voice_strike）/
+ *                          2 → ストライク・ツー / 3 → 三振 (voice_strikeout)
+ * @returns 球審ボイス SoundId（該当なしなら null）
+ */
+export function pitchOutcomeToVoiceSoundId(
+  outcome:
+    | 'ball'
+    | 'called_strike'
+    | 'swinging_strike'
+    | 'foul'
+    | 'foul_bunt'
+    | 'in_play'
+    | string,
+  strikesAfter: number,
+): SoundId | null {
+  switch (outcome) {
+    case 'ball':
+      return 'voice_ball';
+
+    case 'called_strike':
+    case 'swinging_strike': {
+      // 3 ストライクで三振
+      if (strikesAfter >= 3) {
+        // 空振り三振なら「さんしん」、見逃し三振なら「ストライク・スリー」
+        return outcome === 'swinging_strike' ? 'voice_strikeout' : 'voice_strike_three';
+      }
+      if (strikesAfter === 2) return 'voice_strike_two';
+      return 'voice_strike';
+    }
+
+    case 'foul':
+    case 'foul_bunt':
+      // 2 ストライクからのファールはカウント増えない → ストライク2 のまま、ファール宣告
+      return 'voice_foul';
+
+    case 'in_play':
+      // インプレイは球審のコール無し（打撃音 + 守備の流れ）
+      return null;
+
+    default:
+      return null;
+  }
 }
 
 /**

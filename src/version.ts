@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.46.6';
+export const VERSION = '0.47.0';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-05-05 17:22 UTC';
-export const GIT_SHA = 'd0a1ff3-dirty';
+export const BUILD_DATE = '2026-05-08 12:52 UTC';
+export const GIT_SHA = '2c34c60-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,34 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.47.0',
+    date: '2026-05-08',
+    changes: [
+      '🎙️ v0.47.0: 球審ボイス（実音声クローン）を投球判定に追加',
+      '',
+      '【何が変わったか】',
+      '- 投球結果のたびに球審のコール音声が再生される',
+      '- ストライク！ / ストライク・ツー！ / ストライク・スリー！ / ボール！ /',
+      '  アウトォ / さんしん / ファール！ の 7 音声',
+      '',
+      '【音声ソース】',
+      '- 元 NPB 審判 山崎夏生さんの実音声（YouTube ストライクコール）から',
+      '  Minimax voice clone を作成 (Voice ID: Voicedb3701bf1778239742)',
+      '- 22 秒のサンプルから 7 種類の球審コールを生成',
+      '',
+      '【実装】',
+      '- public/sounds/voice/ に 7 mp3 配置',
+      '- useSound.ts に voice_* SoundId と pitchOutcomeToVoiceSoundId() ヘルパー追加',
+      '- page.tsx の投球結果ハンドラで pitchLog から strikesAfter を再計算',
+      '  → 該当する球審コールをミット到達 + 250ms 後に再生（音量 0.85）',
+      '- 見逃し三振 = ストライク・スリー、空振り三振 = さんしん',
+      '',
+      '【コスト】',
+      '- 7 音声 ≒ $0.001 程度（Minimax speech-2.8-hd, $100/Mchar）',
+      '- voice clone 作成 $1.5（一度きり）',
+    ],
+  },
   {
     version: '0.46.6',
     date: '2026-05-05',
