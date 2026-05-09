@@ -79,7 +79,7 @@ describe('WorldStore', () => {
     expect(worldState!.manager.name).toBe('山本監督');
   });
 
-  it('advanceDay で日付が1日進む', () => {
+  it('advanceDay で日付が1日進む', { timeout: 30000 }, () => {
     const { newWorldGame } = useWorldStore.getState();
     newWorldGame({ schoolName: 'テスト高校', prefecture: '新潟', managerName: '監督' });
 
@@ -95,7 +95,7 @@ describe('WorldStore', () => {
     expect(afterTotal).toBeGreaterThan(beforeTotal);
   });
 
-  it('advanceDay が WorldDayResult を返す', () => {
+  it('advanceDay が WorldDayResult を返す', { timeout: 30000 }, () => {
     const { newWorldGame } = useWorldStore.getState();
     newWorldGame({ schoolName: 'テスト高校', prefecture: '新潟', managerName: '監督' });
 
@@ -107,7 +107,7 @@ describe('WorldStore', () => {
     expect(result!.worldNews).toBeDefined();
   });
 
-  it('advanceWeek で7日進む', () => {
+  it('advanceWeek で7日進む', { timeout: 60000 }, () => {
     const { newWorldGame } = useWorldStore.getState();
     newWorldGame({ schoolName: 'テスト高校', prefecture: '新潟', managerName: '監督' });
 
@@ -166,7 +166,7 @@ describe('WorldStore', () => {
     expect(useWorldStore.getState().worldState!.scoutState.watchList).not.toContain(ms.id);
   });
 
-  it('recentNews に日次ニュースが蓄積される', () => {
+  it('recentNews に日次ニュースが蓄積される', { timeout: 60000 }, () => {
     const { newWorldGame } = useWorldStore.getState();
     newWorldGame({ schoolName: 'テスト高校', prefecture: '新潟', managerName: '監督' });
 

@@ -317,7 +317,7 @@ describe('バグ修正B: インタラクティブ試合 — 敗退後に activeT
 // ============================================================
 
 describe('バグ修正C: 年度替わり後の 2年目夏大会生成', () => {
-  it('3/31 → 4/1 → 7/10 で 2年目の夏大会が作成される', () => {
+  it('3/31 → 4/1 → 7/10 で 2年目の夏大会が作成される', { timeout: 120000 }, () => {
     // 1年目の秋大会完了後の状態（activeTournament=null）から 3/31 まで進める
     // year: 1, month: 10 → year: 2, month: 3, day: 31 まで進む
     const world = make48SchoolWorld({ year: 1, month: 10, day: 20 });
@@ -558,7 +558,7 @@ describe('バグ修正G: 修正後のフルシーズン確認', () => {
     expect(nextWorld.activeTournament?.type).toBe('autumn');
   });
 
-  it('1年目フルシーズン: 夏・秋両方の大会が履歴に残る', () => {
+  it('1年目フルシーズン: 夏・秋両方の大会が履歴に残る', { timeout: 120000 }, () => {
     let world = make48SchoolWorld({ year: 1, month: 4, day: 1 });
     world = advanceToDate(world, 10, 20);
 

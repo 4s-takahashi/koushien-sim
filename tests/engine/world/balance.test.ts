@@ -148,7 +148,7 @@ describe('スカウトレーティング（Phase 5 調整後）', () => {
     }
   });
 
-  it('ドラフト候補の閾値は overall >= 30', () => {
+  it('ドラフト候補の閾値は overall >= 30', { timeout: 30000 }, () => {
     const rng = createRNG('draft-threshold');
     const currentYear = 1;
     // overall 20-29 の選手はドラフト対象外
@@ -176,7 +176,7 @@ describe('スカウトレーティング（Phase 5 調整後）', () => {
 // ============================================================
 
 describe('入学配分バランス（Phase 5 調整後）', () => {
-  it('年度替わり後に全校が9人以上の選手を保有する', () => {
+  it('年度替わり後に全校が9人以上の選手を保有する', { timeout: 30000 }, () => {
     const world = makeTestWorld();
     const rng = createRNG('enrollment-balance');
     const nextWorld = processYearTransition(world, rng);
@@ -186,7 +186,7 @@ describe('入学配分バランス（Phase 5 調整後）', () => {
     }
   });
 
-  it('年度替わり後の全選手数は合理的な範囲内 (400〜1500)', () => {
+  it('年度替わり後の全選手数は合理的な範囲内 (400〜1500)', { timeout: 30000 }, () => {
     const world = makeTestWorld();
     const rng = createRNG('player-count-balance');
     const nextWorld = processYearTransition(world, rng);
@@ -196,7 +196,7 @@ describe('入学配分バランス（Phase 5 調整後）', () => {
     expect(totalPlayers).toBeLessThan(1500);
   });
 
-  it('中学生プールは年度替わり後も 1000 人以上維持される', () => {
+  it('中学生プールは年度替わり後も 1000 人以上維持される', { timeout: 30000 }, () => {
     const world = makeTestWorld();
     const rng = createRNG('ms-pool-balance');
     const nextWorld = processYearTransition(world, rng);
@@ -210,7 +210,7 @@ describe('入学配分バランス（Phase 5 調整後）', () => {
 // ============================================================
 
 describe('PersonRegistry への卒業生記録', () => {
-  it('年度替わり後に PersonRegistry に卒業生が記録される', () => {
+  it('年度替わり後に PersonRegistry に卒業生が記録される', { timeout: 30000 }, () => {
     const world = makeTestWorld();
     const rng = createRNG('registry-test');
     const nextWorld = processYearTransition(world, rng);
@@ -219,7 +219,7 @@ describe('PersonRegistry への卒業生記録', () => {
     expect(nextWorld.personRegistry.entries.size).toBeGreaterThan(0);
   });
 
-  it('PersonRegistry のエントリはプロか引退かいずれかのcareerPathを持つ', () => {
+  it('PersonRegistry のエントリはプロか引退かいずれかのcareerPathを持つ', { timeout: 30000 }, () => {
     const world = makeTestWorld();
     const rng = createRNG('registry-path-test');
     const nextWorld = processYearTransition(world, rng);

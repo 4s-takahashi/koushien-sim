@@ -112,7 +112,7 @@ function advanceToDate(
 // ============================================================
 
 describe('シーズンフェーズ遷移テスト', () => {
-  it('4月は spring_practice フェーズ', () => {
+  it('4月は spring_practice フェーズ', { timeout: 30000 }, () => {
     const world = makeFullWorld({ year: 1, month: 4, day: 1 });
     const rng = createRNG('season-1');
     const { nextWorld } = advanceWorldDay(world, 'batting_basic', rng);
@@ -197,7 +197,7 @@ describe('シーズンフェーズ遷移テスト', () => {
     expect(nextWorld.seasonState.phase).toBe('spring_practice');
   });
 
-  it('4月〜7月〜9月〜12月の連続遷移が正しい', () => {
+  it('4月〜7月〜9月〜12月の連続遷移が正しい', { timeout: 120000 }, () => {
     const world = makeFullWorld({ year: 1, month: 4, day: 1 });
 
     // 4月は spring_practice

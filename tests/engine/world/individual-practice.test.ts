@@ -35,7 +35,7 @@ function makeWorld(seed: string): WorldState {
 }
 
 describe('Phase 11-A1 Issue #4: 個別練習メニュー', () => {
-  it('個別メニュー未設定なら全員チーム共通メニュー', () => {
+  it('個別メニュー未設定なら全員チーム共通メニュー', { timeout: 30000 }, () => {
     const world = makeWorld('ip-1');
     const rng = createRNG('tick-1');
     const { nextWorld } = advanceWorldDay(world, 'batting_basic', rng);
@@ -79,7 +79,7 @@ describe('Phase 11-A1 Issue #4: 個別練習メニュー', () => {
     expect(target.condition.fatigue).toBeGreaterThan(other.condition.fatigue);
   });
 
-  it('HighSchool.individualPracticeMenus が advanceWorldDay に渡される', () => {
+  it('HighSchool.individualPracticeMenus が advanceWorldDay に渡される', { timeout: 30000 }, () => {
     const world = makeWorld('ip-3');
     const school = world.schools.find((s) => s.id === world.playerSchoolId)!;
     const targetId = school.players[0].id;

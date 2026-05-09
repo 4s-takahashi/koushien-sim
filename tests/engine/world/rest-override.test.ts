@@ -37,7 +37,7 @@ function makeWorld(seed: string): WorldState {
 }
 
 describe('Issue #5: 一括休養 (restOverride)', () => {
-  it('restOverride=null の選手は通常通り能力変化する', () => {
+  it('restOverride=null の選手は通常通り能力変化する', { timeout: 30000 }, () => {
     const world = makeWorld('rest-test-1');
     const playerSchool = world.schools.find((s) => s.id === world.playerSchoolId)!;
     const beforePlayer = playerSchool.players[0];

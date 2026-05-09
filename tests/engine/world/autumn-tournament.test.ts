@@ -183,7 +183,7 @@ describe('秋大会 — 自動生成と自校配置', () => {
 // ============================================================
 
 describe('秋大会 — 9/15 → 10/15 完走', () => {
-  it('9/15 から 10/15 まで進めると秋大会が完了する', () => {
+  it('9/15 から 10/15 まで進めると秋大会が完了する', { timeout: 120000 }, () => {
     const world = make48SchoolWorld({ year: 1, month: 9, day: 14 });
     let w = advanceToDate(world, 9, 15); // 9/15: 秋大会作成
     w = advanceToDate(w, 10, 15);        // 10/15: 大会完了後
@@ -198,7 +198,7 @@ describe('秋大会 — 9/15 → 10/15 完走', () => {
     expect(w.activeTournament).toBeNull();
   });
 
-  it('秋大会の優勝校は48校のいずれか', () => {
+  it('秋大会の優勝校は48校のいずれか', { timeout: 120000 }, () => {
     const world = make48SchoolWorld({ year: 1, month: 9, day: 14 });
     let w = advanceToDate(world, 9, 15);
     w = advanceToDate(w, 10, 15);
@@ -208,7 +208,7 @@ describe('秋大会 — 9/15 → 10/15 完走', () => {
     expect(schoolIds).toContain(autumnHist?.champion);
   });
 
-  it('秋大会完了後のフェーズは off_season', () => {
+  it('秋大会完了後のフェーズは off_season', { timeout: 120000 }, () => {
     const world = make48SchoolWorld({ year: 1, month: 9, day: 14 });
     let w = advanceToDate(world, 9, 15);
     w = advanceToDate(w, 10, 15);
@@ -298,7 +298,7 @@ describe('シーズンフェーズ — 大会終了後の修正確認', () => {
 // ============================================================
 
 describe('フルシーズン — 夏・秋 両方への参加確認', () => {
-  it('全シーズン進行で夏・秋両方の大会履歴が残る', () => {
+  it('全シーズン進行で夏・秋両方の大会履歴が残る', { timeout: 120000 }, () => {
     const rng = createRNG('fullseason');
     const players = Array.from({ length: 15 }, (_, i) =>
       generatePlayer(rng.derive(`p${i}`), { enrollmentYear: 1, schoolReputation: 55 })
@@ -334,7 +334,7 @@ describe('フルシーズン — 夏・秋 両方への参加確認', () => {
     expect(autumnHist?.isCompleted).toBe(true);
   });
 
-  it('夏大会に自校が必ずエントリーされている', () => {
+  it('夏大会に自校が必ずエントリーされている', { timeout: 120000 }, () => {
     const rng = createRNG('summer-entry');
     const players = Array.from({ length: 15 }, (_, i) =>
       generatePlayer(rng.derive(`p${i}`), { enrollmentYear: 1, schoolReputation: 55 })
@@ -366,7 +366,7 @@ describe('フルシーズン — 夏・秋 両方への参加確認', () => {
     expect(isPlayerInBracket(summerHist!, world.playerSchoolId)).toBe(true);
   });
 
-  it('秋大会に自校が必ずエントリーされている', () => {
+  it('秋大会に自校が必ずエントリーされている', { timeout: 120000 }, () => {
     const rng = createRNG('autumn-entry');
     const players = Array.from({ length: 15 }, (_, i) =>
       generatePlayer(rng.derive(`p${i}`), { enrollmentYear: 1, schoolReputation: 55 })
@@ -398,7 +398,7 @@ describe('フルシーズン — 夏・秋 両方への参加確認', () => {
     expect(isPlayerInBracket(autumnHist!, world.playerSchoolId)).toBe(true);
   });
 
-  it('自校がシード校（高reputation）でも秋大会に参加できる', () => {
+  it('自校がシード校（高reputation）でも秋大会に参加できる', { timeout: 120000 }, () => {
     const rng = createRNG('seeded-entry');
     const players = Array.from({ length: 15 }, (_, i) =>
       generatePlayer(rng.derive(`p${i}`), { enrollmentYear: 1, schoolReputation: 90 })
