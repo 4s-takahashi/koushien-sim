@@ -846,6 +846,13 @@ export const useMatchStore = create<MatchStore>()(
               },
             }
           : null,
+        // v0.48 Phase 1: WP/PB 情報
+        batteryError: pitchResult.batteryError?.occurred && pitchResult.batteryError.type
+          ? {
+              type: pitchResult.batteryError.type,
+              advanceBases: pitchResult.batteryError.advanceBases,
+            }
+          : null,
       };
       const newLog = [...pitchLog, logEntry].slice(-50);
 

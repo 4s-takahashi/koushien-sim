@@ -34,6 +34,9 @@ import { simulateTrajectory } from '../../physics/trajectory';
 import { classifyDetailedHit } from '../../physics/resolver/batted-ball-classifier';
 // Phase R6: NarrativeHook 生成
 import { generateNarrativeHook } from '../../narrative/hook-generator';
+// v0.48 Phase 1: ワイルドピッチ・パスボール判定
+import { judgeBatteryError } from './battery-error';
+import type { BatteryErrorResult } from './battery-error';
 
 // ============================================================
 // メンタル補正ヘルパー（Phase 7-E1）
@@ -308,6 +311,72 @@ function getCurrentPitcher(state: MatchState): MatchPlayer {
 
 function getFieldingTeam(state: MatchState) {
   return state.currentHalf === 'top' ? state.homeTeam : state.awayTeam;
+}
+
+// ============================================================
+// v0.48 Phase 1: キャッチャー実効パラメータ取得
+// ============================================================
+
+interface EffectiveCatcherParams {
+  fielding: number;
+  agility: number;
+}
+
+/**
+ * フィールディングチームのキャッチャーの実効パラメータを取得する。
+ * キャッチャーが見つからない場合はデフォルト値を返す（後方互換）。
+ */
+function getEffectiveCatcherParams(state: MatchState): EffectiveCatcherParams {
+  const fieldingTeam = getFieldingTeam(state);
+  for (const [pid, pos] of fieldingTeam.fieldPositions) {
+    if (pos === 'catcher') {
+      const catcherMP = fieldingTeam.players.find((mp) => mp.player.id === pid);
+      if (catcherMP) {
+        return {
+          fielding: catcherMP.player.stats.base.fielding,
+          agility: catcherMP.player.stats.base.speed,
+        };
+      }
+      break;
+    }
+  }
+  // キャッチャーが見つからない場合はデフォルト（後方互換）
+  return { fielding: 50, agility: 50 };
+}
+
+// ============================================================
+// v0.48 Phase 1: WP/PB による走者進塁
+// ============================================================
+
+/**
+ * ワイルドピッチ・パスボール発生時に走者を N 塁進塁させる。
+ * 三塁走者は生還（得点）する。
+ * 返り値は新しい塁状態と得点数。
+ */
+function advanceRunnersOnBatteryError(
+  bases: MatchState['bases'],
+  advanceBases: number,
+): { bases: MatchState['bases']; runsScored: number } {
+  if (advanceBases <= 0) {
+    return { bases, runsScored: 0 };
+  }
+
+  // 1塁ずつ進塁（advanceBases=1 が通常ケース）
+  let runs = 0;
+  let { first, second, third } = bases;
+
+  for (let i = 0; i < advanceBases; i++) {
+    // 三塁走者は生還
+    if (third) runs++;
+    third = second;
+    second = first;
+    first = null;
+  }
+
+  return {
+    bases: { first, second, third },
+    runsScored: runs,
+  };
 }
 
 // ============================================================
@@ -814,6 +883,29 @@ export function processPitch(
     r6DetailedHitType = 'foul_fly';
   }
 
+  // ── (5.5) v0.48 Phase 1: WP/PB 判定 ──
+  // ボール球のときのみ判定する。走者進塁はこの後 nextState 更新時に反映する。
+  let batteryErrorResult: BatteryErrorResult | undefined;
+  if (outcome === 'ball') {
+    const catcherParams = getEffectiveCatcherParams(state);
+    const hasRunners =
+      state.bases.first !== null ||
+      state.bases.second !== null ||
+      state.bases.third !== null;
+    batteryErrorResult = judgeBatteryError(
+      {
+        actualLocation,
+        outcome: 'ball',
+        pitcherEffectiveControl: pitcher.control,
+        catcherFielding: catcherParams.fielding,
+        catcherAgility: catcherParams.agility,
+        hasRunners,
+        pitchType: selection.type,
+      },
+      rng.derive('battery-error'),
+    );
+  }
+
   // ── (6) MatchState 更新 ──
   const pitchResult: PitchResult = {
     pitchSelection: selection,
@@ -825,6 +917,7 @@ export function processPitch(
     foulContact: batContactForFoul,  // v0.36.0: ファール軌道表示用
     detailedHitType: r6DetailedHitType,
     narrativeHook: r6NarrativeHook,
+    batteryError: batteryErrorResult,
   };
 
   // 投手スタミナ消費
@@ -871,6 +964,22 @@ export function processPitch(
   // カウント・アウト・走者・得点を更新
   nextState = updateMatcherAfterPitch(nextState, outcome, batContact);
 
+  // v0.48 Phase 1: WP/PB による走者進塁
+  if (batteryErrorResult?.occurred && batteryErrorResult.advanceBases > 0) {
+    const isBottom = nextState.currentHalf === 'bottom';
+    const { bases: newBases, runsScored } = advanceRunnersOnBatteryError(
+      nextState.bases,
+      batteryErrorResult.advanceBases,
+    );
+    let { score, inningScores } = nextState;
+    if (runsScored > 0) {
+      const r = addRuns(score, inningScores, isBottom, nextState.currentInning, runsScored);
+      score = r.score;
+      inningScores = r.inningScores;
+    }
+    nextState = { ...nextState, bases: newBases, score, inningScores };
+  }
+
   // v0.40.0: 打席内の投球履歴を更新する（配球学習用）
   //   毎回 append する。打席終了時のクリアは runner.ts 側で行う。
   {
@@ -900,6 +1009,18 @@ export function processPitch(
     description: logDescription,
   };
   nextState = { ...nextState, log: [...nextState.log, logEntry] };
+
+  // v0.48 Phase 1: WP/PB ログエントリ
+  if (batteryErrorResult?.occurred && batteryErrorResult.type) {
+    const wpPbDescription = batteryErrorResult.type === 'wild_pitch' ? '暴投' : 'パスボール';
+    const wpPbEntry = {
+      inning: state.currentInning,
+      half: state.currentHalf,
+      type: batteryErrorResult.type as 'wild_pitch',
+      description: wpPbDescription,
+    };
+    nextState = { ...nextState, log: [...nextState.log, wpPbEntry] };
+  }
 
   return { nextState, pitchResult };
 }
