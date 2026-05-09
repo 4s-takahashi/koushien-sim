@@ -711,6 +711,14 @@ export interface PitchLogEntry {
       isError: boolean;
     };
   } | null;
+  /**
+   * v0.48 Phase 1: ワイルドピッチ・パスボール情報（optional: 旧セーブデータ互換）
+   * ball アウトカムでバッテリーエラーが発生した場合のみ設定
+   */
+  batteryError?: {
+    type: 'wild_pitch' | 'passed_ball';
+    advanceBases: number;
+  } | null;
 }
 
 /** モノローグエントリ (Phase 7-B) */

@@ -135,6 +135,9 @@ export interface PitchResult {
   detailedHitType?: DetailedHitType;
   // Phase R6: NarrativeHook（in_play の場合のみ）
   narrativeHook?: NarrativeHook;
+
+  // v0.48 Phase 1: ワイルドピッチ・パスボール結果（ball アウトカムのときのみ設定）
+  batteryError?: import('./pitch/battery-error').BatteryErrorResult;
 }
 
 // ============================================================
