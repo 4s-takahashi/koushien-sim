@@ -280,6 +280,7 @@ export type MatchEventType =
   | 'stolen_base'
   | 'caught_stealing'
   | 'wild_pitch'
+  | 'passed_ball'   // v0.48 Phase 1
   | 'balk'
   | 'inning_end'
   | 'game_end';

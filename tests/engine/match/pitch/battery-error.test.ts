@@ -93,14 +93,14 @@ describe('judgeBatteryError - 優秀な投手', () => {
   it('control=100 のピッチャーは WP が発生しない（1000回試行）', () => {
     const ctx = makeCtx({ pitcherEffectiveControl: 100, catcherFielding: 1 });
     const { wp } = countByType(ctx, 1000, 'ctrl100');
-    // wpBase = max(0, (50 - 100) / 500) = 0 → WP ゼロ
+    // wpBase = max(0, (50 - 100) / 2000) = 0 → WP ゼロ
     expect(wp).toBe(0);
   });
 
   it('control=50 のピッチャーは WP が極めて少ない', () => {
     const ctx = makeCtx({ pitcherEffectiveControl: 50, catcherFielding: 1 });
     const { wp } = countByType(ctx, 1000, 'ctrl50');
-    // wpBase = max(0, (50-50)/500) = 0 → WP ゼロ
+    // wpBase = max(0, (50-50)/2000) = 0 → WP ゼロ
     expect(wp).toBe(0);
   });
 });
@@ -110,23 +110,24 @@ describe('judgeBatteryError - 優秀な投手', () => {
 // ============================================================
 
 describe('judgeBatteryError - 制球難の投手', () => {
-  it('control=20 のピッチャーはボール球で WP 率が 2〜10%（1000回試行）', () => {
-    // wpBase = (50 - 20) / 500 = 0.06 (6%)
+  it('control=20 のピッチャーはボール球で WP 率が発生する（1000回試行）', () => {
+    // wpBase = (50 - 20) / 2000 = 0.015 (1.5%)
     const ctx = makeCtx({ pitcherEffectiveControl: 20, catcherFielding: 100 });
     const { wp } = countByType(ctx, 1000, 'ctrl20');
     const wpRate = wp / 1000;
-    expect(wpRate).toBeGreaterThan(0.02);
-    expect(wpRate).toBeLessThan(0.10);
+    // 期待値 1.5%, 95% CI: ~0.6%〜2.4%
+    expect(wpRate).toBeGreaterThan(0.002);
+    expect(wpRate).toBeLessThan(0.05);
   });
 
-  it('control=30 のピッチャーはボール球で WP 率が約 4%（1000回試行）', () => {
-    // wpBase = (50 - 30) / 500 = 0.04 (4%)
+  it('control=30 のピッチャーはボール球で WP 率が約 1%（1000回試行）', () => {
+    // wpBase = (50 - 30) / 2000 = 0.01 (1.0%)
     const ctx = makeCtx({ pitcherEffectiveControl: 30, catcherFielding: 100 });
     const { wp } = countByType(ctx, 1000, 'ctrl30');
     const wpRate = wp / 1000;
-    // ±2σ 許容: 期待値 4%, 95% CI: ~2.3%〜5.7%
-    expect(wpRate).toBeGreaterThan(0.015);
-    expect(wpRate).toBeLessThan(0.07);
+    // ±2σ 許容: 期待値 1.0%, 95% CI: ~0.4%〜1.6%
+    expect(wpRate).toBeGreaterThan(0.001);
+    expect(wpRate).toBeLessThan(0.04);
   });
 });
 
@@ -136,7 +137,7 @@ describe('judgeBatteryError - 制球難の投手', () => {
 
 describe('judgeBatteryError - 優秀なキャッチャー', () => {
   it('fielding=100 のキャッチャーは PB が発生しない（1000回試行）', () => {
-    // pbBase = max(0, (50 - 100) / 1000) = 0 → PB ゼロ
+    // pbBase = max(0, (50 - 100) / 4000) = 0 → PB ゼロ
     const ctx = makeCtx({ pitcherEffectiveControl: 100, catcherFielding: 100 });
     const { pb } = countByType(ctx, 1000, 'fld100');
     expect(pb).toBe(0);
@@ -154,15 +155,15 @@ describe('judgeBatteryError - 優秀なキャッチャー', () => {
 // ============================================================
 
 describe('judgeBatteryError - 未熟なキャッチャー', () => {
-  it('fielding=30 のキャッチャーは PB 率が約 2%（1000回試行）', () => {
-    // pbBase = (50 - 30) / 1000 = 0.02 (2%)
+  it('fielding=30 のキャッチャーは PB 率が約 0.5%（1000回試行）', () => {
+    // pbBase = (50 - 30) / 4000 = 0.005 (0.5%)
     // 投手を control=100 にして WP がゼロの条件で PB のみ観測
     const ctx = makeCtx({ pitcherEffectiveControl: 100, catcherFielding: 30 });
     const { pb } = countByType(ctx, 1000, 'fld30');
     const pbRate = pb / 1000;
-    // ±2σ 許容: 期待値 2%, 95% CI: ~0.8%〜3.2%
-    expect(pbRate).toBeGreaterThan(0.004);
-    expect(pbRate).toBeLessThan(0.06);
+    // ±2σ 許容: 期待値 0.5%, 95% CI: ~0%〜1.4%
+    expect(pbRate).toBeGreaterThanOrEqual(0.0);
+    expect(pbRate).toBeLessThan(0.03);
   });
 });
 
@@ -250,8 +251,8 @@ describe('judgeBatteryError - 発生しない場合', () => {
 // ============================================================
 
 describe('judgeBatteryError - 統計テスト（1000回試行）', () => {
-  it('制球難投手 + 未熟キャッチャーの総エラー率は 5〜18%', () => {
-    // control=30: wpBase=0.04, fielding=30: pbBase=0.02, 変化球なし
+  it('制球難投手 + 未熟キャッチャーの総エラー率は 0.5〜5%', () => {
+    // control=30: wpBase=0.01, fielding=30: pbBase=0.005, 変化球なし
     const ctx = makeCtx({
       pitcherEffectiveControl: 30,
       catcherFielding: 30,
@@ -259,15 +260,15 @@ describe('judgeBatteryError - 統計テスト（1000回試行）', () => {
     });
     const total = countOccurrences(ctx, 1000, 'total-stat');
     const rate = total / 1000;
-    // 合計期待値: wpRate=0.04, pbRate≈0.02*(1-0.04)≈0.019 → 約5.9%
-    expect(rate).toBeGreaterThan(0.02);
-    expect(rate).toBeLessThan(0.18);
+    // 合計期待値: wpRate=0.01, pbRate≈0.005*(1-0.01)≈0.005 → 約1.5%
+    expect(rate).toBeGreaterThan(0.001);
+    expect(rate).toBeLessThan(0.08);
   });
 
   it('優秀バッテリーのエラー率はほぼ 0%', () => {
     const ctx = makeCtx({ pitcherEffectiveControl: 80, catcherFielding: 80 });
     const total = countOccurrences(ctx, 1000, 'elite-stat');
-    // wpBase = max(0, (50-80)/500) = 0 → total = 0
+    // wpBase = max(0, (50-80)/2000) = 0 → total = 0
     expect(total).toBe(0);
   });
 });

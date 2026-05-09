@@ -1016,7 +1016,7 @@ export function processPitch(
     const wpPbEntry = {
       inning: state.currentInning,
       half: state.currentHalf,
-      type: batteryErrorResult.type as 'wild_pitch',
+      type: batteryErrorResult.type, // 'wild_pitch' | 'passed_ball'
       description: wpPbDescription,
     };
     nextState = { ...nextState, log: [...nextState.log, wpPbEntry] };
