@@ -37,6 +37,10 @@ import { generateNarrativeHook } from '../../narrative/hook-generator';
 // v0.48 Phase 1: ワイルドピッチ・パスボール判定
 import { judgeBatteryError } from './battery-error';
 import type { BatteryErrorResult } from './battery-error';
+// v0.48 Phase 3: キャッチャー要求位置・首振り・監督指示反映
+import { generateCatcherRequest } from './catcher-target-location';
+import { decidePitcherShakeOff } from './pitcher-shake-off';
+import { catcherProfileToContext } from '../../psyche/catcher-thinking';
 
 // ============================================================
 // メンタル補正ヘルパー（Phase 7-E1）
@@ -320,6 +324,12 @@ function getFieldingTeam(state: MatchState) {
 interface EffectiveCatcherParams {
   fielding: number;
   agility: number;
+  // v0.48 Phase 3: 追加フィールド
+  mental: number;
+  leadership: number;
+  callingAccuracy: number;
+  personality: import('../../types/player').CatcherPersonality;
+  catcherProfile: import('../../types/player').CatcherProfile | undefined;
 }
 
 /**
@@ -332,16 +342,31 @@ function getEffectiveCatcherParams(state: MatchState): EffectiveCatcherParams {
     if (pos === 'catcher') {
       const catcherMP = fieldingTeam.players.find((mp) => mp.player.id === pid);
       if (catcherMP) {
+        const profile = catcherMP.player.catcherProfile;
+        const profileCtx = catcherProfileToContext(profile);
         return {
           fielding: catcherMP.player.stats.base.fielding,
           agility: catcherMP.player.stats.base.speed,
+          mental: catcherMP.player.stats.base.mental,
+          leadership: profileCtx.catcherLeadership,
+          callingAccuracy: profileCtx.catcherCallingAccuracy,
+          personality: profileCtx.catcherPersonality,
+          catcherProfile: profile,
         };
       }
       break;
     }
   }
   // キャッチャーが見つからない場合はデフォルト（後方互換）
-  return { fielding: 50, agility: 50 };
+  return {
+    fielding: 50,
+    agility: 50,
+    mental: 50,
+    leadership: 50,
+    callingAccuracy: 50,
+    personality: 'cautious',
+    catcherProfile: undefined,
+  };
 }
 
 // ============================================================
@@ -631,6 +656,48 @@ export function processPitch(
   const pitcher = getEffectivePitcherParams(pitcherMP, overrides?.pitcherMental);
   const batter = getEffectiveBatterParams(batterMP, overrides?.batterMental);
 
+  // ── Phase 3: キャッチャー実効パラメータ取得 ──
+  const catcherParams = getEffectiveCatcherParams(state);
+
+  // ── Phase 3: 要求生成フェーズ ──
+  // 監督指示のうち CatcherDetailedOrder のみを取り出す
+  const catcherOrder = order.type === 'catcher_detailed' ? order : undefined;
+  // batteryTrust = (pitcher.mental + catcher.leadership) / 2
+  const batteryTrust = (pitcher.mental + catcherParams.leadership) / 2;
+
+  const catcherRequestResult = generateCatcherRequest(
+    {
+      catcherProfile: catcherParams.catcherProfile,
+      catcherFielding: catcherParams.fielding,
+      catcherMental: catcherParams.mental,
+      pitcherControl: pitcher.control,
+      pitcherStamina: pitcher.stamina,
+      count: state.count,
+      managerOrder: catcherOrder,
+      managerComplianceRate: 0.90,
+    },
+    rng.derive('catcher-request'),
+  );
+
+  // ── Phase 3: 首振りフェーズ ──
+  const pitcherTraits: string[] = pitcherMP.player.traits
+    ? (pitcherMP.player.traits as readonly string[]).slice()
+    : [];
+
+  const shakeOffResult = decidePitcherShakeOff(
+    {
+      catcherRequest: catcherRequestResult.requestLocation,
+      pitcherMental: pitcher.mental,
+      pitcherExperience: pitcherMP.pitchCountInGame,
+      batteryTrust,
+      pitcherTraits,
+    },
+    rng.derive('pitcher-shake-off'),
+  );
+
+  // shakeOff の場合は投手独自 target、そうでなければキャッチャー要求を使う
+  const phase3Target = shakeOffResult.targetLocation;
+
   const { selection, target } = selectPitch(
     pitcher.velocity,
     pitcher.control,
@@ -639,6 +706,7 @@ export function processPitch(
     state.count.strikes,
     rng,
     overrides?.catcherPitchingBias, // Phase S2: キャッチャー配球方針補正
+    phase3Target,                    // Phase 3: キャッチャー要求 or 投手独自ターゲット
   );
 
   // ── (2) 制球誤差の適用 ──
@@ -885,9 +953,9 @@ export function processPitch(
 
   // ── (5.5) v0.48 Phase 1: WP/PB 判定 ──
   // ボール球のときのみ判定する。走者進塁はこの後 nextState 更新時に反映する。
+  // catcherParams は Phase 3 で既に取得済み
   let batteryErrorResult: BatteryErrorResult | undefined;
   if (outcome === 'ball') {
-    const catcherParams = getEffectiveCatcherParams(state);
     const hasRunners =
       state.bases.first !== null ||
       state.bases.second !== null ||
@@ -918,6 +986,11 @@ export function processPitch(
     detailedHitType: r6DetailedHitType,
     narrativeHook: r6NarrativeHook,
     batteryError: batteryErrorResult,
+    // v0.48 Phase 3: キャッチャー要求位置・首振り情報
+    catcherRequest: catcherRequestResult.requestLocation,
+    wasShakeOff: shakeOffResult.isShakeOff,
+    managerOrderApplied: catcherRequestResult.isManagerOrderApplied,
+    catcherRequestQuality: catcherRequestResult.requestQuality,
   };
 
   // 投手スタミナ消費

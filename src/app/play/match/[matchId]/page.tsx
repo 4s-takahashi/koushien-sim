@@ -1766,9 +1766,11 @@ function MatchPageInner({
   // ===== Phase 12: マーカーストア =====
   const addPitchMarker = useMatchVisualStore((s) => s.addPitchMarker);
   const setSwingMarker = useMatchVisualStore((s) => s.setSwingMarker);
+  const setLatestMittData = useMatchVisualStore((s) => s.setLatestMittData);
   const clearForNextBatter = useMatchVisualStore((s) => s.clearForNextBatter);
   const currentAtBatMarkers = useMatchVisualStore((s) => s.currentAtBatMarkers);
   const swingMarker = useMatchVisualStore((s) => s.swingMarker);
+  const latestMittData = useMatchVisualStore((s) => s.latestMittData);
   const prevBatterIdRef = useCallback(
     () => pitchLog.length > 0 ? pitchLog[pitchLog.length - 1]?.batterId : null,
     [pitchLog]
@@ -1828,6 +1830,11 @@ function MatchPageInner({
         : latest.outcome === 'foul' || latest.outcome === 'foul_bunt' ? 'foul'
         : 'in_play';
       setSwingMarker({ position: latest.swingLocation, swingResult: swingRes });
+    }
+
+    // v0.48 Phase 3: キャッチャーミットデータを更新
+    if (latest.catcherMitt) {
+      setLatestMittData(latest.catcherMitt);
     }
 
     // ボールアニメーション（投球）
@@ -1958,6 +1965,8 @@ function MatchPageInner({
   const markerHistory: AtBatMarkerHistory = {
     pitchMarkers: currentAtBatMarkers,
     swingMarker,
+    // v0.48 Phase 3: キャッチャーミットデータ
+    latestMittData,
   };
 
   return (

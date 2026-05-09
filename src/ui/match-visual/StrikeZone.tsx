@@ -17,6 +17,8 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import type { AtBatMarkerHistory, PitchMarker, SwingMarker } from './pitch-marker-types';
 import styles from './StrikeZone.module.css';
+// v0.48 Phase 3: キャッチャーミット
+import { CatcherMitt } from './CatcherMitt';
 
 interface StrikeZoneProps {
   history: AtBatMarkerHistory;
@@ -583,6 +585,20 @@ export function StrikeZone({
             />
           )
         ))}
+
+        {/* v0.48 Phase 3: キャッチャーミット（マーカーの上、ボールの下） */}
+        {history.latestMittData && (
+          <CatcherMitt
+            data={history.latestMittData}
+            pitchProgress={pitchBall?.progress ?? 0}
+            svgW={ZONE_SVG_W}
+            svgH={ZONE_SVG_H}
+            drawLeft={DRAW.left}
+            drawRight={DRAW.right}
+            drawTop={DRAW.top}
+            drawBottom={DRAW.bottom}
+          />
+        )}
 
         {/* Phase 12-G: 投球軌道アニメーション（最前面） */}
         {pitchBall && <PitchBallAnimSvg state={pitchBall} />}

@@ -27,10 +27,14 @@ export interface SwingMarker {
   swingResult: 'miss' | 'foul' | 'in_play';
 }
 
+import type { CatcherMittData } from '../projectors/view-state-types';
+
 /** 1打席分のマーカー履歴 */
 export interface AtBatMarkerHistory {
   pitchMarkers: PitchMarker[];
   swingMarker: SwingMarker | null;
+  /** v0.48 Phase 3: 最新投球のキャッチャーミットデータ */
+  latestMittData?: CatcherMittData | null;
 }
 
 // ============================================================

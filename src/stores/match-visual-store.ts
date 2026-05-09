@@ -11,6 +11,7 @@
 
 import { create } from 'zustand';
 import type { PitchMarker, SwingMarker } from '../ui/match-visual/pitch-marker-types';
+import type { CatcherMittData } from '../ui/projectors/view-state-types';
 
 export interface MatchVisualState {
   /** 現在打席のマーカー（最大10球） */
@@ -21,6 +22,8 @@ export interface MatchVisualState {
   prevAtBatMarkers: PitchMarker[];
   /** ハイライトセル（ホバー等） */
   highlightedCell: { row: number; col: number } | null;
+  /** v0.48 Phase 3: 最新投球のキャッチャーミットデータ */
+  latestMittData: CatcherMittData | null;
 }
 
 export interface MatchVisualActions {
@@ -28,6 +31,8 @@ export interface MatchVisualActions {
   addPitchMarker: (marker: Omit<PitchMarker, 'seq' | 'opacity'>) => void;
   /** スイング位置マーカーを設定 */
   setSwingMarker: (marker: SwingMarker) => void;
+  /** v0.48 Phase 3: キャッチャーミットデータを設定 */
+  setLatestMittData: (data: CatcherMittData | null) => void;
   /** 打者交代時に現打席をクリア、前打席履歴として保存 */
   clearForNextBatter: () => void;
   /** 試合リセット時に全クリア */
@@ -41,6 +46,7 @@ const INITIAL_STATE: MatchVisualState = {
   swingMarker: null,
   prevAtBatMarkers: [],
   highlightedCell: null,
+  latestMittData: null,
 };
 
 export const useMatchVisualStore = create<MatchVisualStore>()((set, get) => ({
@@ -70,12 +76,15 @@ export const useMatchVisualStore = create<MatchVisualStore>()((set, get) => ({
 
   setSwingMarker: (marker) => set({ swingMarker: marker }),
 
+  setLatestMittData: (data) => set({ latestMittData: data }),
+
   clearForNextBatter: () => {
     const { currentAtBatMarkers } = get();
     set({
       prevAtBatMarkers: currentAtBatMarkers,
       currentAtBatMarkers: [],
       swingMarker: null,
+      latestMittData: null,
     });
   },
 

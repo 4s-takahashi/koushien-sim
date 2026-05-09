@@ -138,6 +138,16 @@ export interface PitchResult {
 
   // v0.48 Phase 1: ワイルドピッチ・パスボール結果（ball アウトカムのときのみ設定）
   batteryError?: import('./pitch/battery-error').BatteryErrorResult;
+
+  // v0.48 Phase 3: キャッチャー要求位置・首振り情報（optional: 後方互換）
+  /** キャッチャーが要求したコース */
+  catcherRequest?: PitchLocation | null;
+  /** 投手が首を振ったか（true = 投手独自のターゲットで投球） */
+  wasShakeOff?: boolean;
+  /** 監督指示が反映されたか */
+  managerOrderApplied?: boolean;
+  /** キャッチャー要求の質スコア 0-1 */
+  catcherRequestQuality?: number;
 }
 
 // ============================================================

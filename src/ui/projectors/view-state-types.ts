@@ -719,6 +719,39 @@ export interface PitchLogEntry {
     type: 'wild_pitch' | 'passed_ball';
     advanceBases: number;
   } | null;
+
+  /**
+   * v0.48 Phase 3: キャッチャーミット表示データ（optional: 旧セーブデータ互換）
+   */
+  catcherMitt?: CatcherMittData | null;
+}
+
+/** v0.48 Phase 3: キャッチャーミット表示データ */
+export interface CatcherMittData {
+  /**
+   * ミットの初期構え位置（UV座標 0-1）
+   * キャッチャーが要求したコースを UV に変換したもの
+   */
+  requestPosition: { x: number; y: number };
+  /**
+   * 実際の捕球位置（UV座標 0-1）
+   * actualLocation を UV に変換したもの
+   */
+  catchPosition: { x: number; y: number };
+  /**
+   * 首振りが発生したか
+   * true の場合、requestPosition と投手の実際の target が異なる
+   */
+  wasShakeOff: boolean;
+  /**
+   * 監督指示が反映されたか
+   */
+  managerOrderApplied: boolean;
+  /**
+   * 要求の質スコア 0-1
+   * 視覚的な演出（ミットの色/大きさ）に使用
+   */
+  requestQuality: number;
 }
 
 /** モノローグエントリ (Phase 7-B) */

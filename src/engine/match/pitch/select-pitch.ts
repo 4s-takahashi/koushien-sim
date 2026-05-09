@@ -35,6 +35,8 @@ const PITCH_TYPE_VELOCITY_FACTOR: Record<PitchType, number> = {
  *
  * @param pitchingBias Phase S2: キャッチャーの配球方針補正（省略可）
  *   省略時は従来通りの挙動
+ * @param externalTarget Phase 3: 外部から注入するターゲットコース（省略可）
+ *   指定された場合、コース選択ロジックをスキップしてこの値を target として使用する
  */
 export function selectPitch(
   velocity: number,
@@ -44,6 +46,7 @@ export function selectPitch(
   strikes: number,
   rng: RNG,
   pitchingBias?: PitchingBias,
+  externalTarget?: PitchLocation,
 ): SelectPitchResult {
   // 球種選択
   const countAdvantage = strikes > balls; // 追い込み
@@ -94,57 +97,62 @@ export function selectPitch(
 
   // コース選択
   // v0.40.0: ゾーン外を狙う場合は確実にゾーン外コースへ（以前はランダムで偶然ゾーン内に入ることがあった）
-  let strikeZoneTargetRate =
-    MATCH_CONSTANTS.STRIKE_ZONE_TARGET_BASE +
-    (balls === 3 ? 0.15 : 0) + // フルカウント → ゾーン必須
-    (strikes === 2 ? 0.08 : 0); // 2ストライク → ゾーン際を狙う
-
-  // Phase S2: キャッチャー配球方針によるゾーン内狙い率補正
-  if (pitchingBias !== undefined) {
-    strikeZoneTargetRate = Math.max(0.1, Math.min(0.95, strikeZoneTargetRate + pitchingBias.strikeZoneBias));
-  }
-
-  const targetInZone = rng.chance(strikeZoneTargetRate);
-  // ゾーン外狙いの場合は、必ず row または col のいずれか一方は 0 or 4 にする（確実にゾーン外）
+  // Phase 3: externalTarget が指定されている場合はコース選択ロジックをスキップ
   let target: PitchLocation;
-  if (targetInZone) {
-    // Phase S2: 外角/内角コース優先 (投手視点: col 1=内角, 2=真中, 3=外角)
-    let colMin = 1;
-    let colMax = 3;
-    if (pitchingBias?.preferOutside) {
-      // 外角優先: col 2-3 寄りにシフト (50% で col=3 を強制)
-      colMin = rng.chance(0.5) ? 2 : 1;
-      colMax = 3;
-    } else if (pitchingBias?.preferInside) {
-      // 内角優先: col 1-2 寄りにシフト (50% で col=1 を強制)
-      colMin = 1;
-      colMax = rng.chance(0.5) ? 2 : 3;
-    }
-    target = {
-      row: rng.intBetween(1, 3),
-      col: rng.intBetween(colMin, colMax),
-    };
+  if (externalTarget !== undefined) {
+    target = externalTarget;
   } else {
-    // ゾーン外コース: 50% row が 0/4、25% col が 0/4、25% 両方
-    const r = rng.next();
-    if (r < 0.5) {
-      // row だけ外す
-      target = {
-        row: rng.chance(0.5) ? 0 : 4,
-        col: rng.intBetween(1, 3),
-      };
-    } else if (r < 0.75) {
-      // col だけ外す
+    let strikeZoneTargetRate =
+      MATCH_CONSTANTS.STRIKE_ZONE_TARGET_BASE +
+      (balls === 3 ? 0.15 : 0) + // フルカウント → ゾーン必須
+      (strikes === 2 ? 0.08 : 0); // 2ストライク → ゾーン際を狙う
+
+    // Phase S2: キャッチャー配球方針によるゾーン内狙い率補正
+    if (pitchingBias !== undefined) {
+      strikeZoneTargetRate = Math.max(0.1, Math.min(0.95, strikeZoneTargetRate + pitchingBias.strikeZoneBias));
+    }
+
+    const targetInZone = rng.chance(strikeZoneTargetRate);
+    // ゾーン外狙いの場合は、必ず row または col のいずれか一方は 0 or 4 にする（確実にゾーン外）
+    if (targetInZone) {
+      // Phase S2: 外角/内角コース優先 (投手視点: col 1=内角, 2=真中, 3=外角)
+      let colMin = 1;
+      let colMax = 3;
+      if (pitchingBias?.preferOutside) {
+        // 外角優先: col 2-3 寄りにシフト (50% で col=3 を強制)
+        colMin = rng.chance(0.5) ? 2 : 1;
+        colMax = 3;
+      } else if (pitchingBias?.preferInside) {
+        // 内角優先: col 1-2 寄りにシフト (50% で col=1 を強制)
+        colMin = 1;
+        colMax = rng.chance(0.5) ? 2 : 3;
+      }
       target = {
         row: rng.intBetween(1, 3),
-        col: rng.chance(0.5) ? 0 : 4,
+        col: rng.intBetween(colMin, colMax),
       };
     } else {
-      // 両方外す（完全ボール球）
-      target = {
-        row: rng.chance(0.5) ? 0 : 4,
-        col: rng.chance(0.5) ? 0 : 4,
-      };
+      // ゾーン外コース: 50% row が 0/4、25% col が 0/4、25% 両方
+      const r = rng.next();
+      if (r < 0.5) {
+        // row だけ外す
+        target = {
+          row: rng.chance(0.5) ? 0 : 4,
+          col: rng.intBetween(1, 3),
+        };
+      } else if (r < 0.75) {
+        // col だけ外す
+        target = {
+          row: rng.intBetween(1, 3),
+          col: rng.chance(0.5) ? 0 : 4,
+        };
+      } else {
+        // 両方外す（完全ボール球）
+        target = {
+          row: rng.chance(0.5) ? 0 : 4,
+          col: rng.chance(0.5) ? 0 : 4,
+        };
+      }
     }
   }
 

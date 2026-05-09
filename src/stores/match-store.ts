@@ -853,6 +853,24 @@ export const useMatchStore = create<MatchStore>()(
               advanceBases: pitchResult.batteryError.advanceBases,
             }
           : null,
+        // v0.48 Phase 3: キャッチャーミット表示データ
+        catcherMitt: pitchResult.catcherRequest != null
+          ? {
+              requestPosition: pitchLocationToUV(
+                pitchResult.catcherRequest.row,
+                pitchResult.catcherRequest.col,
+              ),
+              catchPosition: pitchLocationToUV(
+                pitchResult.actualLocation.row,
+                pitchResult.actualLocation.col,
+                pitchResult.actualLocation.rowExact,
+                pitchResult.actualLocation.colExact,
+              ),
+              wasShakeOff: pitchResult.wasShakeOff ?? false,
+              managerOrderApplied: pitchResult.managerOrderApplied ?? false,
+              requestQuality: pitchResult.catcherRequestQuality ?? 0.5,
+            }
+          : null,
       };
       const newLog = [...pitchLog, logEntry].slice(-50);
 
@@ -990,6 +1008,31 @@ export const useMatchStore = create<MatchStore>()(
                 type: p.batContact.fieldResult.type,
                 isError: p.batContact.fieldResult.isError,
               },
+            }
+          : null,
+        // v0.48 Phase 1: WP/PB 情報
+        batteryError: p.batteryError?.occurred && p.batteryError.type
+          ? {
+              type: p.batteryError.type,
+              advanceBases: p.batteryError.advanceBases,
+            }
+          : null,
+        // v0.48 Phase 3: キャッチャーミット表示データ
+        catcherMitt: p.catcherRequest != null
+          ? {
+              requestPosition: pitchLocationToUV(
+                p.catcherRequest.row,
+                p.catcherRequest.col,
+              ),
+              catchPosition: pitchLocationToUV(
+                p.actualLocation.row,
+                p.actualLocation.col,
+                p.actualLocation.rowExact,
+                p.actualLocation.colExact,
+              ),
+              wasShakeOff: p.wasShakeOff ?? false,
+              managerOrderApplied: p.managerOrderApplied ?? false,
+              requestQuality: p.catcherRequestQuality ?? 0.5,
             }
           : null,
       }));
