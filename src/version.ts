@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.47.0';
+export const VERSION = '0.48.0';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-05-08 12:52 UTC';
-export const GIT_SHA = '2c34c60-dirty';
+export const BUILD_DATE = '2026-05-09 20:08 UTC';
+export const GIT_SHA = '611f06f';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,34 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.48.0',
+    date: '2026-05-09',
+    changes: [
+      '⚾ v0.48.0: ワイルドピッチ・パスボール（バッテリーエラー）を追加',
+      '',
+      '【何が変わったか】',
+      '- ピッチング結果に WP/PB（ワイルドピッチ・パスボール）が出現するように',
+      '- 走者がいる場面で稀に発生 → 全走者が 1 つ進塁',
+      '- 統計的には 100 試合あたり WP/試合 0.3〜1.5 の範囲を実測（NPB 実データ準拠）',
+      '',
+      '【設計書】',
+      '- docs/SPEC_v0.48_BATTERY_AND_FIELDING.md（Section 1-8）',
+      '- 設計フェーズは Phase 1 ワイルドピッチ・パスボール、Phase 2 外野守備改善、',
+      '  Phase 3 キャッチャー要求位置・首振り・ミット UI、Phase 4 物理守備モデル',
+      '- 本リリース v0.48.0 は Phase 1 のみ。Phase 2-4 は順次対応',
+      '',
+      '【実装】',
+      '- src/engine/match/battery-error.ts 新規（judgeBatteryError）',
+      '- src/engine/match/process-pitch.ts に WP/PB 判定統合',
+      '- PitchResult に batteryError、PitchLogEntry に WP/PB フラグ追加',
+      '- ユニットテスト + 統計テスト（100 試合）追加',
+      '',
+      '【ノート】',
+      '- 5 年シミュレーションの timeout を 300s → 1800s に緩和',
+      '  （WP/PB 判定追加で処理時間が増加したため）',
+    ],
+  },
   {
     version: '0.47.0',
     date: '2026-05-08',
