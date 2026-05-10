@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.48.0';
+export const VERSION = '0.49.0';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-05-09 20:08 UTC';
-export const GIT_SHA = '611f06f';
+export const BUILD_DATE = '2026-05-10 04:32 UTC';
+export const GIT_SHA = 'ece5b9f';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,33 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.49.0',
+    date: '2026-05-10',
+    changes: [
+      '🎉 v0.49.0: Step 1.6 物理基盤再構築 完了 (Phase R1-R8)',
+      '',
+      '【何が変わったか】',
+      '- 高校野球シミュレーション物理基盤を全面再設計・再実装',
+      '- 70 → 1629 テストケースへ拡張（140 test files, 全パス）',
+      '- ボール運動 / バット・ボール衝突 / 走塁・守備 / 試合進行 の 8 レイヤー完成',
+      '',
+      '【設計書】',
+      '- docs/SPEC_v0.49_STEP_1_6_COMPLETE.md に 9 セクション統合',
+      '- Phase R1: 物理基盤（70 tests）',
+      '- Phase R2: Bat-Ball Physics + ACP 精密化（103 tests）',
+      '- Phase R3: Play Resolver（197 tests）',
+      '- Phase R4-R8: Engine 統合・Play Sequence・Timeline・Ecosystem',
+      '',
+      '【実装】',
+      '- src/engine/ フルリファクタ（6 レイヤー新規型定義）',
+      '- src/physics/ Verlet 積分改修 / 衝突判定最適化',
+      '- src/match/ Play Resolver / Timeline インジェクション',
+      '',
+      '【下一段 Phase】',
+      '- v0.50 以降: Step 2 AI 選手（Codex）・打球分布調整・細部 UI',
+    ],
+  },
   {
     version: '0.48.0',
     date: '2026-05-09',
