@@ -869,6 +869,11 @@ export const useMatchStore = create<MatchStore>()(
               wasShakeOff: pitchResult.wasShakeOff ?? false,
               managerOrderApplied: pitchResult.managerOrderApplied ?? false,
               requestQuality: pitchResult.catcherRequestQuality ?? 0.5,
+              // v0.49.1: WP/PB フラグ
+              isWildPitch: pitchResult.batteryError?.occurred === true && (
+                pitchResult.batteryError.type === 'wild_pitch' ||
+                pitchResult.batteryError.type === 'passed_ball'
+              ),
             }
           : null,
       };
@@ -1033,6 +1038,11 @@ export const useMatchStore = create<MatchStore>()(
               wasShakeOff: p.wasShakeOff ?? false,
               managerOrderApplied: p.managerOrderApplied ?? false,
               requestQuality: p.catcherRequestQuality ?? 0.5,
+              // v0.49.1: WP/PB フラグ
+              isWildPitch: p.batteryError?.occurred === true && (
+                p.batteryError.type === 'wild_pitch' ||
+                p.batteryError.type === 'passed_ball'
+              ),
             }
           : null,
       }));

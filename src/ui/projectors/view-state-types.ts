@@ -752,6 +752,11 @@ export interface CatcherMittData {
    * 視覚的な演出（ミットの色/大きさ）に使用
    */
   requestQuality: number;
+  /**
+   * v0.49.1: ワイルドピッチ・パスボール発生フラグ
+   * true の場合、ミットが着弾位置に追いつけない演出を行う
+   */
+  isWildPitch?: boolean;
 }
 
 /** モノローグエントリ (Phase 7-B) */

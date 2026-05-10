@@ -5,6 +5,11 @@
  * v0.48 Phase 3: ストライクゾーン上に表示するミット。
  * キャッチャーの要求位置に構え、投球着弾時に捕球位置へ移動するアニメーションを行う。
  *
+ * v0.49.1 変更:
+ * - ミットサイズを 1.5 倍に拡大
+ * - 通常球: ミットが着弾位置に追従（捕球した感じ）
+ * - WP/PB: ミットが要求位置に留まり着弾に追いつかない（取れなかった感じ）
+ *
  * 設計書: SPEC_v0.48_BATTERY_AND_FIELDING.md Section 4.2-4.3
  */
 
@@ -38,13 +43,13 @@ interface CatcherMittProps {
 // 定数
 // ============================================================
 
-/** ミット外形サイズ */
-const MITT_RX = 18;
-const MITT_RY = 14;
+/** ミット外形サイズ（v0.49.1: 1.5倍に拡大） */
+const MITT_RX = 27;   // 18 * 1.5
+const MITT_RY = 21;   // 14 * 1.5
 
-/** ミットポケット（内側小楕円）サイズ */
-const POCKET_RX = 8;
-const POCKET_RY = 6;
+/** ミットポケット（内側小楕円）サイズ（v0.49.1: 1.5倍に拡大） */
+const POCKET_RX = 12;  // 8 * 1.5
+const POCKET_RY = 9;   // 6 * 1.5
 
 /** ストローク幅 */
 const STROKE_WIDTH = 1.5;
@@ -88,13 +93,19 @@ function mittColor(quality: number, wasShakeOff: boolean): string {
 // ============================================================
 
 /**
- * ワイヤーフレームキャッチャーミット
+ * ワイヤーフレームキャッチャーミット（v0.49.1: 1.5x拡大 + 着弾追従 / WP/PB ズレ演出）
  *
  * アニメーション仕様（pitchProgress 0-1）:
- * Phase A（0-0.4）: requestPosition に静止表示（薄く）
- * Phase B（0.4-0.8）: requestPosition → catchPosition にゆっくり移動
+ *
+ * 【通常球（isWildPitch=false または未設定）】
+ * Phase A（0-0.4）: requestPosition に静止（薄く）
+ * Phase B（0.4-0.8）: requestPosition → catchPosition にゆっくり移動（捕球の動き）
  * Phase C（0.8-1.0）: catchPosition で捕球エフェクト（パルス）
- * Phase D（1.0 以降）: pitchProgress=0 のとき次の球の requestPosition に静止
+ *
+ * 【ワイルドピッチ・パスボール（isWildPitch=true）】
+ * Phase A（0-0.4）: requestPosition に静止（薄く）
+ * Phase B（0.4-0.75）: requestPosition → 中間点（40%移動）に慌てて動くが追いつかない
+ * Phase C（0.75-1.0）: 中間点で静止（取れなかった）
  */
 export function CatcherMitt({
   data,
@@ -112,50 +123,86 @@ export function CatcherMitt({
   const reqPos = toSvg(data.requestPosition);
   const catchPos = toSvg(data.catchPosition);
 
+  const isWildPitch = data.isWildPitch === true;
+
   // 現在のミット座標を計算（pitchProgress に応じて移動）
   let mittX: number;
   let mittY: number;
   let opacity: number;
   let isPulse = false;
 
-  if (pitchProgress <= 0) {
-    // 投球前: requestPosition に静止（薄く）
-    mittX = reqPos.x;
-    mittY = reqPos.y;
-    opacity = 0.45;
-  } else if (pitchProgress < 0.4) {
-    // Phase A: requestPosition に静止（やや明るく）
-    mittX = reqPos.x;
-    mittY = reqPos.y;
-    opacity = 0.55 + pitchProgress * 0.375;  // 0.55 → 0.7
-  } else if (pitchProgress < 0.8) {
-    // Phase B: requestPosition → catchPosition に移動
-    const t = (pitchProgress - 0.4) / 0.4;  // 0-1
-    const eased = t * t * (3 - 2 * t);  // smoothstep
-    mittX = reqPos.x + (catchPos.x - reqPos.x) * eased;
-    mittY = reqPos.y + (catchPos.y - reqPos.y) * eased;
-    opacity = 0.7;
+  if (isWildPitch) {
+    // ===== WP/PB パス: ミットが追いつかない演出 =====
+    // 最大で requestPos → catchPos の 40% までしか動かない
+    const maxReach = 0.40;
+
+    if (pitchProgress <= 0) {
+      // 投球前: requestPosition に静止（薄く）
+      mittX = reqPos.x;
+      mittY = reqPos.y;
+      opacity = 0.45;
+    } else if (pitchProgress < 0.4) {
+      // Phase A: requestPosition に静止
+      mittX = reqPos.x;
+      mittY = reqPos.y;
+      opacity = 0.55 + pitchProgress * 0.375;
+    } else if (pitchProgress < 0.75) {
+      // Phase B: 慌てて伸ばすが届かない（40%地点まで）
+      const t = (pitchProgress - 0.4) / 0.35;  // 0-1
+      // 急加速してから止まる（easeOut: 始め速く、後半遅く）
+      const eased = 1 - Math.pow(1 - t, 2);
+      const reach = eased * maxReach;
+      mittX = reqPos.x + (catchPos.x - reqPos.x) * reach;
+      mittY = reqPos.y + (catchPos.y - reqPos.y) * reach;
+      opacity = 0.7;
+    } else {
+      // Phase C: 届かなかった場所で静止（取れなかった）
+      mittX = reqPos.x + (catchPos.x - reqPos.x) * maxReach;
+      mittY = reqPos.y + (catchPos.y - reqPos.y) * maxReach;
+      const fadeT = (pitchProgress - 0.75) / 0.25;
+      opacity = 0.65 - fadeT * 0.25;  // 徐々に薄くなる
+    }
   } else {
-    // Phase C: catchPosition でパルスエフェクト
-    mittX = catchPos.x;
-    mittY = catchPos.y;
-    const pulseT = (pitchProgress - 0.8) / 0.2;  // 0-1
-    opacity = 0.9 - pulseT * 0.3;  // フェードアウト
-    isPulse = true;
+    // ===== 通常パス: 着弾追従 =====
+    if (pitchProgress <= 0) {
+      // 投球前: requestPosition に静止（薄く）
+      mittX = reqPos.x;
+      mittY = reqPos.y;
+      opacity = 0.45;
+    } else if (pitchProgress < 0.4) {
+      // Phase A: requestPosition に静止（やや明るく）
+      mittX = reqPos.x;
+      mittY = reqPos.y;
+      opacity = 0.55 + pitchProgress * 0.375;  // 0.55 → 0.7
+    } else if (pitchProgress < 0.8) {
+      // Phase B: requestPosition → catchPosition に移動（捕球）
+      const t = (pitchProgress - 0.4) / 0.4;  // 0-1
+      const eased = t * t * (3 - 2 * t);  // smoothstep
+      mittX = reqPos.x + (catchPos.x - reqPos.x) * eased;
+      mittY = reqPos.y + (catchPos.y - reqPos.y) * eased;
+      opacity = 0.7;
+    } else {
+      // Phase C: catchPosition でパルスエフェクト
+      mittX = catchPos.x;
+      mittY = catchPos.y;
+      const pulseT = (pitchProgress - 0.8) / 0.2;  // 0-1
+      opacity = 0.9 - pulseT * 0.3;  // フェードアウト
+      isPulse = true;
+    }
   }
 
   const color = mittColor(data.requestQuality, data.wasShakeOff);
   // 首振り時は点線スタイル
   const strokeDash = data.wasShakeOff ? '4 3' : undefined;
 
-  // パルス時の外側光彩サイズ
+  // パルス時の外側光彩サイズ（通常時のみ）
   const pulseScale = isPulse
     ? 1 + ((pitchProgress - 0.8) / 0.2) * 0.3
     : 1;
 
   return (
     <g opacity={opacity} aria-label="キャッチャーミット">
-      {/* パルスエフェクト（着弾時） */}
+      {/* パルスエフェクト（着弾時・通常球のみ） */}
       {isPulse && (
         <ellipse
           cx={mittX}
@@ -169,7 +216,7 @@ export function CatcherMitt({
         />
       )}
 
-      {/* ミット外形（半楕円） */}
+      {/* ミット外形（楕円） */}
       <ellipse
         cx={mittX}
         cy={mittY}
@@ -198,7 +245,7 @@ export function CatcherMitt({
         x1={mittX - MITT_RX * 0.4}
         y1={mittY + MITT_RY}
         x2={mittX - MITT_RX * 0.4}
-        y2={mittY + MITT_RY + 5}
+        y2={mittY + MITT_RY + 7}
         stroke={color}
         strokeWidth={STROKE_WIDTH * 0.6}
       />
@@ -206,7 +253,7 @@ export function CatcherMitt({
         x1={mittX + MITT_RX * 0.4}
         y1={mittY + MITT_RY}
         x2={mittX + MITT_RX * 0.4}
-        y2={mittY + MITT_RY + 5}
+        y2={mittY + MITT_RY + 7}
         stroke={color}
         strokeWidth={STROKE_WIDTH * 0.6}
       />
@@ -216,7 +263,7 @@ export function CatcherMitt({
         <text
           x={mittX + MITT_RX - 2}
           y={mittY - MITT_RY + 2}
-          fontSize={8}
+          fontSize={9}
           textAnchor="middle"
           fill="rgba(255, 230, 50, 0.9)"
           aria-label="監督指示反映"

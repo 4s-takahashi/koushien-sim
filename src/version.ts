@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.49.0';
+export const VERSION = '0.49.1';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-05-10 04:32 UTC';
-export const GIT_SHA = 'ece5b9f';
+export const BUILD_DATE = '2026-05-10 19:16 UTC';
+export const GIT_SHA = 'b2ed123-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,19 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.49.1',
+    date: '2026-05-10',
+    changes: [
+      '🥊 v0.49.1: キャッチャーミット UI 改良',
+      '',
+      '【変更内容】',
+      '- ミットサイズを 1.5 倍に拡大（MITT_RX 18→27, MITT_RY 14→21）',
+      '- 通常球: ミットが着弾位置に追従する捕球アニメーション実装',
+      '- WP/PB: ミットが要求位置から届かない演出（maxReach=40%）',
+      '- CatcherMittData に isWildPitch フラグ追加',
+    ],
+  },
   {
     version: '0.49.0',
     date: '2026-05-10',
