@@ -1793,9 +1793,9 @@ function MatchPageInner({
     if (lastProcessedPitchRef.current === latest) return;
     lastProcessedPitchRef.current = latest;
 
-    // 打者交代検出
+    // 打者交代検出: 1秒遅延後に着弾履歴をクリア（急に消えるとカクつくため）
     if (prev && prev.batterId !== latest.batterId) {
-      clearForNextBatter();
+      setTimeout(() => clearForNextBatter(), 1000);
       resetBall();
     }
 

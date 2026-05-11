@@ -331,18 +331,34 @@ function getFielderByPosition(team: MatchTeam, position: Position): number | nul
 
 /**
  * 飛距離と打球種類からヒット種類を決定する
+ *
+ * v0.50.0: 三塁打閾値を現実的な値に修正
+ *
+ * fly_ball:
+ *   - 非HR距離帯 (76-95m) の打球が外野手を超えた場合 → ほぼ二塁打
+ *   - HOME_RUN_DISTANCE=95m 付近の打球は外野手の最大到達距離(～94.5m)を超えて
+ *     フェンス手前に落ちる打球。これは二塁打が自然。
+ *   - 三塁打はフライ性では現実にほぼ出ない（コーナーへの打球で起きるのは主にゴロ・ライナー）
+ *   - 115m 超は HR 判定前に除外されるため実質的に三塁打はゼロ
+ *
+ * line_drive:
+ *   - 距離 > 95m (コーナー方向への強烈なライナー) → 三塁打
+ *   - 距離 > 60m → 二塁打
+ *   - それ以下 → 単打
  */
 function getHitTypeByDistance(
   distance: number,
   contactType: string,
 ): FieldResultType {
   if (contactType === 'line_drive') {
-    if (distance > 90) return 'triple';
+    if (distance > 95) return 'triple';
     if (distance > 60) return 'double';
     return 'single';
   }
   if (contactType === 'fly_ball') {
-    if (distance > 90) return 'triple';
+    // fly_ball の三塁打は HOME_RUN_DISTANCE(95m) を超えるため実質 HR に吸収される。
+    // 外野を抜けた fly_ball はほぼ二塁打（コーナーへの打球でも野手が追えば二塁止まり）
+    if (distance > 115) return 'triple';
     return 'double';
   }
   return 'single';

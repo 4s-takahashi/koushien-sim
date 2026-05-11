@@ -98,12 +98,14 @@ function mittColor(quality: number, wasShakeOff: boolean): string {
  * アニメーション仕様（pitchProgress 0-1）:
  *
  * 【通常球（isWildPitch=false または未設定）】
- * Phase A（0-0.4）: requestPosition に静止（薄く）
+ * Phase Pre（<= 0）: requestPosition に静止（構え、明確に表示）
+ * Phase A（0-0.4）: requestPosition に静止（やや明るく）
  * Phase B（0.4-0.8）: requestPosition → catchPosition にゆっくり移動（捕球の動き）
  * Phase C（0.8-1.0）: catchPosition で捕球エフェクト（パルス）
  *
  * 【ワイルドピッチ・パスボール（isWildPitch=true）】
- * Phase A（0-0.4）: requestPosition に静止（薄く）
+ * Phase Pre（<= 0）: requestPosition に静止（構え、明確に表示）
+ * Phase A（0-0.4）: requestPosition に静止
  * Phase B（0.4-0.75）: requestPosition → 中間点（40%移動）に慌てて動くが追いつかない
  * Phase C（0.75-1.0）: 中間点で静止（取れなかった）
  */
@@ -137,10 +139,11 @@ export function CatcherMitt({
     const maxReach = 0.40;
 
     if (pitchProgress <= 0) {
-      // 投球前: requestPosition に静止（薄く）
+      // 投球前（秒カウント中）: requestPosition に構えとして明確に表示
+      // v0.50.0: opacity を 0.45 → 0.75 に引き上げてキャッチャーの構えを可視化
       mittX = reqPos.x;
       mittY = reqPos.y;
-      opacity = 0.45;
+      opacity = 0.75;
     } else if (pitchProgress < 0.4) {
       // Phase A: requestPosition に静止
       mittX = reqPos.x;
@@ -165,10 +168,11 @@ export function CatcherMitt({
   } else {
     // ===== 通常パス: 着弾追従 =====
     if (pitchProgress <= 0) {
-      // 投球前: requestPosition に静止（薄く）
+      // 投球前（秒カウント中）: requestPosition に構えとして明確に表示
+      // v0.50.0: opacity を 0.45 → 0.75 に引き上げてキャッチャーの構えを可視化
       mittX = reqPos.x;
       mittY = reqPos.y;
-      opacity = 0.45;
+      opacity = 0.75;
     } else if (pitchProgress < 0.4) {
       // Phase A: requestPosition に静止（やや明るく）
       mittX = reqPos.x;

@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.49.1';
+export const VERSION = '0.50.0';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-05-10 19:16 UTC';
-export const GIT_SHA = 'b2ed123-dirty';
+export const BUILD_DATE = '2026-05-11 00:09 UTC';
+export const GIT_SHA = 'fa5ae53-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,30 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.50.0',
+    date: '2026-05-11',
+    changes: [
+      '⚾ v0.50.0: 打球分布正常化 + UI 改善 3点',
+      '',
+      '【1. バッター交代時の着弾履歴クリア (1秒遅延)】',
+      '- バッターが変わった時点で 1秒後にストライクゾーンの着弾マーカーをクリア',
+      '- 急に消えるカクつきを防ぐため 1秒の遅延を追加',
+      '',
+      '【2. 投球前のキャッチャーミット構え表示】',
+      '- 投球前（秒カウント中）にキャッチャーミットを要求位置に明確に表示',
+      '- opacity を 0.45 → 0.75 に引き上げ「キャッチャーの構え」を可視化',
+      '- 「どこに投げてほしいか」がピッチャー目線・観客目線で分かるように',
+      '',
+      '【3. 打球シミュレーション修正 (三塁打異常・インプレー不足)】',
+      '- 三塁打閾値バグ修正: fly_ball の triple 閾値 90m → 115m',
+      '  → 90〜95m のフライは全て triple だったのが double になり自然な分布に',
+      '- timingError を 0固定から RNG ベースのガウス分布に変更',
+      '  → barrelRate の偏りが解消され打球分布が自然に広がる',
+      '- vitest 分布テスト追加 (bat-ball-distribution.test.ts)',
+      '  → 200打席で hits≥30, ground_ball/fly_ball/line_drive が全て出る, triple≤3% を検証',
+    ],
+  },
   {
     version: '0.49.1',
     date: '2026-05-10',

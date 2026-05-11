@@ -180,8 +180,9 @@ function calcStaminaCost(
 /**
  * 打席状況から BatBallContext を構築する（R4 Resolver 呼び出し用）
  *
- * timingError は 0（R4 では swing-result.ts でのタイミング判定を通ったあとの in_play に対して呼ぶため、
- * タイミングはすでに swing 成立として扱う）。
+ * v0.50.0: RNG を受け取り timingError を確率的に生成するよう変更。
+ * タイミングは swing 成立後であるため大幅な誤差は生じないが、
+ * 微小な芯ズレ（±10〜30ms 相当）を表現することで打球分布に自然な揺らぎを与える。
  */
 function buildBatBallContext(
   pitcher: PitcherParams,
@@ -192,6 +193,7 @@ function buildBatBallContext(
   pitcherMP: MatchPlayer,
   batterMP: MatchPlayer,
   order: TacticalOrder,
+  rng: import('../../core/rng').RNG,
 ): BatBallContext {
   // 直前の投球球速を取得（打席内履歴の最後から1つ前）
   const history = state.currentAtBatPitches ?? [];
@@ -262,16 +264,16 @@ function buildBatBallContext(
     pitchActualLocation: actualLocation,
     batter,
     batterSwingType,
-    // R8-3: timingError にリアルな分散を追加（常に 0 だと barrelRate が偏る）
-    // 球速・制球から打者のタイミング誤差を推定（-50〜+50ms 程度）
-    // 速球・変化球ほどタイミングが難しい
+    // v0.50.0: RNG を使い timingError を確率的に生成（以前は常に 0 で barrelRate が高すぎた）
+    // swing 成立後であるため大幅なずれはないが、接触品質の自然なばらつきを表現する。
+    // 球速・変化球キレが高いほど誤差が広がり（最大 ±30ms）、eye が高いほど誤差が縮小。
     timingError: (() => {
-      const velocityPenalty = Math.max(0, (selection.velocity - 120) * 0.3);
-      const breakPenalty = pitchBreakLevel * 3;
-      const eyeFactor = 1 - batter.eye / 150; // eye が高いほど誤差小
-      const maxError = (15 + velocityPenalty + breakPenalty) * eyeFactor;
-      // ±maxError の範囲で正規分布的にばらつく（RNG は別途 state から取れないためここでは近似）
-      return 0; // process-pitch.ts の RNG を渡せないため 0 を維持、以下の ballOnBat で代替
+      const velocityPenalty = Math.max(0, (selection.velocity - 120) * 0.25);
+      const breakPenalty = pitchBreakLevel * 2.5;
+      const eyeFactor = 1 - batter.eye / 150; // eye が高いほど誤差小（eye=100 で 0.33x）
+      const maxError = (10 + velocityPenalty + breakPenalty) * eyeFactor;
+      // ±maxError の範囲でガウス分布的にばらつく（swing 成立後なので中心は 0 付近）
+      return rng.derive('timing-error').gaussian(0, maxError * 0.5);
     })(),
     // R8-3: ballOnBat にリアルな芯ズレを追加
     // contact=100 → 芯に近い(0.7-0.9)、contact=30 → 大幅ずれ(0.2-0.5)
@@ -804,6 +806,7 @@ export function processPitch(
         pitcherMP,
         batterMP,
         order,
+        rng,
       );
       const { trajectory: rawTrajectory } = resolveBatBall(batBallCtx, rng.derive('bat-ball'));
 
