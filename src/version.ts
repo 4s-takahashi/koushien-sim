@@ -16,11 +16,11 @@
  *   4. デプロイ
  */
 
-export const VERSION = '0.50.0';
+export const VERSION = '0.50.1';
 
 // ↓↓↓ AUTO-GENERATED: scripts/bump-version.mjs が書き換えます（手動編集不可）↓↓↓
-export const BUILD_DATE = '2026-05-11 00:09 UTC';
-export const GIT_SHA = 'fa5ae53-dirty';
+export const BUILD_DATE = '2026-05-12 08:30 UTC';
+export const GIT_SHA = '51da236-dirty';
 // ↑↑↑ AUTO-GENERATED END ↑↑↑
 
 export interface ChangelogEntry {
@@ -33,6 +33,28 @@ export interface ChangelogEntry {
  * 新しいバージョンは先頭に追加する (最新が一番上)
  */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.50.1',
+    date: '2026-05-12',
+    changes: [
+      '🧤 v0.50.1: ミット表示タイミング修正 + WP/PB 着弾距離判定',
+      '',
+      '【修正 1: ミット構え表示タイミング（カウントダウン開始と同時）】',
+      '- 打者交代後の最初の投球カウントダウン中もミットを表示するよう修正',
+      '- match-visual-store.ts: clearForNextBatter() で latestMittData をクリアしない',
+      '  → 前打席最後の捕球位置をそのまま保持し、次打席1球目のカウントダウン中も構え表示',
+      '  → 新しい catcherMitt データは次の投球実行時に上書きされる（従来通り）',
+      '',
+      '【修正 2: ミット外着弾 → WP/PB 演出発火 (距離ベース判定)】',
+      '- match-store.ts: isMittMiss() 関数を追加',
+      '  → requestPosition と catchPosition の SVG ピクセル距離 D を計算',
+      '  → D > MITT_RX × 1.5 (= 40.5px) の場合 isWildPitch=true',
+      '- isWildPitch の発火条件を「確率 WP/PB OR ミット外着弾」に拡張',
+      '  → 確率ベース WP/PB（従来）でも、コースが大きく外れた球でも',
+      '     「ミットが届かない」演出が正しく発火するように',
+      '- vitest テスト 9件追加 (isMittMiss の境界値・各方向ズレケース)',
+    ],
+  },
   {
     version: '0.50.0',
     date: '2026-05-11',

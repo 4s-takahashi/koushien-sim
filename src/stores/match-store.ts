@@ -416,6 +416,64 @@ function pitchLocationToUV(
   };
 }
 
+// ============================================================
+// v0.50.1: ミット外着弾判定 (Fix2 — 着弾位置 vs ミット中心の距離ベース)
+// ============================================================
+
+/**
+ * SVG描画エリアの定数 (CatcherMitt.tsx / StrikeZone.tsx と同値)
+ * UV座標 → SVGピクセル座標変換に使用する
+ */
+const MITT_DRAW_LEFT   = 20;
+const MITT_DRAW_RIGHT  = 280;
+const MITT_DRAW_TOP    = 10;
+const MITT_DRAW_BOTTOM = 250;
+
+/**
+ * ミット外形サイズ（v0.49.1: 1.5倍に拡大） — CatcherMitt.tsx の定数と同値
+ * MITT_RX=27 (=18*1.5), MITT_RY=21 (=14*1.5)
+ */
+const MITT_RX = 27;
+const MITT_RY = 21;
+
+/**
+ * UV座標 → SVGピクセル座標変換
+ */
+function uvToSvgForMitt(uv: { x: number; y: number }): { x: number; y: number } {
+  return {
+    x: MITT_DRAW_LEFT + uv.x * (MITT_DRAW_RIGHT - MITT_DRAW_LEFT),
+    y: MITT_DRAW_TOP  + uv.y * (MITT_DRAW_BOTTOM - MITT_DRAW_TOP),
+  };
+}
+
+/**
+ * v0.50.1 Fix2: 着弾位置がミット中心から一定距離以上ズレているかを判定する。
+ *
+ * SVGピクセル空間でのユークリッド距離 D を計算し、
+ * D > MITT_RX * 1.5 (= 40.5px) の場合に「ミット外着弾」と判定して true を返す。
+ *
+ * この判定を isWildPitch フラグに組み込むことで、
+ * 確率ベースの WP/PB が発生しない場合でも「実際にミット外に落ちた球」に対して
+ * 「届かなかった演出」が発火するようになる。
+ *
+ * @param requestUV キャッチャーの要求位置 (UV 0-1)
+ * @param catchUV   実際の着弾位置 (UV 0-1)
+ * @returns true = ミット外着弾
+ */
+function isMittMiss(
+  requestUV: { x: number; y: number },
+  catchUV: { x: number; y: number },
+): boolean {
+  const req  = uvToSvgForMitt(requestUV);
+  const land = uvToSvgForMitt(catchUV);
+  const dx = land.x - req.x;
+  const dy = land.y - req.y;
+  const distSvg = Math.sqrt(dx * dx + dy * dy);
+  // ミット半径 (1.5x拡大後) × 1.5 をしきい値とする
+  const threshold = MITT_RX * 1.5;
+  return distSvg > threshold;
+}
+
 /**
  * Phase 12-B: バッターのアクションがスイングかどうかを判定
  */
@@ -855,26 +913,33 @@ export const useMatchStore = create<MatchStore>()(
           : null,
         // v0.48 Phase 3: キャッチャーミット表示データ
         catcherMitt: pitchResult.catcherRequest != null
-          ? {
-              requestPosition: pitchLocationToUV(
+          ? (() => {
+              const requestUV = pitchLocationToUV(
                 pitchResult.catcherRequest.row,
                 pitchResult.catcherRequest.col,
-              ),
-              catchPosition: pitchLocationToUV(
+              );
+              const catchUV = pitchLocationToUV(
                 pitchResult.actualLocation.row,
                 pitchResult.actualLocation.col,
                 pitchResult.actualLocation.rowExact,
                 pitchResult.actualLocation.colExact,
-              ),
-              wasShakeOff: pitchResult.wasShakeOff ?? false,
-              managerOrderApplied: pitchResult.managerOrderApplied ?? false,
-              requestQuality: pitchResult.catcherRequestQuality ?? 0.5,
-              // v0.49.1: WP/PB フラグ
-              isWildPitch: pitchResult.batteryError?.occurred === true && (
-                pitchResult.batteryError.type === 'wild_pitch' ||
-                pitchResult.batteryError.type === 'passed_ball'
-              ),
-            }
+              );
+              return {
+                requestPosition: requestUV,
+                catchPosition: catchUV,
+                wasShakeOff: pitchResult.wasShakeOff ?? false,
+                managerOrderApplied: pitchResult.managerOrderApplied ?? false,
+                requestQuality: pitchResult.catcherRequestQuality ?? 0.5,
+                // v0.49.1: WP/PB フラグ（確率ベース）
+                // v0.50.1 Fix2: ミット外着弾（距離ベース）でも発火
+                isWildPitch: (
+                  pitchResult.batteryError?.occurred === true && (
+                    pitchResult.batteryError.type === 'wild_pitch' ||
+                    pitchResult.batteryError.type === 'passed_ball'
+                  )
+                ) || isMittMiss(requestUV, catchUV),
+              };
+            })()
           : null,
       };
       const newLog = [...pitchLog, logEntry].slice(-50);
@@ -1024,26 +1089,33 @@ export const useMatchStore = create<MatchStore>()(
           : null,
         // v0.48 Phase 3: キャッチャーミット表示データ
         catcherMitt: p.catcherRequest != null
-          ? {
-              requestPosition: pitchLocationToUV(
+          ? (() => {
+              const requestUV = pitchLocationToUV(
                 p.catcherRequest.row,
                 p.catcherRequest.col,
-              ),
-              catchPosition: pitchLocationToUV(
+              );
+              const catchUV = pitchLocationToUV(
                 p.actualLocation.row,
                 p.actualLocation.col,
                 p.actualLocation.rowExact,
                 p.actualLocation.colExact,
-              ),
-              wasShakeOff: p.wasShakeOff ?? false,
-              managerOrderApplied: p.managerOrderApplied ?? false,
-              requestQuality: p.catcherRequestQuality ?? 0.5,
-              // v0.49.1: WP/PB フラグ
-              isWildPitch: p.batteryError?.occurred === true && (
-                p.batteryError.type === 'wild_pitch' ||
-                p.batteryError.type === 'passed_ball'
-              ),
-            }
+              );
+              return {
+                requestPosition: requestUV,
+                catchPosition: catchUV,
+                wasShakeOff: p.wasShakeOff ?? false,
+                managerOrderApplied: p.managerOrderApplied ?? false,
+                requestQuality: p.catcherRequestQuality ?? 0.5,
+                // v0.49.1: WP/PB フラグ（確率ベース）
+                // v0.50.1 Fix2: ミット外着弾（距離ベース）でも発火
+                isWildPitch: (
+                  p.batteryError?.occurred === true && (
+                    p.batteryError.type === 'wild_pitch' ||
+                    p.batteryError.type === 'passed_ball'
+                  )
+                ) || isMittMiss(requestUV, catchUV),
+              };
+            })()
           : null,
       }));
       const newLog = [...pitchLog, ...newEntries].slice(-50);

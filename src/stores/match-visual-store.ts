@@ -84,7 +84,10 @@ export const useMatchVisualStore = create<MatchVisualStore>()((set, get) => ({
       prevAtBatMarkers: currentAtBatMarkers,
       currentAtBatMarkers: [],
       swingMarker: null,
-      latestMittData: null,
+      // v0.50.1 Fix1: latestMittData はクリアしない。
+      // 打者交代後の最初の投球カウントダウン中もミット構えを表示し続けるため、
+      // 前打席最後の catcherMitt をそのまま残す。
+      // 新しい catcherMitt データは次の投球実行時に setLatestMittData で上書きされる。
     });
   },
 

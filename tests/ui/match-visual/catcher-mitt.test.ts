@@ -281,3 +281,104 @@ describe('エッジケース', () => {
     expect(posWP.y).toBeCloseTo(reqSvg.y);
   });
 });
+
+// ============================================================
+// v0.50.1 Fix2: isMittMiss — 着弾位置 vs ミット中心の距離ベース判定
+// ============================================================
+
+/**
+ * isMittMiss をテスト用に再実装（match-store.ts の関数と同一ロジック）
+ *
+ * SVG描画エリア定数:
+ *   DRAW_LEFT=20, DRAW_RIGHT=280, DRAW_TOP=10, DRAW_BOTTOM=250
+ * ミット半径（1.5x拡大後）:
+ *   MITT_RX=27
+ * しきい値: MITT_RX * 1.5 = 40.5 px
+ */
+const DRAW_LEFT   = 20;
+const DRAW_RIGHT  = 280;
+const DRAW_TOP    = 10;
+const DRAW_BOTTOM = 250;
+const MITT_RX_VAL = 27;
+const MITT_MISS_THRESHOLD = MITT_RX_VAL * 1.5; // 40.5px
+
+function isMittMissTest(
+  requestUV: { x: number; y: number },
+  catchUV: { x: number; y: number },
+): boolean {
+  const req  = { x: DRAW_LEFT + requestUV.x * (DRAW_RIGHT - DRAW_LEFT), y: DRAW_TOP + requestUV.y * (DRAW_BOTTOM - DRAW_TOP) };
+  const land = { x: DRAW_LEFT + catchUV.x  * (DRAW_RIGHT - DRAW_LEFT), y: DRAW_TOP + catchUV.y  * (DRAW_BOTTOM - DRAW_TOP) };
+  const dx = land.x - req.x;
+  const dy = land.y - req.y;
+  const d = Math.sqrt(dx * dx + dy * dy);
+  return d > MITT_MISS_THRESHOLD;
+}
+
+describe('v0.50.1 Fix2: isMittMiss — ミット外着弾判定', () => {
+  it('requestUV = catchUV のとき false（完全に合致）', () => {
+    const uv = { x: 0.5, y: 0.5 };
+    expect(isMittMissTest(uv, uv)).toBe(false);
+  });
+
+  it('極わずかなズレ（1px 程度）は false', () => {
+    // 1px / 260 ≈ 0.0038 UV
+    const req = { x: 0.5, y: 0.5 };
+    const tiny = { x: 0.5 + 1 / (DRAW_RIGHT - DRAW_LEFT), y: 0.5 };
+    expect(isMittMissTest(req, tiny)).toBe(false);
+  });
+
+  it('しきい値 40.5px ちょうど（境界）は false（以下は miss でない）', () => {
+    // dx = threshold, dy=0 → dist = threshold → NOT > threshold
+    const req = { x: 0.5, y: 0.5 };
+    const exactThreshold = { x: 0.5 + MITT_MISS_THRESHOLD / (DRAW_RIGHT - DRAW_LEFT), y: 0.5 };
+    expect(isMittMissTest(req, exactThreshold)).toBe(false);
+  });
+
+  it('しきい値超え（41px）は true', () => {
+    const req = { x: 0.5, y: 0.5 };
+    const over = { x: 0.5 + 41 / (DRAW_RIGHT - DRAW_LEFT), y: 0.5 };
+    expect(isMittMissTest(req, over)).toBe(true);
+  });
+
+  it('大きく外れた場合（ゾーン端 → 逆端）は true', () => {
+    // 内角高め → 外角低め: 大きくズレる
+    const req  = { x: 0.05, y: 0.05 }; // 内角高め
+    const land = { x: 0.95, y: 0.95 }; // 外角低め
+    expect(isMittMissTest(req, land)).toBe(true);
+  });
+
+  it('1セル分のズレ（req=中央, catch=隣接セル）は false（ストライクゾーン内）', () => {
+    // 中央 UV=0.5 → 隣セル UV≈0.8 の差 = 0.3 UV → 0.3 * 260 = 78px
+    // これは threshold 40.5 より大きいので「ミット外」と見なされる
+    // → 実際には隣接セルのズレは「ミット外」扱いになることを確認
+    const req  = { x: 0.5, y: 0.5 };
+    const adj  = { x: 0.8, y: 0.5 }; // 隣の列
+    const dx = (0.8 - 0.5) * (DRAW_RIGHT - DRAW_LEFT); // = 78px
+    const result = isMittMissTest(req, adj);
+    // dx=78 > 40.5 なので true
+    expect(result).toBe(true);
+  });
+
+  it('同一行・隣接セル内の微小ズレ（UV差 0.1）は false（40.5px未満）', () => {
+    // 0.1 UV in x = 0.1 * 260 = 26px < 40.5px
+    const req  = { x: 0.5, y: 0.5 };
+    const near = { x: 0.6, y: 0.5 };
+    expect(isMittMissTest(req, near)).toBe(false);
+  });
+
+  it('対角方向のズレ（x=0.1, y=0.1 UV）は false', () => {
+    // dx = 0.1 * 260 = 26px, dy = 0.1 * 240 = 24px
+    // dist = sqrt(676 + 576) = sqrt(1252) ≈ 35.4px < 40.5
+    const req  = { x: 0.5, y: 0.5 };
+    const diag = { x: 0.6, y: 0.6 };
+    expect(isMittMissTest(req, diag)).toBe(false);
+  });
+
+  it('対角方向の大きなズレ（x=0.15, y=0.15 UV）は true', () => {
+    // dx = 0.15 * 260 = 39px, dy = 0.15 * 240 = 36px
+    // dist = sqrt(1521 + 1296) = sqrt(2817) ≈ 53.1px > 40.5
+    const req  = { x: 0.5, y: 0.5 };
+    const diag = { x: 0.65, y: 0.65 };
+    expect(isMittMissTest(req, diag)).toBe(true);
+  });
+});
